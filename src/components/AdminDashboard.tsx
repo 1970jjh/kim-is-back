@@ -159,7 +159,7 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout }
 
   // 성과 분석 데이터
   const allPerformances = firebaseService.calculateAllTeamPerformances(room);
-  const completedTeams = Object.values(room.teams).filter(t => t.missionClearTime);
+  const completedTeams = room.teams ? Object.values(room.teams).filter(t => t.missionClearTime) : [];
 
   // 선택된 팀의 성과 분석
   const selectedPerformance = selectedPerformanceTeamId
