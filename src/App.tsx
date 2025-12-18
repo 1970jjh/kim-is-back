@@ -105,9 +105,9 @@ const App: React.FC = () => {
     }
 
     // Check reconnection logic: same team + same leader name
-    const existingTeam = currentRoom.teams[joinData.teamId];
+    const existingTeam = currentRoom.teams?.[joinData.teamId];
     if (existingTeam && existingTeam.isJoined) {
-        const existingLeader = existingTeam.members.find(m => m.role === '리더 (김부장)');
+        const existingLeader = existingTeam.members?.find(m => m.role === '리더 (김부장)');
         if (existingLeader?.name !== leaderName) {
             alert('해당 팀은 이미 다른 멤버가 선점하고 있습니다.');
             return;
