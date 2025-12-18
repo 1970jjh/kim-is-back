@@ -74,10 +74,10 @@ const R2_IMAGE_SETS = [
 
 const R2_STORY = "본사 복귀를 꿈꾼다면, 먼저 이 낯선 현장의 공기부터 완벽하게 파악해야 한다. 일상처럼 보이는 이 풍경 속에 숨겨진 진실을 찾아라!";
 
-// 월별 이름 (라운드와 매핑: R1=3월, R2=4월, ... R10=12월)
+// 월별 이름 (라운드와 매핑: R1=1월, R2=2월, ... R12=12월)
 const MONTHS = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
 const ROUND_TO_MONTH: Record<number, number> = {
-  1: 3, 2: 4, 3: 5, 4: 6, 5: 7, 6: 8, 7: 9, 8: 10, 9: 11, 10: 12
+  1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8, 9: 9, 10: 10, 11: 11, 12: 12
 };
 
 interface Props {
@@ -509,8 +509,6 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
                 const isCompleted = completedMonths.has(monthNum);
                 const roundForMonth = Object.entries(ROUND_TO_MONTH).find(([_, m]) => m === monthNum)?.[0];
                 const isCurrent = roundForMonth && team?.currentRound === parseInt(roundForMonth);
-                const isAccessible = monthNum >= 3 && monthNum <= 12; // 3월~12월만 미션 해당
-                const isPastMonth = monthNum <= 2; // 1월, 2월은 이미 지난 달
 
                 return (
                   <div
@@ -520,27 +518,18 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
                         ? 'bg-green-600/80'
                         : isCurrent
                         ? 'bg-yellow-400 text-black'
-                        : isAccessible
-                        ? 'bg-white/10'
-                        : 'bg-gray-800/50 opacity-50'
+                        : 'bg-white/10'
                     }`}
                   >
                     <p className={`font-black text-lg ${isCurrent ? 'text-black' : ''}`}>{monthName}</p>
-                    {isAccessible && (
-                      <p className={`text-xs ${isCurrent ? 'text-black/70' : 'text-gray-400'}`}>
-                        R{roundForMonth}
-                      </p>
-                    )}
+                    <p className={`text-xs ${isCurrent ? 'text-black/70' : 'text-gray-400'}`}>
+                      R{roundForMonth}
+                    </p>
                     {isCompleted && (
                       <div className="absolute inset-0 flex items-center justify-center">
                         <div className="bg-red-600 text-white px-2 py-1 rotate-[-15deg] font-black text-sm brutal-border shadow-lg">
                           CLEAR!
                         </div>
-                      </div>
-                    )}
-                    {isPastMonth && (
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="text-4xl font-black text-red-500/70">X</span>
                       </div>
                     )}
                   </div>
@@ -552,12 +541,12 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
             <div className="space-y-2">
               <div className="flex justify-between text-sm text-gray-400">
                 <span>진행 상황</span>
-                <span>{team?.maxCompletedRound || 0}/10 완료</span>
+                <span>{team?.maxCompletedRound || 0}/12 완료</span>
               </div>
               <div className="h-4 bg-black brutal-border overflow-hidden">
                 <div
                   className="h-full bg-yellow-400 transition-all duration-700"
-                  style={{ width: `${((team?.maxCompletedRound || 0) / 10) * 100}%` }}
+                  style={{ width: `${((team?.maxCompletedRound || 0) / 12) * 100}%` }}
                 />
               </div>
             </div>

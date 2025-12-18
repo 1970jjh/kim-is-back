@@ -74,7 +74,7 @@ export const EVENTS = [
   },
 ];
 
-export const ROUNDS = Array.from({ length: 10 }, (_, i) => ({
+export const ROUNDS = Array.from({ length: 12 }, (_, i) => ({
   id: i + 1,
   title: `ROUND ${i + 1}`,
   description: `과업 ${i + 1}: 본사 복귀를 위한 핵심 미션을 수행하십시오.`

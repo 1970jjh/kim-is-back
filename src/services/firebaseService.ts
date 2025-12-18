@@ -153,10 +153,10 @@ export const firebaseService = {
 
     const nextRound = team.currentRound + 1;
 
-    if (nextRound > 10) {
+    if (nextRound > 12) {
       // 미션 완료
       team.missionClearTime = now;
-      team.maxCompletedRound = 10;
+      team.maxCompletedRound = 12;
     } else {
       // 다음 라운드로 진행
       team.currentRound = nextRound;
@@ -183,7 +183,7 @@ export const firebaseService = {
     }
 
     // 라운드 이동
-    team.currentRound = Math.max(1, Math.min(10, round));
+    team.currentRound = Math.max(1, Math.min(12, round));
 
     // 새 라운드 시작 시간이 없으면 추가
     if (!team.roundTimes[team.currentRound]) {
@@ -246,7 +246,7 @@ export const firebaseService = {
 
     // 라운드별 소요시간 계산
     const roundTimes: Record<number, number> = {};
-    for (let r = 1; r <= 10; r++) {
+    for (let r = 1; r <= 12; r++) {
       const rt = team.roundTimes[r];
       if (rt && rt.startTime && rt.endTime) {
         roundTimes[r] = Math.floor((rt.endTime - rt.startTime) / 1000);
