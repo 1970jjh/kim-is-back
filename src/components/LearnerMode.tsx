@@ -25,10 +25,11 @@ const formatTimeWithHours = (seconds: number): string => {
 type ViewState = 'waiting' | 'intro' | 'factory' | 'mission' | 'result';
 
 const FACTORY_BG = 'https://i.imgur.com/G66myVZ.jpeg';
-const DIARY_IMAGE = 'https://i.imgur.com/p6AU8yF.png';
+const DIARY_IMAGE = 'https://i.imgur.com/vvbLGIm.jpeg';
 
 // R1 퀴즈 이미지 및 정답
 const R1_QUIZ_IMAGE = 'https://i.imgur.com/nswRxmd.jpeg';
+const R1_PADLET_LINK = 'https://padlet.com/ksajhjeon/padlet-idnyc8suzfsy502s';
 const R1_CORRECT_ANSWERS = [
   '010-4454-2252',
   '010-2319-4323',
@@ -517,13 +518,21 @@ const LearnerMode: React.FC<Props> = ({ room, auth }) => {
               ROUND 1: 3월 미션
             </h3>
 
-            {/* 퀴즈 이미지 */}
+            {/* 퀴즈 이미지 - 클릭 시 Padlet 새창 열기 */}
             <BrutalistCard className="p-0 overflow-hidden">
-              <img
-                src={R1_QUIZ_IMAGE}
-                alt="R1 퀴즈 이미지"
-                className="w-full object-contain"
-              />
+              <a
+                href={R1_PADLET_LINK}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block cursor-pointer"
+              >
+                <img
+                  src={R1_QUIZ_IMAGE}
+                  alt="R1 퀴즈 이미지 - 클릭하여 자료 보기"
+                  className="w-full object-contain hover:opacity-90 transition-opacity"
+                />
+                <p className="text-center text-xs text-yellow-400 py-2 bg-black/50">👆 이미지를 클릭하면 자료가 새창에서 열립니다</p>
+              </a>
             </BrutalistCard>
 
             {/* 정답 입력란 */}
