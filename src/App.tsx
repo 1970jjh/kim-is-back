@@ -28,12 +28,6 @@ const App: React.FC = () => {
     const unsubscribe = firebaseService.subscribe((newRooms) => {
       setRooms(newRooms);
       setLoading(false);
-
-      // 현재 선택된 방이 삭제되었거나 없으면 첫 번째 방 선택
-      if (currentRoomId && !newRooms[currentRoomId]) {
-        const roomIds = Object.keys(newRooms);
-        setCurrentRoomId(roomIds.length > 0 ? roomIds[0] : null);
-      }
     });
 
     // 세션 복구
@@ -49,10 +43,23 @@ const App: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  // 첫 로드 시 방이 있으면 첫 번째 방 선택
+  // 방 선택 로직: 현재 방이 없거나 삭제되었으면 첫 번째 방 선택
   useEffect(() => {
-    if (!loading && !currentRoomId && Object.keys(rooms).length > 0) {
-      setCurrentRoomId(Object.keys(rooms)[0]);
+    if (loading) return;
+
+    const roomIds = Object.keys(rooms);
+
+    // 방이 없으면 null
+    if (roomIds.length === 0) {
+      if (currentRoomId !== null) {
+        setCurrentRoomId(null);
+      }
+      return;
+    }
+
+    // 현재 선택된 방이 없거나 삭제되었으면 첫 번째 방 선택
+    if (!currentRoomId || !rooms[currentRoomId]) {
+      setCurrentRoomId(roomIds[0]);
     }
   }, [loading, rooms, currentRoomId]);
 
