@@ -83,9 +83,10 @@ const ROUND_TO_MONTH: Record<number, number> = {
 interface Props {
   room: RoomState;
   auth: { teamId: number; learnerName: string };
+  onGoToMain?: () => void;
 }
 
-const LearnerMode: React.FC<Props> = ({ room, auth }) => {
+const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
   const [team, setTeam] = useState<TeamState | undefined>(room.teams?.[auth.teamId]);
   const [viewState, setViewState] = useState<ViewState>('waiting');
   const [remainingTime, setRemainingTime] = useState<string>("");
@@ -341,7 +342,18 @@ const LearnerMode: React.FC<Props> = ({ room, auth }) => {
   if (viewState === 'intro') {
     return (
       <div className="max-w-4xl mx-auto p-4 space-y-8 animate-fadeIn">
-        <h1 className="text-5xl font-black text-center border-b-8 border-yellow-400 pb-4">MISSION INTRO</h1>
+        {/* 헤더 - 메인가기 버튼 포함 */}
+        <div className="flex justify-between items-center border-b-8 border-yellow-400 pb-4">
+          <h1 className="text-5xl font-black">MISSION INTRO</h1>
+          {onGoToMain && (
+            <button
+              onClick={onGoToMain}
+              className="bg-white text-black px-4 py-2 font-black brutal-border hover:bg-gray-200 transition-colors text-sm"
+            >
+              메인가기
+            </button>
+          )}
+        </div>
 
         <BrutalistCard className="aspect-video relative overflow-hidden bg-black flex items-center justify-center">
           <div className="text-center space-y-4">
@@ -498,6 +510,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth }) => {
                 const roundForMonth = Object.entries(ROUND_TO_MONTH).find(([_, m]) => m === monthNum)?.[0];
                 const isCurrent = roundForMonth && team?.currentRound === parseInt(roundForMonth);
                 const isAccessible = monthNum >= 3 && monthNum <= 12; // 3월~12월만 미션 해당
+                const isPastMonth = monthNum <= 2; // 1월, 2월은 이미 지난 달
 
                 return (
                   <div
@@ -523,6 +536,11 @@ const LearnerMode: React.FC<Props> = ({ room, auth }) => {
                         <div className="bg-red-600 text-white px-2 py-1 rotate-[-15deg] font-black text-sm brutal-border shadow-lg">
                           CLEAR!
                         </div>
+                      </div>
+                    )}
+                    {isPastMonth && (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-4xl font-black text-red-500/70">X</span>
                       </div>
                     )}
                   </div>

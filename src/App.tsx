@@ -313,6 +313,7 @@ const App: React.FC = () => {
             <LearnerMode
               room={currentRoom}
               auth={{ teamId: adminViewTeamId, learnerName: '관리자(미리보기)' }}
+              onGoToMain={() => setAdminViewTeamId(null)}
             />
           </div>
         </div>
@@ -441,6 +442,7 @@ const App: React.FC = () => {
         <LearnerMode
           room={learnerRoom}
           auth={{ teamId: auth.teamId!, learnerName: auth.learnerName! }}
+          onGoToMain={handleLogout}
         />
       </div>
     );
