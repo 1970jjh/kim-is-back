@@ -107,6 +107,9 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout }
   const saveInstruction = async () => {
     if (selectedTeamId === null) return;
     const updatedRoom = { ...room };
+    if (!updatedRoom.teams) {
+      updatedRoom.teams = {};
+    }
     if (!updatedRoom.teams[selectedTeamId]) {
       updatedRoom.teams[selectedTeamId] = {
         id: selectedTeamId,
@@ -132,7 +135,7 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout }
 
   const selectTeamForEdit = (id: number) => {
     setSelectedTeamId(id);
-    setInstructionText(room.teams[id]?.roundInstructions?.[editRound] || "");
+    setInstructionText(room.teams?.[id]?.roundInstructions?.[editRound] || "");
   };
 
   const handleCreateRoom = async () => {
@@ -153,7 +156,7 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout }
 
   useEffect(() => {
     if (selectedTeamId !== null) {
-      setInstructionText(room.teams[selectedTeamId]?.roundInstructions?.[editRound] || "");
+      setInstructionText(room.teams?.[selectedTeamId]?.roundInstructions?.[editRound] || "");
     }
   }, [editRound, selectedTeamId, room.teams]);
 
@@ -346,7 +349,7 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout }
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 overflow-y-auto max-h-[700px] pr-2 scrollbar-thin">
             {Array.from({ length: room.totalTeams }).map((_, idx) => {
               const teamId = idx + 1;
-              const team = room.teams[teamId];
+              const team = room.teams?.[teamId];
               const isMissionClear = team?.missionClearTime;
 
               return (
