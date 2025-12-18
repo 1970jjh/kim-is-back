@@ -23,6 +23,11 @@ const App: React.FC = () => {
     members: {}
   });
 
+  // 학습자 화면에서 관리자 로그인 팝업
+  const [showAdminLoginPopup, setShowAdminLoginPopup] = useState(false);
+  const [adminLoginPw, setAdminLoginPw] = useState('');
+  const [adminLoginError, setAdminLoginError] = useState('');
+
   useEffect(() => {
     // Firebase 실시간 구독
     const unsubscribe = firebaseService.subscribe((newRooms) => {
@@ -75,6 +80,18 @@ const App: React.FC = () => {
       saveAuth({ role: UserRole.ADMIN, authenticated: true });
     } else {
       alert('비밀번호가 올바르지 않습니다.');
+    }
+  };
+
+  // 학습자 화면에서 관리자 로그인 팝업 처리
+  const handleAdminLoginFromPopup = () => {
+    if (adminLoginPw === ADMIN_PASSWORD) {
+      setShowAdminLoginPopup(false);
+      setAdminLoginPw('');
+      setAdminLoginError('');
+      saveAuth({ role: UserRole.ADMIN, authenticated: true });
+    } else {
+      setAdminLoginError('비밀번호가 올바르지 않습니다.');
     }
   };
 
@@ -472,6 +489,67 @@ const App: React.FC = () => {
           auth={{ teamId: auth.teamId!, learnerName: auth.learnerName! }}
           onGoToMain={handleLogout}
         />
+
+        {/* 좌측 하단 대시보드 버튼 */}
+        <div className="fixed bottom-4 left-4 z-[60]">
+          <button
+            onClick={() => {
+              setShowAdminLoginPopup(true);
+              setAdminLoginPw('');
+              setAdminLoginError('');
+            }}
+            className="bg-gray-800/80 text-white text-xs px-3 py-2 brutal-border hover:bg-gray-700 transition-colors font-bold"
+          >
+            대시보드
+          </button>
+        </div>
+
+        {/* 관리자 로그인 팝업 */}
+        {showAdminLoginPopup && (
+          <div className="fixed inset-0 z-[70] bg-black/80 flex items-center justify-center p-4">
+            <BrutalistCard className="max-w-sm w-full space-y-4 bg-black border-yellow-400">
+              <h3 className="text-xl font-black text-yellow-400 text-center">관리자 로그인</h3>
+              <BrutalistInput
+                type="password"
+                placeholder="비밀번호 입력"
+                fullWidth
+                value={adminLoginPw}
+                onChange={(e) => {
+                  setAdminLoginPw(e.target.value);
+                  setAdminLoginError('');
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleAdminLoginFromPopup();
+                  }
+                }}
+              />
+              {adminLoginError && (
+                <p className="text-red-500 text-sm font-bold text-center">{adminLoginError}</p>
+              )}
+              <div className="flex gap-2">
+                <BrutalistButton
+                  variant="ghost"
+                  className="flex-1"
+                  onClick={() => {
+                    setShowAdminLoginPopup(false);
+                    setAdminLoginPw('');
+                    setAdminLoginError('');
+                  }}
+                >
+                  취소
+                </BrutalistButton>
+                <BrutalistButton
+                  variant="gold"
+                  className="flex-1"
+                  onClick={handleAdminLoginFromPopup}
+                >
+                  로그인
+                </BrutalistButton>
+              </div>
+            </BrutalistCard>
+          </div>
+        )}
       </div>
     );
   }
