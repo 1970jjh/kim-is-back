@@ -12,6 +12,9 @@ const App: React.FC = () => {
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Admin이 조별 공간을 볼 때 사용
+  const [adminViewTeamId, setAdminViewTeamId] = useState<number | null>(null);
+
   // Login States
   const [pwInput, setPwInput] = useState('');
   const [setupData, setSetupData] = useState({ groupName: '', totalTeams: 5, membersPerTeam: 6 });
@@ -279,6 +282,36 @@ const App: React.FC = () => {
       );
     }
 
+    // 관리자가 특정 조의 화면을 보고 있는 경우
+    if (adminViewTeamId !== null && currentRoom) {
+      return (
+        <div className="min-h-screen relative">
+          {/* 관리자용 상단 네비게이션 바 */}
+          <div className="fixed top-0 left-0 right-0 z-50 bg-black/95 border-b-4 border-yellow-400 p-3">
+            <div className="max-w-4xl mx-auto flex justify-between items-center">
+              <div className="flex items-center gap-4">
+                <span className="text-yellow-400 font-black text-sm uppercase">Admin Preview</span>
+                <span className="text-white font-bold">Team {adminViewTeamId} 화면</span>
+              </div>
+              <BrutalistButton
+                variant="gold"
+                className="text-sm py-2 px-4"
+                onClick={() => setAdminViewTeamId(null)}
+              >
+                ← 대시보드로 돌아가기
+              </BrutalistButton>
+            </div>
+          </div>
+          <div className="pt-16">
+            <LearnerMode
+              room={currentRoom}
+              auth={{ teamId: adminViewTeamId, learnerName: '관리자(미리보기)' }}
+            />
+          </div>
+        </div>
+      );
+    }
+
     // 방이 있으면 대시보드
     if (currentRoom) {
       return (
@@ -288,6 +321,7 @@ const App: React.FC = () => {
             rooms={rooms}
             onSelectRoom={handleSelectRoom}
             onLogout={handleLogout}
+            onViewTeam={setAdminViewTeamId}
           />
         </div>
       );

@@ -29,9 +29,10 @@ interface Props {
   rooms: Record<string, RoomState>;
   onSelectRoom: (roomId: string) => void;
   onLogout: () => void;
+  onViewTeam?: (teamId: number) => void;
 }
 
-const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout }) => {
+const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, onViewTeam }) => {
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
   const [editRound, setEditRound] = useState<number>(1);
   const [instructionText, setInstructionText] = useState("");
@@ -397,18 +398,24 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout }
                            >+</button>
                         </div>
                         <div className="flex gap-2">
+                          {onViewTeam && (
+                            <button
+                              className="text-[10px] font-bold underline text-yellow-400 hover:text-yellow-300"
+                              onClick={() => onViewTeam(teamId)}
+                            >VIEW PAGE</button>
+                          )}
                           {isMissionClear && (
                             <button
                               className="text-[10px] font-bold underline text-green-400 hover:text-green-300"
                               onClick={() => {
                                 setSelectedPerformanceTeamId(teamId);
                               }}
-                            >VIEW RESULT</button>
+                            >RESULT</button>
                           )}
                           <button
                             className="text-[10px] font-bold underline opacity-60 hover:opacity-100"
                             onClick={() => selectTeamForEdit(teamId)}
-                          >EDIT CONTENT</button>
+                          >EDIT</button>
                         </div>
                       </div>
                     </div>
