@@ -90,6 +90,22 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
 
   const toggleEvent = async (type: EventType) => {
     const targetTeams = eventTargetTeam === 'all' ? 'all' : [eventTargetTeam];
+
+    // 이벤트 활성화 시 특정 URL 새 창으로 열기
+    if (room.activeEvent !== type) {
+      // 이벤트가 비활성화 상태에서 활성화될 때만 URL 열기
+      const eventUrls: Partial<Record<EventType, string>> = {
+        [EventType.BIRTHDAY]: 'https://youtu.be/uoNK5xq2MhA?si=7jlzc9c7KnuMePlk',
+        [EventType.LUNCH]: 'https://www.youtube.com/watch?v=sc-GnC84LCU',
+        [EventType.HEALTH_CHECK]: 'https://i.namu.wiki/i/C5MYopgRw49Lzb-ncSwUiIsC0jFI3hKmh0M_qBNIPxs3J39lPfytx0FxwtkgNH__88TtIAWeDIqFZjLs93KNrA.webp',
+      };
+
+      const url = eventUrls[type];
+      if (url) {
+        window.open(url, '_blank');
+      }
+    }
+
     await firebaseService.toggleEvent(room.id, type, eventMinutes, targetTeams);
   };
 
