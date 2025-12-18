@@ -1,41 +1,113 @@
 import React, { useState, useEffect } from 'react';
 import { firebaseService } from '../services/firebaseService';
-import { RoomState, TeamState } from '../types';
+import { RoomState, TeamState, TeamPerformance } from '../types';
 import { BrutalistButton, BrutalistCard } from './BrutalistUI';
 import { ROUNDS } from '../constants';
 
+// 시간 포맷팅 유틸
+const formatTime = (seconds: number): string => {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+};
+
+const formatTimeWithHours = (seconds: number): string => {
+  const hours = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+  if (hours > 0) {
+    return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+};
+
 interface Props {
+  room: RoomState;
   auth: { teamId: number; learnerName: string };
 }
 
-const LearnerMode: React.FC<Props> = ({ auth }) => {
-  const [room, setRoom] = useState<RoomState | null>(null);
-  const [team, setTeam] = useState<TeamState | undefined>(undefined);
+const LearnerMode: React.FC<Props> = ({ room, auth }) => {
+  const [team, setTeam] = useState<TeamState | undefined>(room.teams[auth.teamId]);
   const [showIntro, setShowIntro] = useState(true);
+  const [remainingTime, setRemainingTime] = useState<string>("");
+  const [helpLoading, setHelpLoading] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = firebaseService.subscribe((updatedRoom) => {
-      setRoom(updatedRoom);
-      setTeam(updatedRoom.teams[auth.teamId]);
-    });
-    return () => unsubscribe();
-  }, [auth.teamId]);
+    setTeam(room.teams[auth.teamId]);
+  }, [room, auth.teamId]);
+
+  // 전체 미션 타이머
+  useEffect(() => {
+    if (!room.missionStarted || !room.missionStartTime) {
+      setRemainingTime("");
+      return;
+    }
+
+    const calculateRemaining = () => {
+      const now = Date.now();
+      const elapsed = Math.floor((now - room.missionStartTime!) / 1000);
+      // 헬프로 추가된 시간을 전체 타이머에 반영
+      const bonusTime = team?.totalBonusTime || 0;
+      const totalSeconds = (room.missionTimerMinutes * 60) + bonusTime;
+      const remaining = totalSeconds - elapsed;
+
+      if (remaining <= 0) {
+        setRemainingTime("00:00");
+      } else {
+        setRemainingTime(formatTimeWithHours(remaining));
+      }
+    };
+
+    calculateRemaining();
+    const timer = setInterval(calculateRemaining, 1000);
+
+    return () => clearInterval(timer);
+  }, [room.missionStarted, room.missionStartTime, room.missionTimerMinutes, team?.totalBonusTime]);
 
   const completeRound = async () => {
-    if (!team || !room) return;
-    const nextRound = team.currentRound + 1;
-    const newRoom = { ...room };
-    newRoom.teams[auth.teamId].currentRound = Math.min(10, nextRound);
-    await firebaseService.saveRoom(newRoom);
+    if (!team) return;
+    await firebaseService.advanceTeamRound(room.id, auth.teamId);
   };
 
-  if (!room) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-2xl font-bold animate-pulse">Loading...</div>
-      </div>
-    );
-  }
+  const goToPreviousRound = async () => {
+    if (!team || team.currentRound <= 1) return;
+    await firebaseService.setTeamRound(room.id, auth.teamId, team.currentRound - 1);
+  };
+
+  const goToNextRound = async () => {
+    if (!team) return;
+    // 이미 완수한 라운드까지만 빠르게 이동 가능
+    if (team.currentRound <= team.maxCompletedRound) {
+      await firebaseService.setTeamRound(room.id, auth.teamId, team.currentRound + 1);
+    }
+  };
+
+  const handleUseHelp = async () => {
+    if (!team || team.helpCount >= 3) return;
+
+    if (!window.confirm(`HELP를 사용하시겠습니까?\n\n• 남은 횟수: ${3 - team.helpCount}회\n• 사용 시 미션 시간 +3분 추가됩니다.`)) {
+      return;
+    }
+
+    setHelpLoading(true);
+    const success = await firebaseService.useHelp(room.id, auth.teamId);
+    setHelpLoading(false);
+
+    if (success) {
+      alert('HELP 사용 완료! 미션 시간이 3분 추가되었습니다.');
+    } else {
+      alert('HELP를 사용할 수 없습니다.');
+    }
+  };
+
+  // 미션 클리어 성과 분석
+  const performance: TeamPerformance | null = team?.missionClearTime
+    ? firebaseService.calculateTeamPerformance(room, auth.teamId)
+    : null;
+
+  // 전체 팀 성과 (순위 계산용)
+  const allPerformances = firebaseService.calculateAllTeamPerformances(room);
+  const myPerformanceWithRank = allPerformances.find(p => p.teamId === auth.teamId);
 
   if (!room.missionStarted) {
     return (
@@ -47,6 +119,75 @@ const LearnerMode: React.FC<Props> = ({ auth }) => {
             <p className="text-xl font-bold mb-4">강사님의 [미션 스타트] 신호를 기다리는 중입니다.</p>
             <p className="text-gray-400">준비가 완료되면 자동으로 미션이 시작됩니다.</p>
         </BrutalistCard>
+      </div>
+    );
+  }
+
+  // 미션 클리어!
+  if (team?.missionClearTime && myPerformanceWithRank) {
+    return (
+      <div className="max-w-4xl mx-auto p-4 space-y-8 animate-fadeIn">
+        <div className="text-center space-y-4">
+          <div className="bg-green-600 text-white p-8 brutal-border brutalist-shadow animate-pulse">
+            <h1 className="text-6xl font-black">MISSION CLEAR!</h1>
+            <p className="text-2xl mt-4">김부장님은 성공적으로 본사에 복귀하셨습니다!</p>
+          </div>
+        </div>
+
+        <BrutalistCard className="space-y-6">
+          <h2 className="text-3xl font-black gold-gradient text-center">팀 성과 분석</h2>
+
+          <div className="grid grid-cols-2 gap-4">
+            <BrutalistCard className="text-center bg-yellow-400/20">
+              <p className="text-sm text-gray-400 uppercase">전체 순위</p>
+              <p className="text-6xl font-black gold-gradient">#{myPerformanceWithRank.rank}</p>
+              <p className="text-sm text-gray-400">{allPerformances.length}팀 중</p>
+            </BrutalistCard>
+            <BrutalistCard className="text-center">
+              <p className="text-sm text-gray-400 uppercase">총 소요시간</p>
+              <p className="text-4xl font-mono font-black">{formatTimeWithHours(myPerformanceWithRank.totalTimeWithBonus)}</p>
+              <p className="text-sm text-gray-400">헬프 포함</p>
+            </BrutalistCard>
+            <BrutalistCard className="text-center">
+              <p className="text-sm text-gray-400 uppercase">헬프 사용</p>
+              <p className="text-4xl font-black text-orange-400">
+                {myPerformanceWithRank.helpCount}회
+              </p>
+              <p className="text-sm text-orange-400">+{formatTime(myPerformanceWithRank.helpBonusTime)}</p>
+            </BrutalistCard>
+            <BrutalistCard className="text-center">
+              <p className="text-sm text-gray-400 uppercase">순수 미션 시간</p>
+              <p className="text-4xl font-mono font-black">{formatTimeWithHours(myPerformanceWithRank.totalTime)}</p>
+            </BrutalistCard>
+          </div>
+
+          <div>
+            <h3 className="text-xl font-black mb-3">라운드별 소요시간</h3>
+            <div className="grid grid-cols-5 gap-2">
+              {ROUNDS.map(r => {
+                const time = myPerformanceWithRank.roundTimes[r.id];
+                return (
+                  <div key={r.id} className="bg-white/10 p-3 text-center brutal-border">
+                    <p className="text-xs text-gray-400">R{r.id}</p>
+                    <p className="font-mono font-bold text-lg">{time ? formatTime(time) : '-'}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </BrutalistCard>
+
+        <section className="mt-8">
+           <h4 className="text-xl font-black mb-4">TEAM ROLES</h4>
+           <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+              {team?.members.map((m, idx) => (
+                <div key={idx} className="bg-white/10 p-2 brutal-border text-sm">
+                   <span className="text-yellow-400 font-bold block">{m.role}</span>
+                   <span className="font-black">{m.name}</span>
+                </div>
+              ))}
+           </div>
+        </section>
       </div>
     );
   }
@@ -84,6 +225,8 @@ const LearnerMode: React.FC<Props> = ({ auth }) => {
 
   const currentRoundInfo = ROUNDS[team!.currentRound - 1];
   const customInstruction = team?.roundInstructions?.[team.currentRound];
+  const canGoBack = team && team.currentRound > 1;
+  const canSkipForward = team && team.currentRound <= team.maxCompletedRound;
 
   return (
     <div className="max-w-4xl mx-auto p-4 space-y-8 pb-24">
@@ -97,6 +240,19 @@ const LearnerMode: React.FC<Props> = ({ auth }) => {
           <p className="text-xs font-bold uppercase tracking-widest">Progress</p>
         </div>
       </header>
+
+      {/* 전체 미션 타이머 */}
+      {remainingTime && (
+        <div className={`text-center p-4 brutal-border ${remainingTime === "00:00" ? 'bg-red-600 animate-pulse' : 'bg-black/50'}`}>
+          <p className="text-sm text-gray-400 uppercase">남은 미션 시간</p>
+          <p className={`text-4xl font-mono font-black ${remainingTime === "00:00" ? 'text-white' : 'text-yellow-400'}`}>
+            {remainingTime}
+          </p>
+          {team && team.totalBonusTime > 0 && (
+            <p className="text-sm text-orange-400">헬프로 +{formatTime(team.totalBonusTime)} 추가됨</p>
+          )}
+        </div>
+      )}
 
       <div className="space-y-6">
         <h3 className="text-4xl font-black uppercase tracking-tighter">
@@ -122,22 +278,40 @@ const LearnerMode: React.FC<Props> = ({ auth }) => {
             </div>
         </BrutalistCard>
 
-        <BrutalistButton
-          variant="gold"
-          fullWidth
-          className="text-2xl"
-          onClick={completeRound}
-          disabled={team?.currentRound === 10}
-        >
-          {team?.currentRound === 10 ? '최종 미션 완료!' : '다음 라운드 잠금 해제'}
-        </BrutalistButton>
+        {/* 네비게이션 버튼들 */}
+        <div className="flex gap-4">
+          {/* 뒤로 가기 */}
+          <BrutalistButton
+            variant="ghost"
+            onClick={goToPreviousRound}
+            disabled={!canGoBack}
+            className="flex-shrink-0"
+          >
+            ← 이전
+          </BrutalistButton>
 
-        {team?.currentRound === 10 && (
-          <div className="bg-green-600 text-white p-8 brutal-border brutalist-shadow text-center animate-bounce">
-            <h2 className="text-4xl font-black">MISSION CLEAR!</h2>
-            <p className="text-xl">김부장님은 성공적으로 본사에 복귀하셨습니다!</p>
-          </div>
-        )}
+          {/* 메인 액션 버튼 */}
+          {canSkipForward ? (
+            <BrutalistButton
+              variant="primary"
+              fullWidth
+              className="text-xl"
+              onClick={goToNextRound}
+            >
+              다음 라운드로 →
+            </BrutalistButton>
+          ) : (
+            <BrutalistButton
+              variant="gold"
+              fullWidth
+              className="text-xl"
+              onClick={completeRound}
+              disabled={team?.currentRound === 10 && team?.missionClearTime !== undefined}
+            >
+              {team?.currentRound === 10 ? '최종 미션 완료!' : '미션 완수 → 다음 라운드'}
+            </BrutalistButton>
+          )}
+        </div>
       </div>
 
       <section className="mt-12">
@@ -151,6 +325,22 @@ const LearnerMode: React.FC<Props> = ({ auth }) => {
             ))}
          </div>
       </section>
+
+      {/* HELP 버튼 (우측 하단 고정) */}
+      <div className="fixed bottom-4 right-4 z-40">
+        <button
+          onClick={handleUseHelp}
+          disabled={!team || team.helpCount >= 3 || helpLoading}
+          className={`brutal-border font-black py-3 px-6 transition-all ${
+            team && team.helpCount < 3
+              ? 'bg-orange-500 text-white hover:bg-orange-400 brutalist-shadow active:translate-x-1 active:translate-y-1 active:shadow-none'
+              : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+          }`}
+        >
+          {helpLoading ? '...' : `HELP (${team ? 3 - team.helpCount : 0})`}
+        </button>
+        <p className="text-[10px] text-center text-gray-400 mt-1">사용 시 +3분</p>
+      </div>
     </div>
   );
 };
