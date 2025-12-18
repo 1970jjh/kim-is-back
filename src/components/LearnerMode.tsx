@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { firebaseService } from '../services/firebaseService';
 import { RoomState, TeamState, TeamPerformance } from '../types';
-import { BrutalistButton, BrutalistCard } from './BrutalistUI';
+import { BrutalistButton, BrutalistCard, BrutalistInput } from './BrutalistUI';
 import { ROUNDS } from '../constants';
 
 // 시간 포맷팅 유틸
@@ -27,6 +27,22 @@ type ViewState = 'waiting' | 'intro' | 'factory' | 'mission' | 'result';
 const FACTORY_BG = 'https://i.imgur.com/G66myVZ.jpeg';
 const DIARY_IMAGE = 'https://i.imgur.com/p6AU8yF.png';
 
+// R1 퀴즈 이미지 및 정답
+const R1_QUIZ_IMAGE = 'https://i.imgur.com/nswRxmd.jpeg';
+const R1_CORRECT_ANSWERS = [
+  '010-4454-2252',
+  '010-2319-4323',
+  '010-3228-3143',
+  '010-9476-7825',
+  '010-8448-2354'
+];
+
+// 월별 이름 (라운드와 매핑: R1=3월, R2=4월, ... R10=12월)
+const MONTHS = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
+const ROUND_TO_MONTH: Record<number, number> = {
+  1: 3, 2: 4, 3: 5, 4: 6, 5: 7, 6: 8, 7: 9, 8: 10, 9: 11, 10: 12
+};
+
 interface Props {
   room: RoomState;
   auth: { teamId: number; learnerName: string };
@@ -37,6 +53,11 @@ const LearnerMode: React.FC<Props> = ({ room, auth }) => {
   const [viewState, setViewState] = useState<ViewState>('waiting');
   const [remainingTime, setRemainingTime] = useState<string>("");
   const [helpLoading, setHelpLoading] = useState(false);
+
+  // R1 퀴즈 상태
+  const [quizAnswer, setQuizAnswer] = useState('');
+  const [quizCleared, setQuizCleared] = useState(false);
+  const [quizError, setQuizError] = useState('');
 
   useEffect(() => {
     setTeam(room.teams?.[auth.teamId]);
@@ -120,6 +141,30 @@ const LearnerMode: React.FC<Props> = ({ room, auth }) => {
     } else {
       alert('HELP를 사용할 수 없습니다.');
     }
+  };
+
+  // R1 퀴즈 정답 체크
+  const handleQuizSubmit = () => {
+    const normalizedAnswer = quizAnswer.replace(/\s/g, '').trim();
+    const isCorrect = R1_CORRECT_ANSWERS.some(ans =>
+      normalizedAnswer.includes(ans.replace(/-/g, '')) ||
+      normalizedAnswer.includes(ans)
+    );
+
+    if (isCorrect) {
+      setQuizCleared(true);
+      setQuizError('');
+    } else {
+      setQuizError('정답이 아닙니다. 다시 시도해주세요.');
+    }
+  };
+
+  // R1 클리어 후 공장으로 이동 및 라운드 완료 처리
+  const handleR1Clear = async () => {
+    await firebaseService.advanceTeamRound(room.id, auth.teamId);
+    setQuizCleared(false);
+    setQuizAnswer('');
+    setViewState('factory');
   };
 
   // 전체 팀 성과 (순위 계산용)
@@ -249,6 +294,14 @@ const LearnerMode: React.FC<Props> = ({ room, auth }) => {
     const currentRoundInfo = ROUNDS[roundIndex] || { id: 1, title: 'ROUND 1', description: '미션' };
     const canSkipForward = team && team.currentRound <= team.maxCompletedRound;
 
+    // 완료된 라운드에 해당하는 월 목록
+    const completedMonths = new Set<number>();
+    for (let r = 1; r <= (team?.maxCompletedRound || 0); r++) {
+      if (ROUND_TO_MONTH[r]) {
+        completedMonths.add(ROUND_TO_MONTH[r]);
+      }
+    }
+
     return (
       <div
         className="min-h-screen bg-cover bg-center bg-fixed relative"
@@ -280,13 +333,53 @@ const LearnerMode: React.FC<Props> = ({ room, auth }) => {
             </div>
           )}
 
-          {/* 진행 상황 카드 */}
+          {/* 연간 달력 카드 */}
           <BrutalistCard className="bg-black/80 space-y-6">
             <h3 className="text-2xl font-black text-center text-yellow-400">
-              {isMissionComplete ? '🎉 모든 미션 완료!' : `다음 미션: ${currentRoundInfo?.title}`}
+              {isMissionComplete ? '🎉 모든 미션 완료!' : '김부장의 연간 미션 달력'}
             </h3>
 
-            {/* 라운드 진행 바 */}
+            {/* 연간 달력 그리드 */}
+            <div className="grid grid-cols-4 gap-3">
+              {MONTHS.map((monthName, idx) => {
+                const monthNum = idx + 1;
+                const isCompleted = completedMonths.has(monthNum);
+                const roundForMonth = Object.entries(ROUND_TO_MONTH).find(([_, m]) => m === monthNum)?.[0];
+                const isCurrent = roundForMonth && team?.currentRound === parseInt(roundForMonth);
+                const isAccessible = monthNum >= 3 && monthNum <= 12; // 3월~12월만 미션 해당
+
+                return (
+                  <div
+                    key={monthNum}
+                    className={`relative p-4 brutal-border text-center transition-all ${
+                      isCompleted
+                        ? 'bg-green-600/80'
+                        : isCurrent
+                        ? 'bg-yellow-400 text-black'
+                        : isAccessible
+                        ? 'bg-white/10'
+                        : 'bg-gray-800/50 opacity-50'
+                    }`}
+                  >
+                    <p className={`font-black text-lg ${isCurrent ? 'text-black' : ''}`}>{monthName}</p>
+                    {isAccessible && (
+                      <p className={`text-xs ${isCurrent ? 'text-black/70' : 'text-gray-400'}`}>
+                        R{roundForMonth}
+                      </p>
+                    )}
+                    {isCompleted && (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="bg-red-600 text-white px-2 py-1 rotate-[-15deg] font-black text-sm brutal-border shadow-lg">
+                          CLEAR!
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* 진행 상황 바 */}
             <div className="space-y-2">
               <div className="flex justify-between text-sm text-gray-400">
                 <span>진행 상황</span>
@@ -298,34 +391,6 @@ const LearnerMode: React.FC<Props> = ({ room, auth }) => {
                   style={{ width: `${((team?.maxCompletedRound || 0) / 10) * 100}%` }}
                 />
               </div>
-            </div>
-
-            {/* 라운드 버튼들 */}
-            <div className="grid grid-cols-5 gap-2">
-              {ROUNDS.map(r => {
-                const isCompleted = (team?.maxCompletedRound || 0) >= r.id;
-                const isCurrent = team?.currentRound === r.id;
-                return (
-                  <button
-                    key={r.id}
-                    onClick={() => {
-                      if (isCompleted || isCurrent) {
-                        firebaseService.setTeamRound(room.id, auth.teamId, r.id);
-                      }
-                    }}
-                    disabled={!isCompleted && !isCurrent}
-                    className={`p-3 brutal-border font-black text-lg transition-all ${
-                      isCurrent
-                        ? 'bg-yellow-400 text-black'
-                        : isCompleted
-                        ? 'bg-green-600 text-white hover:bg-green-500'
-                        : 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                    }`}
-                  >
-                    R{r.id}
-                  </button>
-                );
-              })}
             </div>
 
             {/* 액션 버튼 */}
@@ -402,7 +467,125 @@ const LearnerMode: React.FC<Props> = ({ room, auth }) => {
   const currentRoundInfo = ROUNDS[missionRoundIndex] || { id: 1, title: 'ROUND 1', description: '미션' };
   const customInstruction = team?.roundInstructions?.[team?.currentRound || 1];
   const canSkipForward = team && team.currentRound <= team.maxCompletedRound;
+  const isR1 = team?.currentRound === 1;
 
+  // R1 퀴즈 화면
+  if (isR1) {
+    return (
+      <div className="max-w-4xl mx-auto p-4 space-y-8 pb-24">
+        <header className="flex justify-between items-center border-b-4 border-white pb-4">
+          <div>
+            <h2 className="text-3xl font-black italic">TEAM {auth.teamId}</h2>
+            <p className="font-bold text-yellow-400">Welcome, {auth.learnerName}</p>
+          </div>
+          <div className="text-right">
+            <span className="text-5xl font-black gold-gradient">R1</span>
+            <p className="text-xs font-bold uppercase tracking-widest">3월 미션</p>
+          </div>
+        </header>
+
+        {/* 전체 미션 타이머 */}
+        {remainingTime && (
+          <div className={`text-center p-4 brutal-border ${remainingTime === "00:00" ? 'bg-red-600 animate-pulse' : 'bg-black/50'}`}>
+            <p className="text-sm text-gray-400 uppercase">남은 미션 시간</p>
+            <p className={`text-4xl font-mono font-black ${remainingTime === "00:00" ? 'text-white' : 'text-yellow-400'}`}>
+              {remainingTime}
+            </p>
+          </div>
+        )}
+
+        {quizCleared ? (
+          // 정답 맞춤 - 클리어 화면
+          <div className="space-y-6 animate-fadeIn">
+            <div className="bg-green-600 text-white p-8 brutal-border brutalist-shadow text-center">
+              <h2 className="text-5xl font-black mb-4">3월달 미션 CLEAR!</h2>
+              <p className="text-xl">축하합니다! 첫 번째 미션을 완료했습니다.</p>
+            </div>
+            <BrutalistButton
+              variant="gold"
+              fullWidth
+              className="text-2xl"
+              onClick={handleR1Clear}
+            >
+              공장으로 돌아가기
+            </BrutalistButton>
+          </div>
+        ) : (
+          // 퀴즈 진행 화면
+          <div className="space-y-6">
+            <h3 className="text-3xl font-black uppercase tracking-tighter text-center">
+              ROUND 1: 3월 미션
+            </h3>
+
+            {/* 퀴즈 이미지 */}
+            <BrutalistCard className="p-0 overflow-hidden">
+              <img
+                src={R1_QUIZ_IMAGE}
+                alt="R1 퀴즈 이미지"
+                className="w-full object-contain"
+              />
+            </BrutalistCard>
+
+            {/* 정답 입력란 */}
+            <BrutalistCard className="space-y-4">
+              <label className="block text-lg font-black text-yellow-400 uppercase">정답 입력</label>
+              <BrutalistInput
+                fullWidth
+                placeholder="정답을 입력하세요 (예: 010-XXXX-XXXX)"
+                value={quizAnswer}
+                onChange={(e) => {
+                  setQuizAnswer(e.target.value);
+                  setQuizError('');
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleQuizSubmit();
+                  }
+                }}
+              />
+              {quizError && (
+                <p className="text-red-500 font-bold text-sm">{quizError}</p>
+              )}
+              <BrutalistButton
+                variant="gold"
+                fullWidth
+                className="text-xl"
+                onClick={handleQuizSubmit}
+              >
+                정답 제출
+              </BrutalistButton>
+            </BrutalistCard>
+
+            {/* 공장으로 돌아가기 */}
+            <BrutalistButton
+              variant="ghost"
+              onClick={() => setViewState('factory')}
+            >
+              ← 공장으로 돌아가기
+            </BrutalistButton>
+          </div>
+        )}
+
+        {/* HELP 버튼 */}
+        <div className="fixed bottom-4 right-4 z-40">
+          <button
+            onClick={handleUseHelp}
+            disabled={!team || team.helpCount >= 3 || helpLoading}
+            className={`brutal-border font-black py-3 px-6 transition-all ${
+              team && team.helpCount < 3
+                ? 'bg-orange-500 text-white hover:bg-orange-400 brutalist-shadow active:translate-x-1 active:translate-y-1 active:shadow-none'
+                : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+            }`}
+          >
+            {helpLoading ? '...' : `HELP (${team ? 3 - team.helpCount : 0})`}
+          </button>
+          <p className="text-[10px] text-center text-gray-400 mt-1">사용 시 +3분</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 기본 미션 화면 (R2-R10)
   return (
     <div className="max-w-4xl mx-auto p-4 space-y-8 pb-24">
       <header className="flex justify-between items-center border-b-4 border-white pb-4">
