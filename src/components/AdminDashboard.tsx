@@ -553,7 +553,7 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout }
               <h3 className="text-xl font-black mb-3">라운드별 소요시간</h3>
               <div className="grid grid-cols-5 gap-2">
                 {ROUNDS.map(r => {
-                  const time = selectedPerformance.roundTimes[r.id];
+                  const time = selectedPerformance.roundTimes?.[r.id];
                   return (
                     <div key={r.id} className="bg-white/10 p-2 text-center brutal-border">
                       <p className="text-xs text-gray-400">R{r.id}</p>
