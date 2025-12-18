@@ -217,17 +217,20 @@ export const firebaseService = {
   },
 
   // 이벤트 토글
-  toggleEvent: async (roomId: string, type: EventType, minutes?: number): Promise<void> => {
+  toggleEvent: async (roomId: string, type: EventType, minutes?: number, targetTeams?: number[] | 'all'): Promise<void> => {
     const room = await firebaseService.getRoom(roomId);
     if (!room) return;
 
     if (room.activeEvent === type) {
+      // 같은 이벤트를 다시 누르면 비활성화 (시간 유무에 상관없이)
       room.activeEvent = EventType.NONE;
       room.eventEndTime = undefined;
+      room.eventTargetTeams = undefined;
     } else {
       const needsTimer = type === EventType.BREAK || type === EventType.LUNCH;
       room.activeEvent = type;
       room.eventEndTime = needsTimer && minutes ? Date.now() + minutes * 60000 : undefined;
+      room.eventTargetTeams = targetTeams || 'all';
     }
 
     await firebaseService.saveRoom(room);
