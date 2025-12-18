@@ -265,6 +265,8 @@ export const firebaseService = {
   calculateAllTeamPerformances: (room: RoomState): TeamPerformance[] => {
     const performances: TeamPerformance[] = [];
 
+    if (!room.teams) return performances;
+
     Object.keys(room.teams).forEach(teamIdStr => {
       const teamId = parseInt(teamIdStr);
       const perf = firebaseService.calculateTeamPerformance(room, teamId);
@@ -286,6 +288,11 @@ export const firebaseService = {
   joinTeam: async (roomId: string, teamId: number, teamData: Partial<TeamState>): Promise<void> => {
     const room = await firebaseService.getRoom(roomId);
     if (!room) return;
+
+    // teams가 없으면 초기화
+    if (!room.teams) {
+      room.teams = {};
+    }
 
     const existingTeam = room.teams[teamId];
     const now = Date.now();
