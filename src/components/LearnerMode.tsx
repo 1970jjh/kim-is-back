@@ -60,6 +60,9 @@ const LearnerMode: React.FC<Props> = ({ room, auth }) => {
   const [quizCleared, setQuizCleared] = useState(false);
   const [quizError, setQuizError] = useState('');
 
+  // Padlet 팝업 상태
+  const [showPadletPopup, setShowPadletPopup] = useState(false);
+
   useEffect(() => {
     setTeam(room.teams?.[auth.teamId]);
   }, [room, auth.teamId]);
@@ -470,6 +473,9 @@ const LearnerMode: React.FC<Props> = ({ room, auth }) => {
   const canSkipForward = team && team.currentRound <= team.maxCompletedRound;
   const isR1 = team?.currentRound === 1;
 
+  // R1 이미 완료 여부 체크
+  const isR1Completed = (team?.maxCompletedRound || 0) >= 1;
+
   // R1 퀴즈 화면
   if (isR1) {
     return (
@@ -511,6 +517,55 @@ const LearnerMode: React.FC<Props> = ({ room, auth }) => {
               공장으로 돌아가기
             </BrutalistButton>
           </div>
+        ) : isR1Completed ? (
+          // 이미 완료한 R1 - 다음 라운드로 쉽게 이동
+          <div className="space-y-6">
+            <div className="bg-green-600/20 border-2 border-green-500 text-white p-6 brutal-border text-center">
+              <p className="text-2xl font-black text-green-400">✓ 이미 완료한 미션입니다</p>
+              <p className="text-gray-400 mt-2">정답: {R1_CORRECT_ANSWERS[0]}</p>
+            </div>
+
+            <h3 className="text-3xl font-black uppercase tracking-tighter text-center">
+              ROUND 1: 3월 미션
+            </h3>
+
+            {/* 퀴즈 이미지 - 클릭 시 Padlet 팝업 */}
+            <BrutalistCard className="p-0 overflow-hidden">
+              <div
+                className="block cursor-pointer"
+                onClick={() => setShowPadletPopup(true)}
+              >
+                <img
+                  src={R1_QUIZ_IMAGE}
+                  alt="R1 퀴즈 이미지 - 클릭하여 자료 보기"
+                  className="w-full object-contain hover:opacity-90 transition-opacity"
+                />
+                <p className="text-center text-xs text-yellow-400 py-2 bg-black/50">👆 이미지를 클릭하면 자료가 열립니다</p>
+              </div>
+            </BrutalistCard>
+
+            {/* 버튼들 */}
+            <div className="flex gap-4">
+              <BrutalistButton
+                variant="ghost"
+                onClick={() => setViewState('factory')}
+                className="flex-shrink-0"
+              >
+                ← 공장
+              </BrutalistButton>
+              <BrutalistButton
+                variant="gold"
+                fullWidth
+                className="text-xl"
+                onClick={() => {
+                  firebaseService.setTeamRound(room.id, auth.teamId, 2);
+                  setViewState('factory');
+                }}
+              >
+                다음 라운드로 →
+              </BrutalistButton>
+            </div>
+          </div>
         ) : (
           // 퀴즈 진행 화면
           <div className="space-y-6">
@@ -518,21 +573,19 @@ const LearnerMode: React.FC<Props> = ({ room, auth }) => {
               ROUND 1: 3월 미션
             </h3>
 
-            {/* 퀴즈 이미지 - 클릭 시 Padlet 새창 열기 */}
+            {/* 퀴즈 이미지 - 클릭 시 Padlet 팝업 */}
             <BrutalistCard className="p-0 overflow-hidden">
-              <a
-                href={R1_PADLET_LINK}
-                target="_blank"
-                rel="noopener noreferrer"
+              <div
                 className="block cursor-pointer"
+                onClick={() => setShowPadletPopup(true)}
               >
                 <img
                   src={R1_QUIZ_IMAGE}
                   alt="R1 퀴즈 이미지 - 클릭하여 자료 보기"
                   className="w-full object-contain hover:opacity-90 transition-opacity"
                 />
-                <p className="text-center text-xs text-yellow-400 py-2 bg-black/50">👆 이미지를 클릭하면 자료가 새창에서 열립니다</p>
-              </a>
+                <p className="text-center text-xs text-yellow-400 py-2 bg-black/50">👆 이미지를 클릭하면 자료가 열립니다</p>
+              </div>
             </BrutalistCard>
 
             {/* 정답 입력란 */}
@@ -572,6 +625,29 @@ const LearnerMode: React.FC<Props> = ({ room, auth }) => {
             >
               ← 공장으로 돌아가기
             </BrutalistButton>
+          </div>
+        )}
+
+        {/* Padlet 팝업 모달 */}
+        {showPadletPopup && (
+          <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4">
+            <div className="w-full max-w-5xl h-[85vh] bg-white brutal-border brutalist-shadow flex flex-col">
+              <div className="flex justify-between items-center p-3 bg-yellow-400 border-b-4 border-black">
+                <span className="font-black text-black">미션 자료</span>
+                <button
+                  onClick={() => setShowPadletPopup(false)}
+                  className="bg-black text-white px-4 py-2 font-black hover:bg-gray-800 brutal-border"
+                >
+                  닫기 ✕
+                </button>
+              </div>
+              <iframe
+                src={R1_PADLET_LINK}
+                className="flex-1 w-full"
+                title="Padlet 미션 자료"
+                allow="camera; microphone; clipboard-read; clipboard-write"
+              />
+            </div>
           </div>
         )}
 
