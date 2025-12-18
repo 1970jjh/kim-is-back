@@ -211,10 +211,26 @@ const App: React.FC = () => {
   // Event Overlay Component with Countdown
   const EventOverlay = () => {
     const [timeLeft, setTimeLeft] = useState<string>("");
+    const hasTriggeredClose = React.useRef(false);
+
+    // 이벤트 변경 시 ref 초기화
+    useEffect(() => {
+      hasTriggeredClose.current = false;
+    }, [currentRoom?.activeEvent]);
 
     useEffect(() => {
       if (!currentRoom?.eventEndTime) {
         setTimeLeft("");
+        return;
+      }
+
+      // 즉시 체크 - 이미 만료되었는지 확인
+      const initialDiff = currentRoom.eventEndTime - Date.now();
+      if (initialDiff <= 0 && !hasTriggeredClose.current) {
+        hasTriggeredClose.current = true;
+        setTimeLeft("00:00");
+        // 이벤트 종료 요청 (한 번만)
+        firebaseService.toggleEvent(currentRoom.id, currentRoom.activeEvent);
         return;
       }
 
@@ -224,8 +240,9 @@ const App: React.FC = () => {
         if (diff <= 0) {
           setTimeLeft("00:00");
           clearInterval(timer);
-          // 시간이 완료되면 자동으로 이벤트 종료
-          if (currentRoom.activeEvent !== EventType.NONE) {
+          // 시간이 완료되면 자동으로 이벤트 종료 (한 번만 호출)
+          if (!hasTriggeredClose.current && currentRoom.activeEvent !== EventType.NONE) {
+            hasTriggeredClose.current = true;
             firebaseService.toggleEvent(currentRoom.id, currentRoom.activeEvent);
           }
         } else {
@@ -239,6 +256,11 @@ const App: React.FC = () => {
     }, [currentRoom?.eventEndTime, currentRoom?.activeEvent, currentRoom?.id]);
 
     if (!currentRoom || currentRoom.activeEvent === EventType.NONE || auth.role === UserRole.ADMIN) return null;
+
+    // 타이머가 만료되었으면 렌더링하지 않음 (Firebase 동기화 대기)
+    if (currentRoom.eventEndTime && currentRoom.eventEndTime <= Date.now()) {
+      return null;
+    }
 
     // 팀별 이벤트 체크 - 이 팀이 대상인지 확인
     const targetTeams = currentRoom.eventTargetTeams;
