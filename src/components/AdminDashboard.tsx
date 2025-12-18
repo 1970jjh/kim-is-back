@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { storageService } from '../services/storageService';
-import { RoomState, EventType, TeamState } from '../types';
+import { firebaseService } from '../services/firebaseService';
+import { RoomState, EventType } from '../types';
 import { BrutalistButton, BrutalistCard, BrutalistInput } from './BrutalistUI';
 import { EVENTS, ROUNDS } from '../constants';
 
 const AdminDashboard: React.FC = () => {
-  const [room, setRoom] = useState<RoomState>(storageService.getRoom());
+  const [room, setRoom] = useState<RoomState | null>(null);
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
   const [editRound, setEditRound] = useState<number>(1);
   const [instructionText, setInstructionText] = useState("");
@@ -14,34 +14,28 @@ const AdminDashboard: React.FC = () => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    const handleUpdate = () => setRoom(storageService.getRoom());
-    window.addEventListener('roomStateChanged', handleUpdate);
-    return () => window.removeEventListener('roomStateChanged', handleUpdate);
+    const unsubscribe = firebaseService.subscribe(setRoom);
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
     // If birthday event is deactivated, stop the music
-    if (room.activeEvent !== EventType.BIRTHDAY && isMusicPlaying) {
+    if (room && room.activeEvent !== EventType.BIRTHDAY && isMusicPlaying) {
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current.currentTime = 0;
       }
       setIsMusicPlaying(false);
     }
-  }, [room.activeEvent]);
+  }, [room?.activeEvent, isMusicPlaying]);
 
-  const handleStartMission = () => {
-    storageService.saveRoom({ ...room, missionStarted: true });
+  const handleStartMission = async () => {
+    if (!room) return;
+    await firebaseService.saveRoom({ ...room, missionStarted: true });
   };
 
-  const toggleEvent = (type: EventType) => {
-    if (room.activeEvent === type) {
-      storageService.saveRoom({ ...room, activeEvent: EventType.NONE, eventEndTime: undefined });
-    } else {
-      const needsTimer = type === EventType.BREAK || type === EventType.LUNCH;
-      const endTime = needsTimer ? Date.now() + eventMinutes * 60000 : undefined;
-      storageService.saveRoom({ ...room, activeEvent: type, eventEndTime: endTime });
-    }
+  const toggleEvent = async (type: EventType) => {
+    await firebaseService.toggleEvent(type, eventMinutes);
   };
 
   const toggleMusic = () => {
@@ -54,16 +48,12 @@ const AdminDashboard: React.FC = () => {
     setIsMusicPlaying(!isMusicPlaying);
   };
 
-  const updateRound = (teamId: number, round: number) => {
-    const newRoom = { ...room };
-    if (newRoom.teams[teamId]) {
-      newRoom.teams[teamId].currentRound = Math.min(10, Math.max(1, round));
-      storageService.saveRoom(newRoom);
-    }
+  const updateRound = async (teamId: number, round: number) => {
+    await firebaseService.updateTeamRound(teamId, round);
   };
 
-  const saveInstruction = () => {
-    if (selectedTeamId === null) return;
+  const saveInstruction = async () => {
+    if (selectedTeamId === null || !room) return;
     const newRoom = { ...room };
     if (!newRoom.teams[selectedTeamId]) {
       newRoom.teams[selectedTeamId] = {
@@ -79,20 +69,30 @@ const AdminDashboard: React.FC = () => {
       newRoom.teams[selectedTeamId].roundInstructions = {};
     }
     newRoom.teams[selectedTeamId].roundInstructions[editRound] = instructionText;
-    storageService.saveRoom(newRoom);
+    await firebaseService.saveRoom(newRoom);
     alert(`팀 ${selectedTeamId} R${editRound} 미션 내용이 저장되었습니다.`);
   };
 
   const selectTeamForEdit = (id: number) => {
     setSelectedTeamId(id);
-    setInstructionText(room.teams[id]?.roundInstructions?.[editRound] || "");
+    if (room) {
+      setInstructionText(room.teams[id]?.roundInstructions?.[editRound] || "");
+    }
   };
 
   useEffect(() => {
-    if (selectedTeamId !== null) {
+    if (selectedTeamId !== null && room) {
       setInstructionText(room.teams[selectedTeamId]?.roundInstructions?.[editRound] || "");
     }
-  }, [editRound, selectedTeamId, room.teams]);
+  }, [editRound, selectedTeamId, room?.teams]);
+
+  if (!room) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-2xl font-bold animate-pulse">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto p-4 space-y-8 pb-32">
@@ -111,20 +111,20 @@ const AdminDashboard: React.FC = () => {
         <section className="lg:col-span-1 space-y-6">
           <div className="space-y-4">
             <h2 className="text-2xl font-black italic">EVENT CONTROL</h2>
-            
+
             {/* Music Player for Birthday */}
-            <audio 
-              ref={audioRef} 
-              src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" 
+            <audio
+              ref={audioRef}
+              src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"
               loop
             />
-            
+
             {room.activeEvent === EventType.BIRTHDAY && (
               <BrutalistCard className="bg-pink-600 text-white animate-pulse">
-                <h3 className="font-black text-center mb-2 uppercase tracking-tighter">🎵 BIRTHDAY BGM</h3>
-                <BrutalistButton 
-                  variant="primary" 
-                  fullWidth 
+                <h3 className="font-black text-center mb-2 uppercase tracking-tighter">BIRTHDAY BGM</h3>
+                <BrutalistButton
+                  variant="primary"
+                  fullWidth
                   onClick={toggleMusic}
                   className="text-xs"
                 >
@@ -135,17 +135,17 @@ const AdminDashboard: React.FC = () => {
 
             <div className="bg-black/20 p-4 border-2 border-white/10 space-y-4">
               <label className="block text-xs font-bold uppercase">타이머 설정 (분)</label>
-              <BrutalistInput 
-                type="number" 
-                value={eventMinutes} 
-                onChange={(e) => setEventMinutes(parseInt(e.target.value) || 0)} 
+              <BrutalistInput
+                type="number"
+                value={eventMinutes}
+                onChange={(e) => setEventMinutes(parseInt(e.target.value) || 0)}
                 className="w-full text-center"
               />
               <p className="text-[10px] text-gray-500 uppercase">휴게/점심시간 활성화 시 적용됩니다.</p>
             </div>
             <div className="grid grid-cols-1 gap-2">
               {EVENTS.map((evt) => (
-                <BrutalistButton 
+                <BrutalistButton
                   key={evt.type}
                   variant={room.activeEvent === evt.type ? 'gold' : 'primary'}
                   onClick={() => toggleEvent(evt.type)}
@@ -164,7 +164,7 @@ const AdminDashboard: React.FC = () => {
           <BrutalistCard className="space-y-4">
              <div>
                 <label className="text-xs font-bold uppercase">대상 팀 선택</label>
-                <select 
+                <select
                   className="w-full brutal-border bg-white text-black p-2 font-bold text-sm mt-1"
                   value={selectedTeamId || ""}
                   onChange={(e) => selectTeamForEdit(parseInt(e.target.value))}
@@ -177,7 +177,7 @@ const AdminDashboard: React.FC = () => {
              </div>
              <div>
                 <label className="text-xs font-bold uppercase">라운드 선택</label>
-                <select 
+                <select
                   className="w-full brutal-border bg-white text-black p-2 font-bold text-sm mt-1"
                   value={editRound}
                   onChange={(e) => setEditRound(parseInt(e.target.value))}
@@ -189,7 +189,7 @@ const AdminDashboard: React.FC = () => {
              </div>
              <div>
                 <label className="text-xs font-bold uppercase">미션 상세 지침</label>
-                <textarea 
+                <textarea
                   className="w-full brutal-border bg-white text-black p-2 font-bold text-sm mt-1 min-h-[100px]"
                   placeholder="팀별 맞춤 미션 지시사항을 입력하세요..."
                   value={instructionText}
@@ -219,13 +219,13 @@ const AdminDashboard: React.FC = () => {
                       )}
                     </div>
                   </div>
-                  
+
                   {team ? (
                     <div className="space-y-3">
                       <div className="flex items-center gap-2">
                         <div className="flex-1 h-3 bg-black brutal-border overflow-hidden">
-                          <div 
-                            className="h-full bg-yellow-400 transition-all duration-700 ease-out" 
+                          <div
+                            className="h-full bg-yellow-400 transition-all duration-700 ease-out"
                             style={{ width: `${(team.currentRound / 10) * 100}%` }}
                           />
                         </div>
@@ -233,16 +233,16 @@ const AdminDashboard: React.FC = () => {
                       </div>
                       <div className="flex justify-between items-center gap-2">
                         <div className="flex gap-1">
-                           <button 
-                            className="w-8 h-8 brutal-border bg-white text-black font-black text-xs hover:bg-gray-200" 
+                           <button
+                            className="w-8 h-8 brutal-border bg-white text-black font-black text-xs hover:bg-gray-200"
                             onClick={() => updateRound(teamId, team.currentRound - 1)}
                            >-</button>
-                           <button 
-                            className="w-8 h-8 brutal-border bg-white text-black font-black text-xs hover:bg-gray-200" 
+                           <button
+                            className="w-8 h-8 brutal-border bg-white text-black font-black text-xs hover:bg-gray-200"
                             onClick={() => updateRound(teamId, team.currentRound + 1)}
                            >+</button>
                         </div>
-                        <button 
+                        <button
                           className="text-[10px] font-bold underline opacity-60 hover:opacity-100"
                           onClick={() => selectTeamForEdit(teamId)}
                         >EDIT CONTENT</button>

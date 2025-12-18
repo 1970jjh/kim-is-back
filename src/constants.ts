@@ -1,4 +1,3 @@
-import React from 'react';
 import { EventType } from './types';
 
 export const ADMIN_PASSWORD = '6749467';

@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -6,12 +5,12 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   fullWidth?: boolean;
 }
 
-export const BrutalistButton: React.FC<ButtonProps> = ({ 
-  children, 
-  variant = 'primary', 
+export const BrutalistButton: React.FC<ButtonProps> = ({
+  children,
+  variant = 'primary',
   fullWidth = false,
   className = '',
-  ...props 
+  ...props
 }) => {
   const baseStyles = "brutal-border font-black py-3 px-6 transform transition-all active:translate-x-1 active:translate-y-1 active:shadow-none uppercase tracking-tighter";
   const variants = {
@@ -22,7 +21,7 @@ export const BrutalistButton: React.FC<ButtonProps> = ({
   };
 
   return (
-    <button 
+    <button
       className={`${baseStyles} ${variants[variant]} ${fullWidth ? 'w-full' : ''} ${className}`}
       {...props}
     >
@@ -31,10 +30,14 @@ export const BrutalistButton: React.FC<ButtonProps> = ({
   );
 };
 
-export const BrutalistInput: React.FC<React.InputHTMLAttributes<HTMLInputElement>> = ({ className = '', ...props }) => {
+export const BrutalistInput: React.FC<React.InputHTMLAttributes<HTMLInputElement> & { fullWidth?: boolean }> = ({
+  className = '',
+  fullWidth = false,
+  ...props
+}) => {
   return (
-    <input 
-      className={`brutal-border bg-white text-black p-4 font-bold brutalist-shadow outline-none focus:ring-4 ring-yellow-400 ${className}`}
+    <input
+      className={`brutal-border bg-white text-black p-4 font-bold brutalist-shadow outline-none focus:ring-4 ring-yellow-400 ${fullWidth ? 'w-full' : ''} ${className}`}
       {...props}
     />
   );
