@@ -215,7 +215,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth }) => {
             <h3 className="text-xl font-black mb-3">라운드별 소요시간</h3>
             <div className="grid grid-cols-5 gap-2">
               {ROUNDS.map(r => {
-                const time = myPerformanceWithRank.roundTimes[r.id];
+                const time = myPerformanceWithRank.roundTimes?.[r.id];
                 return (
                   <div key={r.id} className="bg-white/10 p-3 text-center brutal-border">
                     <p className="text-xs text-gray-400">R{r.id}</p>
@@ -245,7 +245,8 @@ const LearnerMode: React.FC<Props> = ({ room, auth }) => {
   // ============ FACTORY (공장) 화면 ============
   if (viewState === 'factory') {
     const isMissionComplete = team?.missionClearTime;
-    const currentRoundInfo = ROUNDS[(team?.currentRound || 1) - 1];
+    const roundIndex = (team?.currentRound || 1) - 1;
+    const currentRoundInfo = ROUNDS[roundIndex] || { id: 1, title: 'ROUND 1', description: '미션' };
     const canSkipForward = team && team.currentRound <= team.maxCompletedRound;
 
     return (
@@ -397,7 +398,8 @@ const LearnerMode: React.FC<Props> = ({ room, auth }) => {
   }
 
   // ============ MISSION (미션 수행) 화면 ============
-  const currentRoundInfo = ROUNDS[(team?.currentRound || 1) - 1];
+  const missionRoundIndex = (team?.currentRound || 1) - 1;
+  const currentRoundInfo = ROUNDS[missionRoundIndex] || { id: 1, title: 'ROUND 1', description: '미션' };
   const customInstruction = team?.roundInstructions?.[team?.currentRound || 1];
   const canSkipForward = team && team.currentRound <= team.maxCompletedRound;
 
