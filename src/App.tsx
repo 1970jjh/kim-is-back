@@ -6,6 +6,9 @@ import { BrutalistButton, BrutalistCard, BrutalistInput } from './components/Bru
 import AdminDashboard from './components/AdminDashboard';
 import LearnerMode from './components/LearnerMode';
 
+const SESSION_TIMEOUT_MS = 2 * 60 * 60 * 1000; // 2시간
+const LAST_ACTIVITY_KEY = 'KIM_BUJANG_LAST_ACTIVITY';
+
 const App: React.FC = () => {
   const [auth, setAuth] = useState<AuthState>({ role: UserRole.UNSET, authenticated: false });
   const [rooms, setRooms] = useState<Record<string, RoomState>>({});
@@ -27,6 +30,52 @@ const App: React.FC = () => {
   const [showAdminLoginPopup, setShowAdminLoginPopup] = useState(false);
   const [adminLoginPw, setAdminLoginPw] = useState('');
   const [adminLoginError, setAdminLoginError] = useState('');
+
+  // 세션 타임아웃: 마지막 활동 시간 업데이트
+  const updateLastActivity = () => {
+    localStorage.setItem(LAST_ACTIVITY_KEY, Date.now().toString());
+  };
+
+  // 세션 타임아웃 체크
+  useEffect(() => {
+    const checkSessionTimeout = () => {
+      const lastActivity = localStorage.getItem(LAST_ACTIVITY_KEY);
+      if (lastActivity) {
+        const elapsed = Date.now() - parseInt(lastActivity);
+        if (elapsed >= SESSION_TIMEOUT_MS) {
+          // 2시간 이상 경과 시 초기화면으로 돌아가기
+          localStorage.removeItem('KIM_BUJANG_AUTH');
+          localStorage.removeItem(LAST_ACTIVITY_KEY);
+          setAuth({ role: UserRole.UNSET, authenticated: false });
+          setAdminViewTeamId(null);
+        }
+      }
+    };
+
+    // 최초 로드 시 체크
+    checkSessionTimeout();
+
+    // 사용자 활동 감지
+    const handleActivity = () => {
+      updateLastActivity();
+    };
+
+    // 활동 이벤트 리스너 등록
+    window.addEventListener('click', handleActivity);
+    window.addEventListener('keydown', handleActivity);
+    window.addEventListener('touchstart', handleActivity);
+    window.addEventListener('scroll', handleActivity);
+
+    // 초기 활동 시간 설정
+    updateLastActivity();
+
+    return () => {
+      window.removeEventListener('click', handleActivity);
+      window.removeEventListener('keydown', handleActivity);
+      window.removeEventListener('touchstart', handleActivity);
+      window.removeEventListener('scroll', handleActivity);
+    };
+  }, []);
 
   useEffect(() => {
     // Firebase 실시간 구독

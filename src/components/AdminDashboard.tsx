@@ -33,8 +33,8 @@ interface Props {
 }
 
 const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, onViewTeam }) => {
-  const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
-  const [editRound, setEditRound] = useState<number>(1);
+  const [selectedTeamId, setSelectedTeamId] = useState<number | 'all' | null>(null);
+  const [editRound, setEditRound] = useState<number | 'all'>(1);
   const [instructionText, setInstructionText] = useState("");
   const [eventMinutes, setEventMinutes] = useState<number>(10);
   const [missionTimerMinutes, setMissionTimerMinutes] = useState<number>(room.missionTimerMinutes || 60);
@@ -113,32 +113,59 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
     if (!updatedRoom.teams) {
       updatedRoom.teams = {};
     }
-    if (!updatedRoom.teams[selectedTeamId]) {
-      updatedRoom.teams[selectedTeamId] = {
-        id: selectedTeamId,
-        name: `Team ${selectedTeamId}`,
-        members: [],
-        currentRound: 1,
-        maxCompletedRound: 0,
-        isJoined: false,
-        roundInstructions: {},
-        helpCount: 0,
-        helpUsages: [],
-        roundTimes: {},
-        totalBonusTime: 0
-      };
+
+    // 대상 팀 목록 결정
+    const targetTeams: number[] = selectedTeamId === 'all'
+      ? Array.from({ length: room.totalTeams }, (_, i) => i + 1)
+      : [selectedTeamId];
+
+    // 대상 라운드 목록 결정
+    const targetRounds: number[] = editRound === 'all'
+      ? ROUNDS.map(r => r.id)
+      : [editRound];
+
+    // 각 팀과 라운드에 지침 저장
+    for (const teamId of targetTeams) {
+      if (!updatedRoom.teams[teamId]) {
+        updatedRoom.teams[teamId] = {
+          id: teamId,
+          name: `Team ${teamId}`,
+          members: [],
+          currentRound: 1,
+          maxCompletedRound: 0,
+          isJoined: false,
+          roundInstructions: {},
+          helpCount: 0,
+          helpUsages: [],
+          roundTimes: {},
+          totalBonusTime: 0
+        };
+      }
+      if (!updatedRoom.teams[teamId].roundInstructions) {
+        updatedRoom.teams[teamId].roundInstructions = {};
+      }
+      for (const round of targetRounds) {
+        updatedRoom.teams[teamId].roundInstructions[round] = instructionText;
+      }
     }
-    if (!updatedRoom.teams[selectedTeamId].roundInstructions) {
-      updatedRoom.teams[selectedTeamId].roundInstructions = {};
-    }
-    updatedRoom.teams[selectedTeamId].roundInstructions[editRound] = instructionText;
+
     await firebaseService.saveRoom(updatedRoom);
-    alert(`팀 ${selectedTeamId} R${editRound} 미션 내용이 저장되었습니다.`);
+
+    const teamLabel = selectedTeamId === 'all' ? '전체 팀' : `팀 ${selectedTeamId}`;
+    const roundLabel = editRound === 'all' ? '전체 라운드' : `R${editRound}`;
+    alert(`${teamLabel} ${roundLabel} 미션 내용이 저장되었습니다.`);
   };
 
-  const selectTeamForEdit = (id: number) => {
+  const selectTeamForEdit = (id: number | 'all') => {
     setSelectedTeamId(id);
-    setInstructionText(room.teams?.[id]?.roundInstructions?.[editRound] || "");
+    // 전체팀 선택 시에는 지침 텍스트 초기화
+    if (id === 'all') {
+      setInstructionText("");
+    } else if (editRound !== 'all') {
+      setInstructionText(room.teams?.[id]?.roundInstructions?.[editRound] || "");
+    } else {
+      setInstructionText("");
+    }
   };
 
   const handleCreateRoom = async () => {
@@ -158,8 +185,11 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
   };
 
   useEffect(() => {
-    if (selectedTeamId !== null) {
+    if (selectedTeamId !== null && selectedTeamId !== 'all' && editRound !== 'all') {
       setInstructionText(room.teams?.[selectedTeamId]?.roundInstructions?.[editRound] || "");
+    } else if (selectedTeamId === 'all' || editRound === 'all') {
+      // 전체팀이나 전체라운드 선택 시에는 기존 지침 로드 안함
+      setInstructionText("");
     }
   }, [editRound, selectedTeamId, room.teams]);
 
@@ -334,10 +364,18 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
                 <label className="text-xs font-bold uppercase">대상 팀 선택</label>
                 <select
                   className="w-full brutal-border bg-white text-black p-2 font-bold text-sm mt-1"
-                  value={selectedTeamId || ""}
-                  onChange={(e) => selectTeamForEdit(parseInt(e.target.value))}
+                  value={selectedTeamId === null ? "" : selectedTeamId}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === 'all') {
+                      selectTeamForEdit('all');
+                    } else {
+                      selectTeamForEdit(parseInt(val));
+                    }
+                  }}
                 >
                   <option value="" disabled>팀 선택</option>
+                  <option value="all">전체 팀</option>
                   {Array.from({ length: room.totalTeams }).map((_, i) => (
                     <option key={i+1} value={i+1}>{i+1}조</option>
                   ))}
@@ -348,8 +386,16 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
                 <select
                   className="w-full brutal-border bg-white text-black p-2 font-bold text-sm mt-1"
                   value={editRound}
-                  onChange={(e) => setEditRound(parseInt(e.target.value))}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === 'all') {
+                      setEditRound('all');
+                    } else {
+                      setEditRound(parseInt(val));
+                    }
+                  }}
                 >
+                  <option value="all">전체 라운드</option>
                   {ROUNDS.map(r => (
                     <option key={r.id} value={r.id}>R{r.id}</option>
                   ))}
@@ -364,9 +410,14 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
                   onChange={(e) => setInstructionText(e.target.value)}
                 />
              </div>
-             <BrutalistButton variant="gold" fullWidth className="text-xs" onClick={saveInstruction} disabled={!selectedTeamId}>
+             <BrutalistButton variant="gold" fullWidth className="text-xs" onClick={saveInstruction} disabled={selectedTeamId === null}>
                 지침 저장하기
              </BrutalistButton>
+             {(selectedTeamId === 'all' || editRound === 'all') && (
+               <p className="text-[10px] text-yellow-400 text-center">
+                 ⚠️ {selectedTeamId === 'all' && editRound === 'all' ? '전체 팀의 전체 라운드에' : selectedTeamId === 'all' ? '전체 팀에' : '전체 라운드에'} 동일한 지침이 저장됩니다.
+               </p>
+             )}
           </BrutalistCard>
         </section>
 
@@ -405,7 +456,7 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
                         <div className="flex-1 h-3 bg-black brutal-border overflow-hidden">
                           <div
                             className={`h-full transition-all duration-700 ease-out ${isMissionClear ? 'bg-green-500' : 'bg-yellow-400'}`}
-                            style={{ width: `${(isMissionClear ? 10 : team.currentRound) / 10 * 100}%` }}
+                            style={{ width: `${(isMissionClear ? 12 : team.currentRound) / 12 * 100}%` }}
                           />
                         </div>
                         <span className="font-black text-sm">{isMissionClear ? 'DONE' : `R${team.currentRound}`}</span>
