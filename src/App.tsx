@@ -158,6 +158,10 @@ const App: React.FC = () => {
         if (diff <= 0) {
           setTimeLeft("00:00");
           clearInterval(timer);
+          // 시간이 완료되면 자동으로 이벤트 종료
+          if (currentRoom.activeEvent !== EventType.NONE) {
+            firebaseService.toggleEvent(currentRoom.id, currentRoom.activeEvent);
+          }
         } else {
           const minutes = Math.floor(diff / 60000);
           const seconds = Math.floor((diff % 60000) / 1000);
@@ -166,7 +170,7 @@ const App: React.FC = () => {
       }, 1000);
 
       return () => clearInterval(timer);
-    }, [currentRoom?.eventEndTime]);
+    }, [currentRoom?.eventEndTime, currentRoom?.activeEvent, currentRoom?.id]);
 
     if (!currentRoom || currentRoom.activeEvent === EventType.NONE || auth.role === UserRole.ADMIN) return null;
 
@@ -180,6 +184,9 @@ const App: React.FC = () => {
 
     const eventInfo = EVENTS.find(e => e.type === currentRoom.activeEvent);
     if (!eventInfo) return null;
+
+    // 타이머가 있는 이벤트인지 확인
+    const hasTimer = currentRoom.eventEndTime !== undefined;
 
     return (
       <div className="fixed inset-0 z-50 bg-black flex items-center justify-center p-8 animate-fadeIn">
@@ -203,7 +210,9 @@ const App: React.FC = () => {
              </div>
            )}
 
-           <p className="text-base md:text-xl font-bold italic text-gray-600">본 팝업은 강사님이 대시보드에서 해제할 때까지 닫을 수 없습니다.</p>
+           <p className="text-base md:text-xl font-bold italic text-gray-600">
+             {hasTimer ? '타이머 종료 시 자동으로 닫힙니다.' : '본 팝업은 강사님이 대시보드에서 해제할 때까지 닫을 수 없습니다.'}
+           </p>
         </BrutalistCard>
       </div>
     );
