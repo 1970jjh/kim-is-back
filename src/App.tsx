@@ -8,7 +8,8 @@ import LearnerMode from './components/LearnerMode';
 
 const App: React.FC = () => {
   const [auth, setAuth] = useState<AuthState>({ role: UserRole.UNSET, authenticated: false });
-  const [room, setRoom] = useState<RoomState | null>(null);
+  const [rooms, setRooms] = useState<Record<string, RoomState>>({});
+  const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Login States
@@ -21,17 +22,38 @@ const App: React.FC = () => {
 
   useEffect(() => {
     // Firebase 실시간 구독
-    const unsubscribe = firebaseService.subscribe((newRoom) => {
-      setRoom(newRoom);
+    const unsubscribe = firebaseService.subscribe((newRooms) => {
+      setRooms(newRooms);
       setLoading(false);
+
+      // 현재 선택된 방이 삭제되었거나 없으면 첫 번째 방 선택
+      if (currentRoomId && !newRooms[currentRoomId]) {
+        const roomIds = Object.keys(newRooms);
+        setCurrentRoomId(roomIds.length > 0 ? roomIds[0] : null);
+      }
     });
 
     // 세션 복구
     const savedAuth = localStorage.getItem('KIM_BUJANG_AUTH');
-    if (savedAuth) setAuth(JSON.parse(savedAuth));
+    if (savedAuth) {
+      const parsed = JSON.parse(savedAuth);
+      setAuth(parsed);
+      if (parsed.roomId) {
+        setCurrentRoomId(parsed.roomId);
+      }
+    }
 
     return () => unsubscribe();
   }, []);
+
+  // 첫 로드 시 방이 있으면 첫 번째 방 선택
+  useEffect(() => {
+    if (!loading && !currentRoomId && Object.keys(rooms).length > 0) {
+      setCurrentRoomId(Object.keys(rooms)[0]);
+    }
+  }, [loading, rooms, currentRoomId]);
+
+  const currentRoom = currentRoomId ? rooms[currentRoomId] : null;
 
   const saveAuth = (newAuth: AuthState) => {
     setAuth(newAuth);
@@ -47,25 +69,30 @@ const App: React.FC = () => {
   };
 
   const handleCreateRoom = async () => {
-    if (!room) return;
-    const initialRoom: RoomState = {
-      ...room,
-      groupName: setupData.groupName,
-      totalTeams: setupData.totalTeams,
-      membersPerTeam: setupData.membersPerTeam,
-      teams: {}
-    };
-    await firebaseService.saveRoom(initialRoom);
+    if (!setupData.groupName.trim()) {
+      alert('교육 그룹명을 입력해주세요.');
+      return;
+    }
+    const newRoomId = await firebaseService.createRoom(
+      setupData.groupName,
+      setupData.totalTeams,
+      setupData.membersPerTeam
+    );
+    setCurrentRoomId(newRoomId);
+    setSetupData({ groupName: '', totalTeams: 5, membersPerTeam: 6 });
   };
 
   const handleJoinTeam = async () => {
+    if (!currentRoom || !currentRoomId) {
+      alert('참가할 교육 그룹이 없습니다.');
+      return;
+    }
+
     const leaderName = joinData.members['leader'];
     if (!leaderName) {
       alert('최소한 리더(김부장)의 이름은 입력해야 합니다.');
       return;
     }
-
-    const currentRoom = await firebaseService.getRoom();
 
     // Check reconnection logic: same team + same leader name
     const existingTeam = currentRoom.teams[joinData.teamId];
@@ -82,24 +109,17 @@ const App: React.FC = () => {
       name: joinData.members[r.id] || '미지정'
     }));
 
-    const newTeam = {
-      id: joinData.teamId,
-      name: `Team ${joinData.teamId}`,
+    await firebaseService.joinTeam(currentRoomId, joinData.teamId, {
       members: memberList,
-      currentRound: existingTeam?.currentRound || 1,
-      isJoined: true,
       roundInstructions: existingTeam?.roundInstructions || {}
-    };
-
-    const newRoom = { ...currentRoom };
-    newRoom.teams[joinData.teamId] = newTeam;
-    await firebaseService.saveRoom(newRoom);
+    });
 
     saveAuth({
       role: UserRole.LEARNER,
       authenticated: true,
       teamId: joinData.teamId,
-      learnerName: leaderName
+      learnerName: leaderName,
+      roomId: currentRoomId
     });
   };
 
@@ -108,19 +128,23 @@ const App: React.FC = () => {
     setAuth({ role: UserRole.UNSET, authenticated: false });
   };
 
+  const handleSelectRoom = (roomId: string) => {
+    setCurrentRoomId(roomId);
+  };
+
   // Event Overlay Component with Countdown
   const EventOverlay = () => {
     const [timeLeft, setTimeLeft] = useState<string>("");
 
     useEffect(() => {
-      if (!room?.eventEndTime) {
+      if (!currentRoom?.eventEndTime) {
         setTimeLeft("");
         return;
       }
 
       const timer = setInterval(() => {
         const now = Date.now();
-        const diff = room.eventEndTime! - now;
+        const diff = currentRoom.eventEndTime! - now;
         if (diff <= 0) {
           setTimeLeft("00:00");
           clearInterval(timer);
@@ -132,10 +156,10 @@ const App: React.FC = () => {
       }, 1000);
 
       return () => clearInterval(timer);
-    }, [room?.eventEndTime]);
+    }, [currentRoom?.eventEndTime]);
 
-    if (!room || room.activeEvent === EventType.NONE || auth.role === UserRole.ADMIN) return null;
-    const eventInfo = EVENTS.find(e => e.type === room.activeEvent);
+    if (!currentRoom || currentRoom.activeEvent === EventType.NONE || auth.role === UserRole.ADMIN) return null;
+    const eventInfo = EVENTS.find(e => e.type === currentRoom.activeEvent);
     if (!eventInfo) return null;
 
     return (
@@ -209,11 +233,12 @@ const App: React.FC = () => {
 
   // 2. Admin Logic
   if (auth.role === UserRole.ADMIN) {
-    if (!room || room.groupName === '') {
+    // 방이 하나도 없으면 생성 화면
+    if (Object.keys(rooms).length === 0) {
       return (
         <div className="flex items-center justify-center min-h-screen p-4">
           <BrutalistCard className="max-w-md w-full space-y-6">
-            <h2 className="text-3xl font-black uppercase">ROOM SETUP</h2>
+            <h2 className="text-3xl font-black uppercase">첫 번째 교육 그룹 생성</h2>
             <div className="space-y-4">
               <label className="block font-bold">교육 그룹명</label>
               <BrutalistInput
@@ -254,87 +279,136 @@ const App: React.FC = () => {
       );
     }
 
-    return (
-      <div className="min-h-screen">
-        <nav className="fixed bottom-4 right-4 flex gap-2 z-40">
-           <BrutalistButton variant="primary" onClick={() => saveAuth({ ...auth, role: UserRole.LEARNER, authenticated: false })}>
-             PREVIEW MODE
-           </BrutalistButton>
-           <BrutalistButton variant="danger" onClick={handleLogout}>LOGOUT</BrutalistButton>
-        </nav>
-        <AdminDashboard />
-      </div>
-    );
+    // 방이 있으면 대시보드
+    if (currentRoom) {
+      return (
+        <div className="min-h-screen">
+          <AdminDashboard
+            room={currentRoom}
+            rooms={rooms}
+            onSelectRoom={handleSelectRoom}
+            onLogout={handleLogout}
+          />
+        </div>
+      );
+    }
   }
 
-  // 3. Learner Login/Mission
-  if (auth.role === UserRole.LEARNER && !auth.authenticated) {
-    return (
-      <div className="flex items-center justify-center min-h-screen p-4">
-        <BrutalistCard className="max-w-2xl w-full space-y-8 bg-black/90">
-          <h2 className="text-4xl font-black uppercase gold-gradient">MISSION JOIN</h2>
+  // 3. Learner Logic
+  if (auth.role === UserRole.LEARNER) {
+    // 방 선택 & 팀 참가 화면
+    if (!auth.authenticated) {
+      const roomList = Object.values(rooms);
 
-          <div className="space-y-6">
-            <div>
-              <label className="block font-black text-yellow-400 mb-2 uppercase">교육 그룹 선택</label>
-              <div className="brutal-border p-4 bg-white text-black font-black">
-                {room?.groupName || '현재 활성화된 교육이 없습니다.'}
-              </div>
-            </div>
+      return (
+        <div className="flex items-center justify-center min-h-screen p-4">
+          <BrutalistCard className="max-w-2xl w-full space-y-8 bg-black/90">
+            <h2 className="text-4xl font-black uppercase gold-gradient">MISSION JOIN</h2>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-               <div className="space-y-2">
-                  <label className="block font-black text-yellow-400 uppercase">본인의 조(Team) 선택</label>
+            <div className="space-y-6">
+              {/* 방 선택 */}
+              <div>
+                <label className="block font-black text-yellow-400 mb-2 uppercase">교육 그룹 선택</label>
+                {roomList.length === 0 ? (
+                  <div className="brutal-border p-4 bg-white text-black font-black">
+                    현재 활성화된 교육이 없습니다.
+                  </div>
+                ) : (
                   <select
-                    className="w-full brutal-border bg-white text-black p-4 font-bold brutalist-shadow h-[60px]"
-                    value={joinData.teamId}
-                    onChange={(e) => setJoinData({...joinData, teamId: parseInt(e.target.value)})}
+                    className="w-full brutal-border bg-white text-black p-4 font-bold brutalist-shadow"
+                    value={currentRoomId || ''}
+                    onChange={(e) => setCurrentRoomId(e.target.value)}
                   >
-                    {Array.from({ length: room?.totalTeams || 1 }).map((_, i) => (
-                      <option key={i+1} value={i+1}>{i+1}조 (Team {i+1})</option>
+                    {roomList.map(room => (
+                      <option key={room.id} value={room.id}>{room.groupName}</option>
                     ))}
                   </select>
-               </div>
+                )}
+              </div>
 
-               <div className="space-y-4">
-                  <label className="block font-black text-yellow-400 uppercase">팀원 정보 입력</label>
-                  <div className="space-y-2 overflow-y-auto max-h-[300px] pr-2">
-                    {ROLES.map(role => (
-                      <div key={role.id}>
-                        <label className="text-xs font-bold text-gray-400">{role.label}</label>
-                        <BrutalistInput
-                          placeholder="이름 입력"
-                          className="w-full text-sm py-2 px-3"
-                          value={joinData.members[role.id] || ''}
-                          onChange={(e) => setJoinData({
-                            ...joinData,
-                            members: { ...joinData.members, [role.id]: e.target.value }
-                          })}
-                        />
+              {currentRoom && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                   <div className="space-y-2">
+                      <label className="block font-black text-yellow-400 uppercase">본인의 조(Team) 선택</label>
+                      <select
+                        className="w-full brutal-border bg-white text-black p-4 font-bold brutalist-shadow h-[60px]"
+                        value={joinData.teamId}
+                        onChange={(e) => setJoinData({...joinData, teamId: parseInt(e.target.value)})}
+                      >
+                        {Array.from({ length: currentRoom.totalTeams }).map((_, i) => (
+                          <option key={i+1} value={i+1}>{i+1}조 (Team {i+1})</option>
+                        ))}
+                      </select>
+                   </div>
+
+                   <div className="space-y-4">
+                      <label className="block font-black text-yellow-400 uppercase">팀원 정보 입력</label>
+                      <div className="space-y-2 overflow-y-auto max-h-[300px] pr-2">
+                        {ROLES.map(role => (
+                          <div key={role.id}>
+                            <label className="text-xs font-bold text-gray-400">{role.label}</label>
+                            <BrutalistInput
+                              placeholder="이름 입력"
+                              className="w-full text-sm py-2 px-3"
+                              value={joinData.members[role.id] || ''}
+                              onChange={(e) => setJoinData({
+                                ...joinData,
+                                members: { ...joinData.members, [role.id]: e.target.value }
+                              })}
+                            />
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-               </div>
-            </div>
+                   </div>
+                </div>
+              )}
 
-            <div className="flex gap-4">
-              <BrutalistButton variant="gold" className="flex-1 text-2xl" onClick={handleJoinTeam}>JOIN MISSION</BrutalistButton>
-              <BrutalistButton variant="ghost" onClick={handleLogout}>뒤로</BrutalistButton>
+              <div className="flex gap-4">
+                <BrutalistButton
+                  variant="gold"
+                  className="flex-1 text-2xl"
+                  onClick={handleJoinTeam}
+                  disabled={!currentRoom}
+                >
+                  JOIN MISSION
+                </BrutalistButton>
+                <BrutalistButton variant="ghost" onClick={handleLogout}>뒤로</BrutalistButton>
+              </div>
             </div>
-          </div>
-        </BrutalistCard>
+          </BrutalistCard>
+        </div>
+      );
+    }
+
+    // 팀 참가 완료 - 미션 화면
+    const learnerRoom = auth.roomId ? rooms[auth.roomId] : null;
+
+    if (!learnerRoom) {
+      return (
+        <div className="flex items-center justify-center min-h-screen p-4">
+          <BrutalistCard className="text-center space-y-4">
+            <p className="text-xl font-bold">교육 그룹을 찾을 수 없습니다.</p>
+            <BrutalistButton variant="ghost" onClick={handleLogout}>돌아가기</BrutalistButton>
+          </BrutalistCard>
+        </div>
+      );
+    }
+
+    return (
+      <div className="min-h-screen">
+        <EventOverlay />
+        <LearnerMode
+          room={learnerRoom}
+          auth={{ teamId: auth.teamId!, learnerName: auth.learnerName! }}
+        />
       </div>
     );
   }
 
-  // Final State: Learner Active Mission
+  // Fallback
   return (
-    <div className="min-h-screen">
-      <EventOverlay />
-      <nav className="fixed bottom-4 right-4 flex gap-2 z-40">
-           <BrutalistButton variant="ghost" className="bg-black/50" onClick={handleLogout}>MENU</BrutalistButton>
-      </nav>
-      <LearnerMode auth={{ teamId: auth.teamId!, learnerName: auth.learnerName! }} />
+    <div className="flex items-center justify-center min-h-screen">
+      <BrutalistButton variant="ghost" onClick={handleLogout}>돌아가기</BrutalistButton>
     </div>
   );
 };

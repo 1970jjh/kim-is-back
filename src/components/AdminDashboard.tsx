@@ -1,41 +1,93 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import { firebaseService } from '../services/firebaseService';
-import { RoomState, EventType } from '../types';
+import { RoomState, EventType, TeamPerformance } from '../types';
 import { BrutalistButton, BrutalistCard, BrutalistInput } from './BrutalistUI';
 import { EVENTS, ROUNDS } from '../constants';
 
-const AdminDashboard: React.FC = () => {
-  const [room, setRoom] = useState<RoomState | null>(null);
+const APP_URL = 'https://kim-is-back.vercel.app';
+
+// 시간 포맷팅 유틸
+const formatTime = (seconds: number): string => {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+};
+
+const formatTimeWithHours = (seconds: number): string => {
+  const hours = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+  if (hours > 0) {
+    return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+};
+
+interface Props {
+  room: RoomState;
+  rooms: Record<string, RoomState>;
+  onSelectRoom: (roomId: string) => void;
+  onLogout: () => void;
+}
+
+const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout }) => {
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
   const [editRound, setEditRound] = useState<number>(1);
   const [instructionText, setInstructionText] = useState("");
   const [eventMinutes, setEventMinutes] = useState<number>(10);
+  const [missionTimerMinutes, setMissionTimerMinutes] = useState<number>(room.missionTimerMinutes || 60);
   const [isMusicPlaying, setIsMusicPlaying] = useState(false);
+  const [showPerformanceModal, setShowPerformanceModal] = useState(false);
+  const [selectedPerformanceTeamId, setSelectedPerformanceTeamId] = useState<number | null>(null);
+  const [showNewRoomModal, setShowNewRoomModal] = useState(false);
+  const [newRoomData, setNewRoomData] = useState({ groupName: '', totalTeams: 5, membersPerTeam: 6 });
+  const [remainingTime, setRemainingTime] = useState<string>("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
+  // 전체 미션 타이머
   useEffect(() => {
-    const unsubscribe = firebaseService.subscribe(setRoom);
-    return () => unsubscribe();
-  }, []);
+    if (!room.missionStarted || !room.missionStartTime) {
+      setRemainingTime("");
+      return;
+    }
+
+    const timer = setInterval(() => {
+      const now = Date.now();
+      const elapsed = Math.floor((now - room.missionStartTime!) / 1000);
+      const totalSeconds = room.missionTimerMinutes * 60;
+      const remaining = totalSeconds - elapsed;
+
+      if (remaining <= 0) {
+        setRemainingTime("00:00");
+      } else {
+        setRemainingTime(formatTimeWithHours(remaining));
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [room.missionStarted, room.missionStartTime, room.missionTimerMinutes]);
 
   useEffect(() => {
-    // If birthday event is deactivated, stop the music
-    if (room && room.activeEvent !== EventType.BIRTHDAY && isMusicPlaying) {
+    if (room.activeEvent !== EventType.BIRTHDAY && isMusicPlaying) {
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current.currentTime = 0;
       }
       setIsMusicPlaying(false);
     }
-  }, [room?.activeEvent, isMusicPlaying]);
+  }, [room.activeEvent, isMusicPlaying]);
 
   const handleStartMission = async () => {
-    if (!room) return;
-    await firebaseService.saveRoom({ ...room, missionStarted: true });
+    await firebaseService.startMission(room.id);
+  };
+
+  const handleSetTimer = async () => {
+    await firebaseService.setMissionTimer(room.id, missionTimerMinutes);
   };
 
   const toggleEvent = async (type: EventType) => {
-    await firebaseService.toggleEvent(type, eventMinutes);
+    await firebaseService.toggleEvent(room.id, type, eventMinutes);
   };
 
   const toggleMusic = () => {
@@ -49,70 +101,156 @@ const AdminDashboard: React.FC = () => {
   };
 
   const updateRound = async (teamId: number, round: number) => {
-    await firebaseService.updateTeamRound(teamId, round);
+    await firebaseService.setTeamRound(room.id, teamId, round);
   };
 
   const saveInstruction = async () => {
-    if (selectedTeamId === null || !room) return;
-    const newRoom = { ...room };
-    if (!newRoom.teams[selectedTeamId]) {
-      newRoom.teams[selectedTeamId] = {
+    if (selectedTeamId === null) return;
+    const updatedRoom = { ...room };
+    if (!updatedRoom.teams[selectedTeamId]) {
+      updatedRoom.teams[selectedTeamId] = {
         id: selectedTeamId,
         name: `Team ${selectedTeamId}`,
         members: [],
         currentRound: 1,
+        maxCompletedRound: 0,
         isJoined: false,
-        roundInstructions: {}
+        roundInstructions: {},
+        helpCount: 0,
+        helpUsages: [],
+        roundTimes: {},
+        totalBonusTime: 0
       };
     }
-    if (!newRoom.teams[selectedTeamId].roundInstructions) {
-      newRoom.teams[selectedTeamId].roundInstructions = {};
+    if (!updatedRoom.teams[selectedTeamId].roundInstructions) {
+      updatedRoom.teams[selectedTeamId].roundInstructions = {};
     }
-    newRoom.teams[selectedTeamId].roundInstructions[editRound] = instructionText;
-    await firebaseService.saveRoom(newRoom);
+    updatedRoom.teams[selectedTeamId].roundInstructions[editRound] = instructionText;
+    await firebaseService.saveRoom(updatedRoom);
     alert(`팀 ${selectedTeamId} R${editRound} 미션 내용이 저장되었습니다.`);
   };
 
   const selectTeamForEdit = (id: number) => {
     setSelectedTeamId(id);
-    if (room) {
-      setInstructionText(room.teams[id]?.roundInstructions?.[editRound] || "");
+    setInstructionText(room.teams[id]?.roundInstructions?.[editRound] || "");
+  };
+
+  const handleCreateRoom = async () => {
+    if (!newRoomData.groupName.trim()) {
+      alert('교육 그룹명을 입력해주세요.');
+      return;
+    }
+    await firebaseService.createRoom(newRoomData.groupName, newRoomData.totalTeams, newRoomData.membersPerTeam);
+    setShowNewRoomModal(false);
+    setNewRoomData({ groupName: '', totalTeams: 5, membersPerTeam: 6 });
+  };
+
+  const handleDeleteRoom = async (roomId: string) => {
+    if (window.confirm('정말로 이 교육 그룹을 삭제하시겠습니까? 모든 데이터가 삭제됩니다.')) {
+      await firebaseService.deleteRoom(roomId);
     }
   };
 
   useEffect(() => {
-    if (selectedTeamId !== null && room) {
+    if (selectedTeamId !== null) {
       setInstructionText(room.teams[selectedTeamId]?.roundInstructions?.[editRound] || "");
     }
-  }, [editRound, selectedTeamId, room?.teams]);
+  }, [editRound, selectedTeamId, room.teams]);
 
-  if (!room) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-2xl font-bold animate-pulse">Loading...</div>
-      </div>
-    );
-  }
+  // 성과 분석 데이터
+  const allPerformances = firebaseService.calculateAllTeamPerformances(room);
+  const completedTeams = Object.values(room.teams).filter(t => t.missionClearTime);
+
+  // 선택된 팀의 성과 분석
+  const selectedPerformance = selectedPerformanceTeamId
+    ? firebaseService.calculateTeamPerformance(room, selectedPerformanceTeamId)
+    : null;
 
   return (
     <div className="max-w-7xl mx-auto p-4 space-y-8 pb-32">
-      <header className="flex flex-col md:flex-row justify-between items-end gap-4 border-b-8 border-black pb-4 mb-8">
-        <div>
-          <h1 className="text-4xl md:text-6xl gold-gradient uppercase">ADMIN CONTROL</h1>
-          <p className="text-xl font-bold text-gray-400">그룹: {room.groupName || '미설정'}</p>
+      {/* Header with QR Code */}
+      <header className="flex flex-col md:flex-row justify-between items-start gap-4 border-b-8 border-black pb-4 mb-8">
+        <div className="flex items-start gap-6">
+          {/* QR Code */}
+          <div className="bg-white p-2 brutal-border brutalist-shadow">
+            <QRCodeSVG value={APP_URL} size={100} />
+            <p className="text-[8px] text-black text-center mt-1 font-bold">SCAN TO JOIN</p>
+          </div>
+
+          <div>
+            <h1 className="text-4xl md:text-6xl gold-gradient uppercase">ADMIN CONTROL</h1>
+            <p className="text-xl font-bold text-gray-400">그룹: {room.groupName || '미설정'}</p>
+
+            {/* 전체 미션 타이머 표시 */}
+            {room.missionStarted && remainingTime && (
+              <div className={`mt-2 text-3xl font-mono font-black ${remainingTime === "00:00" ? 'text-red-500 animate-pulse' : 'text-yellow-400'}`}>
+                남은 시간: {remainingTime}
+              </div>
+            )}
+          </div>
         </div>
-        <BrutalistButton variant="gold" onClick={handleStartMission} disabled={room.missionStarted}>
-          {room.missionStarted ? '미션 진행 중' : '미션 스타트'}
-        </BrutalistButton>
+
+        <div className="flex flex-col gap-2 items-end">
+          <BrutalistButton variant="gold" onClick={handleStartMission} disabled={room.missionStarted}>
+            {room.missionStarted ? '미션 진행 중' : '미션 스타트'}
+          </BrutalistButton>
+
+          {completedTeams.length > 0 && (
+            <BrutalistButton variant="primary" onClick={() => setShowPerformanceModal(true)} className="text-sm">
+              전체 성과 분석 ({completedTeams.length}팀 완료)
+            </BrutalistButton>
+          )}
+        </div>
       </header>
 
+      {/* Room Selector */}
+      <div className="flex items-center gap-4 flex-wrap">
+        <span className="font-bold text-sm">교육 그룹:</span>
+        {Object.values(rooms).map(r => (
+          <button
+            key={r.id}
+            onClick={() => onSelectRoom(r.id)}
+            className={`px-3 py-1 brutal-border font-bold text-sm transition-all ${r.id === room.id ? 'bg-yellow-400 text-black' : 'bg-white/10 hover:bg-white/20'}`}
+          >
+            {r.groupName}
+          </button>
+        ))}
+        <BrutalistButton variant="ghost" className="text-sm py-1 px-3" onClick={() => setShowNewRoomModal(true)}>
+          + 새 그룹
+        </BrutalistButton>
+        <BrutalistButton variant="danger" className="text-sm py-1 px-3" onClick={() => handleDeleteRoom(room.id)}>
+          현재 그룹 삭제
+        </BrutalistButton>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-        {/* Column 1: Event Controls */}
+        {/* Column 1: Event Controls + Timer */}
         <section className="lg:col-span-1 space-y-6">
+          {/* Mission Timer Settings */}
+          <div className="space-y-4">
+            <h2 className="text-2xl font-black italic">MISSION TIMER</h2>
+            <BrutalistCard className="space-y-4">
+              <label className="block text-xs font-bold uppercase">전체 미션 제한 시간 (분)</label>
+              <div className="flex gap-2">
+                <BrutalistInput
+                  type="number"
+                  value={missionTimerMinutes}
+                  onChange={(e) => setMissionTimerMinutes(parseInt(e.target.value) || 60)}
+                  className="flex-1 text-center"
+                  min={1}
+                  max={300}
+                />
+                <BrutalistButton variant="gold" onClick={handleSetTimer} className="text-xs">
+                  설정
+                </BrutalistButton>
+              </div>
+              <p className="text-[10px] text-gray-500">현재 설정: {room.missionTimerMinutes}분</p>
+            </BrutalistCard>
+          </div>
+
           <div className="space-y-4">
             <h2 className="text-2xl font-black italic">EVENT CONTROL</h2>
 
-            {/* Music Player for Birthday */}
             <audio
               ref={audioRef}
               src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"
@@ -134,7 +272,7 @@ const AdminDashboard: React.FC = () => {
             )}
 
             <div className="bg-black/20 p-4 border-2 border-white/10 space-y-4">
-              <label className="block text-xs font-bold uppercase">타이머 설정 (분)</label>
+              <label className="block text-xs font-bold uppercase">이벤트 타이머 설정 (분)</label>
               <BrutalistInput
                 type="number"
                 value={eventMinutes}
@@ -209,13 +347,24 @@ const AdminDashboard: React.FC = () => {
             {Array.from({ length: room.totalTeams }).map((_, idx) => {
               const teamId = idx + 1;
               const team = room.teams[teamId];
+              const isMissionClear = team?.missionClearTime;
+
               return (
-                <BrutalistCard key={teamId} className={`${team?.isJoined ? 'border-yellow-400' : 'opacity-40'} relative group`}>
+                <BrutalistCard
+                  key={teamId}
+                  className={`${isMissionClear ? 'border-green-500 bg-green-900/30' : team?.isJoined ? 'border-yellow-400' : 'opacity-40'} relative group`}
+                >
                   <div className="flex justify-between items-start mb-2">
                     <span className="text-2xl font-black">T{teamId}</span>
                     <div className="flex gap-1">
-                      {team?.isJoined && (
+                      {isMissionClear && (
+                        <div className="px-2 py-0.5 text-[10px] bg-green-500 font-bold">CLEAR!</div>
+                      )}
+                      {team?.isJoined && !isMissionClear && (
                         <div className="px-2 py-0.5 text-[10px] bg-green-500 font-bold">ONLINE</div>
+                      )}
+                      {team && team.helpCount > 0 && (
+                        <div className="px-2 py-0.5 text-[10px] bg-orange-500 font-bold">HELP x{team.helpCount}</div>
                       )}
                     </div>
                   </div>
@@ -225,27 +374,39 @@ const AdminDashboard: React.FC = () => {
                       <div className="flex items-center gap-2">
                         <div className="flex-1 h-3 bg-black brutal-border overflow-hidden">
                           <div
-                            className="h-full bg-yellow-400 transition-all duration-700 ease-out"
-                            style={{ width: `${(team.currentRound / 10) * 100}%` }}
+                            className={`h-full transition-all duration-700 ease-out ${isMissionClear ? 'bg-green-500' : 'bg-yellow-400'}`}
+                            style={{ width: `${(isMissionClear ? 10 : team.currentRound) / 10 * 100}%` }}
                           />
                         </div>
-                        <span className="font-black text-sm">R{team.currentRound}</span>
+                        <span className="font-black text-sm">{isMissionClear ? 'DONE' : `R${team.currentRound}`}</span>
                       </div>
                       <div className="flex justify-between items-center gap-2">
                         <div className="flex gap-1">
                            <button
                             className="w-8 h-8 brutal-border bg-white text-black font-black text-xs hover:bg-gray-200"
                             onClick={() => updateRound(teamId, team.currentRound - 1)}
+                            disabled={isMissionClear}
                            >-</button>
                            <button
                             className="w-8 h-8 brutal-border bg-white text-black font-black text-xs hover:bg-gray-200"
                             onClick={() => updateRound(teamId, team.currentRound + 1)}
+                            disabled={isMissionClear}
                            >+</button>
                         </div>
-                        <button
-                          className="text-[10px] font-bold underline opacity-60 hover:opacity-100"
-                          onClick={() => selectTeamForEdit(teamId)}
-                        >EDIT CONTENT</button>
+                        <div className="flex gap-2">
+                          {isMissionClear && (
+                            <button
+                              className="text-[10px] font-bold underline text-green-400 hover:text-green-300"
+                              onClick={() => {
+                                setSelectedPerformanceTeamId(teamId);
+                              }}
+                            >VIEW RESULT</button>
+                          )}
+                          <button
+                            className="text-[10px] font-bold underline opacity-60 hover:opacity-100"
+                            onClick={() => selectTeamForEdit(teamId)}
+                          >EDIT CONTENT</button>
+                        </div>
                       </div>
                     </div>
                   ) : (
@@ -257,6 +418,154 @@ const AdminDashboard: React.FC = () => {
           </div>
         </section>
       </div>
+
+      {/* Nav buttons */}
+      <nav className="fixed bottom-4 right-4 flex gap-2 z-40">
+        <BrutalistButton variant="danger" onClick={onLogout}>LOGOUT</BrutalistButton>
+      </nav>
+
+      {/* New Room Modal */}
+      {showNewRoomModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <BrutalistCard className="max-w-md w-full space-y-6">
+            <h2 className="text-3xl font-black uppercase">새 교육 그룹</h2>
+            <div className="space-y-4">
+              <label className="block font-bold">교육 그룹명</label>
+              <BrutalistInput
+                fullWidth
+                placeholder="예: 2024 신입사원 입문교육"
+                value={newRoomData.groupName}
+                onChange={(e) => setNewRoomData({...newRoomData, groupName: e.target.value})}
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold">조 편성 (1-30)</label>
+                  <BrutalistInput
+                    type="number"
+                    fullWidth
+                    value={newRoomData.totalTeams}
+                    min={1} max={30}
+                    onChange={(e) => setNewRoomData({...newRoomData, totalTeams: parseInt(e.target.value) || 1})}
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold">조별 인원 (2-12)</label>
+                  <BrutalistInput
+                    type="number"
+                    fullWidth
+                    value={newRoomData.membersPerTeam}
+                    min={2} max={12}
+                    onChange={(e) => setNewRoomData({...newRoomData, membersPerTeam: parseInt(e.target.value) || 2})}
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <BrutalistButton variant="gold" fullWidth onClick={handleCreateRoom}>
+                  생성하기
+                </BrutalistButton>
+                <BrutalistButton variant="ghost" fullWidth onClick={() => setShowNewRoomModal(false)}>
+                  취소
+                </BrutalistButton>
+              </div>
+            </div>
+          </BrutalistCard>
+        </div>
+      )}
+
+      {/* Performance Modal - All Teams */}
+      {showPerformanceModal && (
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4 overflow-auto">
+          <BrutalistCard className="max-w-4xl w-full space-y-6 my-8">
+            <div className="flex justify-between items-center">
+              <h2 className="text-4xl font-black uppercase gold-gradient">전체 성과 분석</h2>
+              <BrutalistButton variant="ghost" onClick={() => setShowPerformanceModal(false)}>닫기</BrutalistButton>
+            </div>
+
+            <div className="space-y-4">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b-4 border-yellow-400">
+                    <th className="p-2 font-black">순위</th>
+                    <th className="p-2 font-black">팀</th>
+                    <th className="p-2 font-black">총 소요시간</th>
+                    <th className="p-2 font-black">헬프(+시간)</th>
+                    <th className="p-2 font-black">최종 시간</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allPerformances.map((perf) => (
+                    <tr key={perf.teamId} className="border-b border-white/20 hover:bg-white/10">
+                      <td className="p-2">
+                        <span className={`font-black text-2xl ${perf.rank === 1 ? 'text-yellow-400' : perf.rank === 2 ? 'text-gray-300' : perf.rank === 3 ? 'text-orange-400' : ''}`}>
+                          #{perf.rank}
+                        </span>
+                      </td>
+                      <td className="p-2 font-bold">Team {perf.teamId}</td>
+                      <td className="p-2 font-mono">{formatTimeWithHours(perf.totalTime)}</td>
+                      <td className="p-2">
+                        {perf.helpCount > 0 ? (
+                          <span className="text-orange-400">x{perf.helpCount} (+{formatTime(perf.helpBonusTime)})</span>
+                        ) : (
+                          <span className="text-gray-500">-</span>
+                        )}
+                      </td>
+                      <td className="p-2 font-mono font-bold text-yellow-400">{formatTimeWithHours(perf.totalTimeWithBonus)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </BrutalistCard>
+        </div>
+      )}
+
+      {/* Performance Modal - Single Team */}
+      {selectedPerformanceTeamId && selectedPerformance && (
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4 overflow-auto">
+          <BrutalistCard className="max-w-2xl w-full space-y-6 my-8">
+            <div className="flex justify-between items-center">
+              <h2 className="text-4xl font-black uppercase gold-gradient">Team {selectedPerformanceTeamId} 성과</h2>
+              <BrutalistButton variant="ghost" onClick={() => setSelectedPerformanceTeamId(null)}>닫기</BrutalistButton>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <BrutalistCard className="text-center">
+                <p className="text-sm text-gray-400 uppercase">전체 순위</p>
+                <p className="text-5xl font-black gold-gradient">#{selectedPerformance.rank}</p>
+              </BrutalistCard>
+              <BrutalistCard className="text-center">
+                <p className="text-sm text-gray-400 uppercase">총 소요시간</p>
+                <p className="text-3xl font-mono font-black">{formatTimeWithHours(selectedPerformance.totalTimeWithBonus)}</p>
+              </BrutalistCard>
+              <BrutalistCard className="text-center">
+                <p className="text-sm text-gray-400 uppercase">헬프 사용</p>
+                <p className="text-3xl font-black text-orange-400">
+                  {selectedPerformance.helpCount}회 (+{formatTime(selectedPerformance.helpBonusTime)})
+                </p>
+              </BrutalistCard>
+              <BrutalistCard className="text-center">
+                <p className="text-sm text-gray-400 uppercase">순수 미션 시간</p>
+                <p className="text-3xl font-mono font-black">{formatTimeWithHours(selectedPerformance.totalTime)}</p>
+              </BrutalistCard>
+            </div>
+
+            <div>
+              <h3 className="text-xl font-black mb-3">라운드별 소요시간</h3>
+              <div className="grid grid-cols-5 gap-2">
+                {ROUNDS.map(r => {
+                  const time = selectedPerformance.roundTimes[r.id];
+                  return (
+                    <div key={r.id} className="bg-white/10 p-2 text-center brutal-border">
+                      <p className="text-xs text-gray-400">R{r.id}</p>
+                      <p className="font-mono font-bold">{time ? formatTime(time) : '-'}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </BrutalistCard>
+        </div>
+      )}
     </div>
   );
 };
