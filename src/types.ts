@@ -63,6 +63,8 @@ export interface RoomState {
   activeEvent: EventType;
   eventEndTime?: number; // Timestamp in ms
   eventTargetTeams?: number[] | 'all';  // 이벤트 대상 팀 (특정 팀 또는 전체)
+  eventStartedAt?: number;  // 현재 이벤트 시작 시간 (타이머 일시정지용)
+  eventPausedTotal?: number;  // 이벤트로 인해 일시정지된 총 시간 (초)
   teams: Record<number, TeamState>;
   createdAt: number;  // 방 생성 시간
 }

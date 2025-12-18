@@ -221,17 +221,31 @@ export const firebaseService = {
     const room = await firebaseService.getRoom(roomId);
     if (!room) return;
 
+    const now = Date.now();
+
     if (room.activeEvent === type) {
       // 같은 이벤트를 다시 누르면 비활성화 (시간 유무에 상관없이)
+      // 이벤트 일시정지 시간 계산 및 누적
+      if (room.eventStartedAt) {
+        const pausedSeconds = Math.floor((now - room.eventStartedAt) / 1000);
+        room.eventPausedTotal = (room.eventPausedTotal || 0) + pausedSeconds;
+      }
       room.activeEvent = EventType.NONE;
       room.eventEndTime = undefined;
       room.eventTargetTeams = undefined;
+      room.eventStartedAt = undefined;
     } else {
       // 다른 이벤트 클릭: 새 이벤트로 교체 (기존 이벤트 자동 종료)
+      // 기존 이벤트가 있었다면 그 시간도 누적
+      if (room.activeEvent !== EventType.NONE && room.eventStartedAt) {
+        const pausedSeconds = Math.floor((now - room.eventStartedAt) / 1000);
+        room.eventPausedTotal = (room.eventPausedTotal || 0) + pausedSeconds;
+      }
       room.activeEvent = type;
       // 타이머 설정이 있으면 모든 이벤트에 적용 (minutes > 0일 때만)
-      room.eventEndTime = minutes && minutes > 0 ? Date.now() + minutes * 60000 : undefined;
+      room.eventEndTime = minutes && minutes > 0 ? now + minutes * 60000 : undefined;
       room.eventTargetTeams = targetTeams || 'all';
+      room.eventStartedAt = now;  // 이벤트 시작 시간 기록
     }
 
     await firebaseService.saveRoom(room);
