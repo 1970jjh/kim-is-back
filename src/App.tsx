@@ -251,7 +251,14 @@ const App: React.FC = () => {
       return () => clearInterval(timer);
     }, [currentRoom?.eventEndTime, currentRoom?.activeEvent, currentRoom?.id]);
 
-    if (!currentRoom || currentRoom.activeEvent === EventType.NONE || auth.role === UserRole.ADMIN) return null;
+    // 이벤트가 없거나 NONE이면 즉시 닫기 (문자열/enum 모두 체크)
+    if (!currentRoom ||
+        currentRoom.activeEvent === EventType.NONE ||
+        currentRoom.activeEvent === 'NONE' ||
+        !currentRoom.activeEvent ||
+        auth.role === UserRole.ADMIN) {
+      return null;
+    }
 
     // 타이머가 만료되었으면 렌더링하지 않음 (Firebase 동기화 대기)
     if (currentRoom.eventEndTime && currentRoom.eventEndTime <= Date.now()) {

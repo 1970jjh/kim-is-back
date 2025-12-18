@@ -251,6 +251,28 @@ export const firebaseService = {
     await firebaseService.saveRoom(room);
   },
 
+  // 모든 이벤트 강제 종료 (즉시)
+  forceEndAllEvents: async (roomId: string): Promise<void> => {
+    const room = await firebaseService.getRoom(roomId);
+    if (!room) return;
+
+    const now = Date.now();
+
+    // 현재 이벤트가 있으면 일시정지 시간 누적
+    if (room.activeEvent !== EventType.NONE && room.eventStartedAt) {
+      const pausedSeconds = Math.floor((now - room.eventStartedAt) / 1000);
+      room.eventPausedTotal = (room.eventPausedTotal || 0) + pausedSeconds;
+    }
+
+    // 모든 이벤트 관련 필드 강제 초기화
+    room.activeEvent = EventType.NONE;
+    room.eventEndTime = undefined;
+    room.eventTargetTeams = undefined;
+    room.eventStartedAt = undefined;
+
+    await firebaseService.saveRoom(room);
+  },
+
   // 팀 성과 분석 계산
   calculateTeamPerformance: (room: RoomState, teamId: number): TeamPerformance | null => {
     const team = room.teams[teamId];
