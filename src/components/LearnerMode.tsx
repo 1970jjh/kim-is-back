@@ -73,36 +73,30 @@ const R3_CORRECT_ANSWERS = [
   '010-8448-2354'
 ];
 
-// R4 틀린 그림 찾기 이미지 세트 (4월) - 기존 R2
-const R4_IMAGE_SETS = [
+// R4 틀린 그림 찾기 이미지 세트 (4월) - 새로운 형식: 단일 이미지, 클릭으로 정답 찾기
+const R4_GAME_DATA = [
   {
-    name: '공장',
-    original: 'https://i.imgur.com/suTemUX.png',
-    modified: 'https://i.imgur.com/yvJheGC.png',
-    differences: [
-      { id: 1, x: 15, y: 25, width: 12, height: 12 },
-      { id: 2, x: 55, y: 40, width: 12, height: 12 },
-      { id: 3, x: 80, y: 70, width: 12, height: 12 },
+    img: 'https://i.imgur.com/suTemUX.png',
+    answers: [
+      { x: 54.817903491055716, y: 16.47816779243625, r: 7 },
+      { x: 71.54779688213627, y: 50.29665224071047, r: 7 },
+      { x: 85.77389670448369, y: 53.856492708949865, r: 7 }
     ]
   },
   {
-    name: '강아지',
-    original: 'https://i.imgur.com/o5HD18z.png',
-    modified: 'https://i.imgur.com/95JRBSC.png',
-    differences: [
-      { id: 1, x: 20, y: 30, width: 12, height: 12 },
-      { id: 2, x: 50, y: 55, width: 12, height: 12 },
-      { id: 3, x: 75, y: 20, width: 12, height: 12 },
+    img: 'https://i.imgur.com/o5HD18z.png',
+    answers: [
+      { x: 81.7905887542264, y: 7.237609447127244, r: 7 },
+      { x: 53.79362430384671, y: 70.21068487157399, r: 7 },
+      { x: 74.7344432423421, y: 62.01716204683184, r: 7 }
     ]
   },
   {
-    name: '기중기',
-    original: 'https://i.imgur.com/sV8YkaB.png',
-    modified: 'https://i.imgur.com/lb9TykR.png',
-    differences: [
-      { id: 1, x: 25, y: 45, width: 12, height: 12 },
-      { id: 2, x: 60, y: 25, width: 12, height: 12 },
-      { id: 3, x: 45, y: 75, width: 12, height: 12 },
+    img: 'https://i.imgur.com/sV8YkaB.png',
+    answers: [
+      { x: 84.6358087186959, y: 42.86717981218394, r: 7 },
+      { x: 67.79210652903656, y: 30.77034727803591, r: 7 },
+      { x: 58.45978504557666, y: 22.628248456974728, r: 7 }
     ]
   }
 ];
@@ -368,35 +362,51 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
     setR4StartTime(Date.now());
   };
 
-  // R4 틀린 부분 클릭 처리
-  const handleR4DifferenceClick = (setIndex: number, diffId: number) => {
+  // R4 이미지 클릭 처리 (좌표 기반 정답 판정)
+  const handleR4ImageClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (r4Failed || r4Cleared) return;
 
-    const currentFound = r4FoundDifferences[setIndex] || [];
-    if (currentFound.includes(diffId)) return; // 이미 찾은 것
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = ((e.clientX - rect.left) / rect.width) * 100;
+    const clickY = ((e.clientY - rect.top) / rect.height) * 100;
 
-    const newFound = {
-      ...r4FoundDifferences,
-      [setIndex]: [...currentFound, diffId]
-    };
-    setR4FoundDifferences(newFound);
+    const currentStage = R4_GAME_DATA[r4CurrentSet];
+    const currentFound = r4FoundDifferences[r4CurrentSet] || [];
 
-    // 현재 세트의 모든 차이점을 찾았는지 확인
-    if (newFound[setIndex]?.length === 3) {
-      // 모든 세트 완료 확인
-      const allComplete = R4_IMAGE_SETS.every((_, idx) =>
-        newFound[idx]?.length === 3
-      );
+    // 클릭 위치가 어떤 정답에 해당하는지 확인
+    for (let i = 0; i < currentStage.answers.length; i++) {
+      if (currentFound.includes(i)) continue; // 이미 찾은 것
 
-      if (allComplete && r4StartTime) {
-        // 게임 완료! - 초 단위로 기록
-        const elapsed = Math.floor((Date.now() - r4StartTime) / 1000);
-        setR4CompletionTime(String(elapsed)); // 초 단위 숫자 문자열
-        setR4Cleared(true);
-        setR4GameStarted(false); // 팝업 자동 닫힘
-      } else if (r4CurrentSet < R4_IMAGE_SETS.length - 1) {
-        // 다음 세트로 이동
-        setR4CurrentSet(prev => prev + 1);
+      const answer = currentStage.answers[i];
+      const distance = Math.sqrt(Math.pow(clickX - answer.x, 2) + Math.pow(clickY - answer.y, 2));
+
+      if (distance <= answer.r) {
+        // 정답 발견!
+        const newFound = {
+          ...r4FoundDifferences,
+          [r4CurrentSet]: [...currentFound, i]
+        };
+        setR4FoundDifferences(newFound);
+
+        // 현재 세트의 모든 차이점을 찾았는지 확인
+        if (newFound[r4CurrentSet]?.length === 3) {
+          // 모든 세트 완료 확인
+          const allComplete = R4_GAME_DATA.every((_, idx) =>
+            newFound[idx]?.length === 3
+          );
+
+          if (allComplete && r4StartTime) {
+            // 게임 완료! - 초 단위로 기록
+            const elapsed = Math.floor((Date.now() - r4StartTime) / 1000);
+            setR4CompletionTime(String(elapsed)); // 초 단위 숫자 문자열
+            setR4Cleared(true);
+            setR4GameStarted(false); // 팝업 자동 닫힘
+          } else if (r4CurrentSet < R4_GAME_DATA.length - 1) {
+            // 다음 세트로 이동
+            setR4CurrentSet(prev => prev + 1);
+          }
+        }
+        break;
       }
     }
   };
@@ -414,6 +424,10 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
   const getR4TotalFoundDifferences = () => {
     return Object.values(r4FoundDifferences).reduce((sum, arr) => sum + arr.length, 0);
   };
+
+  // R4 현재 스테이지 정보
+  const r4CurrentStage = R4_GAME_DATA[r4CurrentSet];
+  const r4FoundInCurrentSet = r4FoundDifferences[r4CurrentSet] || [];
 
   // 전체 팀 성과 (순위 계산용)
   const allPerformances = firebaseService.calculateAllTeamPerformances(room);
@@ -1090,8 +1104,6 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
 
   // R4 틀린 그림 찾기 화면 (4월) - 인앱 팝업 방식
   if (isR4) {
-    const currentSet = R4_IMAGE_SETS[r4CurrentSet];
-    const foundInCurrentSet = r4FoundDifferences[r4CurrentSet] || [];
 
     return (
       <div className="max-w-4xl mx-auto p-4 space-y-6 pb-24">
@@ -1208,7 +1220,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
                     </div>
                     <div className="text-center">
                       <span className="bg-white text-black px-4 py-2 font-black inline-block brutal-border">
-                        {r4CurrentSet + 1}/3: {currentSet.name}
+                        STAGE {r4CurrentSet + 1}/3
                       </span>
                     </div>
                     <div className="text-right">
@@ -1216,9 +1228,9 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
                     </div>
                   </div>
 
-                  {/* 세트 진행 바 */}
+                  {/* 스테이지 진행 바 */}
                   <div className="flex gap-2">
-                    {R4_IMAGE_SETS.map((set, idx) => {
+                    {R4_GAME_DATA.map((_, idx) => {
                       const foundCount = (r4FoundDifferences[idx] || []).length;
                       return (
                         <div
@@ -1231,64 +1243,48 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
                               : 'bg-white/10'
                           }`}
                         >
-                          <p className="text-xs font-bold">{set.name}</p>
+                          <p className="text-xs font-bold">STAGE {idx + 1}</p>
                           <p className="font-black">{foundCount}/3</p>
                         </div>
                       );
                     })}
                   </div>
 
-                  {/* 이미지 비교 */}
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="relative">
-                      <p className="text-xs text-center text-gray-400 mb-1">원본</p>
-                      <div className="relative brutal-border overflow-hidden bg-black">
-                        <img src={currentSet.original} alt={`${currentSet.name} 원본`} className="w-full h-auto" />
-                        {currentSet.differences.map(diff => (
-                          foundInCurrentSet.includes(diff.id) && (
-                            <div
-                              key={diff.id}
-                              className="absolute border-4 border-green-400 rounded-full animate-pulse"
-                              style={{
-                                left: `${diff.x}%`,
-                                top: `${diff.y}%`,
-                                width: `${diff.width}%`,
-                                height: `${diff.height}%`,
-                                transform: 'translate(-50%, -50%)'
-                              }}
-                            />
-                          )
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="relative">
-                      <p className="text-xs text-center text-gray-400 mb-1">틀린 그림 👆</p>
-                      <div className="relative brutal-border overflow-hidden bg-black cursor-pointer">
-                        <img src={currentSet.modified} alt={`${currentSet.name} 수정본`} className="w-full h-auto" />
-                        {currentSet.differences.map(diff => (
+                  {/* 단일 이미지 - 클릭으로 정답 찾기 */}
+                  <div className="relative">
+                    <p className="text-sm text-center text-gray-400 mb-2">그림에서 틀린 부분 3개를 클릭하세요!</p>
+                    <div
+                      className="relative brutal-border overflow-hidden bg-black cursor-crosshair mx-auto"
+                      style={{ maxWidth: '600px' }}
+                      onClick={handleR4ImageClick}
+                    >
+                      <img
+                        src={r4CurrentStage?.img}
+                        alt={`Stage ${r4CurrentSet + 1}`}
+                        className="w-full h-auto"
+                        draggable={false}
+                      />
+                      {/* 찾은 정답 표시 */}
+                      {r4CurrentStage?.answers.map((answer, idx) => (
+                        r4FoundInCurrentSet.includes(idx) && (
                           <div
-                            key={diff.id}
-                            onClick={() => handleR4DifferenceClick(r4CurrentSet, diff.id)}
-                            className={`absolute cursor-pointer transition-all ${
-                              foundInCurrentSet.includes(diff.id)
-                                ? 'border-4 border-green-400 rounded-full bg-green-400/30'
-                                : 'hover:bg-yellow-400/20'
-                            }`}
+                            key={idx}
+                            className="absolute border-4 border-green-400 rounded-full animate-pulse bg-green-400/30"
                             style={{
-                              left: `${diff.x - diff.width/2}%`,
-                              top: `${diff.y - diff.height/2}%`,
-                              width: `${diff.width}%`,
-                              height: `${diff.height}%`,
+                              left: `${answer.x}%`,
+                              top: `${answer.y}%`,
+                              width: `${answer.r * 2}%`,
+                              height: `${answer.r * 2}%`,
+                              transform: 'translate(-50%, -50%)'
                             }}
                           />
-                        ))}
-                      </div>
+                        )
+                      ))}
                     </div>
                   </div>
 
-                  <p className="text-center text-sm text-yellow-400 font-bold">
-                    오른쪽 그림에서 틀린 부분을 클릭하세요! (현재 세트: {foundInCurrentSet.length}/3)
+                  <p className="text-center text-lg text-yellow-400 font-bold">
+                    현재 스테이지: {r4FoundInCurrentSet.length}/3 발견
                   </p>
                 </>
               )}
