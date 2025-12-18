@@ -273,28 +273,28 @@ const App: React.FC = () => {
     const hasTimer = currentRoom.eventEndTime !== undefined;
 
     return (
-      <div className="fixed inset-0 z-50 bg-black flex items-center justify-center p-8 animate-fadeIn">
-        <BrutalistCard className="max-w-4xl w-full text-center space-y-6 bg-white text-black p-8 md:p-12">
-           <h2 className="text-5xl md:text-7xl font-black uppercase tracking-tighter">{eventInfo.label}</h2>
+      <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4 animate-fadeIn">
+        <BrutalistCard className="max-w-2xl w-full text-center space-y-4 bg-white text-black p-6 md:p-8 max-h-[90vh] overflow-y-auto">
+           <h2 className="text-4xl md:text-5xl font-black uppercase tracking-tighter">{eventInfo.label}</h2>
 
            {timeLeft && (
-             <div className="bg-yellow-400 p-4 brutal-border brutalist-shadow inline-block mx-auto">
-                <span className="text-5xl md:text-7xl font-mono font-black">{timeLeft}</span>
+             <div className="bg-yellow-400 p-3 brutal-border brutalist-shadow inline-block mx-auto">
+                <span className="text-4xl md:text-5xl font-mono font-black">{timeLeft}</span>
              </div>
            )}
 
-           <img src={eventInfo.image} alt={eventInfo.label} className="w-full h-40 md:h-64 object-cover brutal-border brutalist-shadow" />
+           <img src={eventInfo.image} alt={eventInfo.label} className="w-full h-32 md:h-48 object-cover brutal-border brutalist-shadow" />
 
            {/* 이벤트 지령 */}
            {eventInfo.instruction && (
-             <div className="bg-yellow-100 border-4 border-yellow-400 p-4 md:p-6 brutal-border">
-               <p className="text-lg md:text-2xl font-bold text-black leading-relaxed">
+             <div className="bg-yellow-100 border-4 border-yellow-400 p-3 md:p-4 brutal-border">
+               <p className="text-base md:text-lg font-bold text-black leading-relaxed">
                  {eventInfo.instruction}
                </p>
              </div>
            )}
 
-           <p className="text-base md:text-xl font-bold italic text-gray-600">
+           <p className="text-sm md:text-base font-bold italic text-gray-600">
              {hasTimer ? '타이머 종료 시 자동으로 닫힙니다.' : '본 팝업은 강사님이 대시보드에서 해제할 때까지 닫을 수 없습니다.'}
            </p>
         </BrutalistCard>

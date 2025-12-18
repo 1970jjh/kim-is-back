@@ -389,13 +389,11 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
       );
 
       if (allComplete && r4StartTime) {
-        // 게임 완료!
+        // 게임 완료! - 초 단위로 기록
         const elapsed = Math.floor((Date.now() - r4StartTime) / 1000);
-        const mins = Math.floor(elapsed / 60);
-        const secs = elapsed % 60;
-        const timeStr = `${mins}분 ${secs}초`;
-        setR4CompletionTime(timeStr);
+        setR4CompletionTime(String(elapsed)); // 초 단위 숫자 문자열
         setR4Cleared(true);
+        setR4GameStarted(false); // 팝업 자동 닫힘
       } else if (r4CurrentSet < R4_IMAGE_SETS.length - 1) {
         // 다음 세트로 이동
         setR4CurrentSet(prev => prev + 1);
@@ -1090,7 +1088,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
     );
   }
 
-  // R4 틀린 그림 찾기 화면 (4월) - 기존 R2
+  // R4 틀린 그림 찾기 화면 (4월) - 인앱 팝업 방식
   if (isR4) {
     const currentSet = R4_IMAGE_SETS[r4CurrentSet];
     const foundInCurrentSet = r4FoundDifferences[r4CurrentSet] || [];
@@ -1117,168 +1115,183 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
           </div>
         )}
 
-        {r4Cleared ? (
-          <div className="space-y-6 animate-fadeIn">
-            <div className="bg-green-600 text-white p-8 brutal-border brutalist-shadow text-center">
-              <h2 className="text-5xl font-black mb-4">4월 미션 CLEAR!</h2>
-              <p className="text-xl">축하합니다! 틀린 그림 찾기를 완료했습니다.</p>
-              <p className="text-2xl mt-4 font-mono">완료 시간: {r4CompletionTime}</p>
-            </div>
-            <BrutalistButton variant="gold" fullWidth className="text-2xl" onClick={handleR4Clear}>
-              공장으로 돌아가기
-            </BrutalistButton>
-          </div>
-        ) : isR4Completed ? (
-          <div className="space-y-6">
-            <div className="bg-green-600/20 border-2 border-green-500 text-white p-6 brutal-border text-center">
-              <p className="text-2xl font-black text-green-400">✓ 이미 완료한 미션입니다</p>
-            </div>
-            <div className="flex gap-4">
-              <BrutalistButton variant="ghost" onClick={() => setViewState('factory')} className="flex-shrink-0">← 공장</BrutalistButton>
-              <BrutalistButton variant="gold" fullWidth className="text-xl" onClick={() => { firebaseService.setTeamRound(room.id, auth.teamId, 5); setViewState('factory'); }}>
-                다음 라운드로 →
+        {/* 메인 화면: 규칙 설명 및 결과 */}
+        <div className="space-y-6">
+          <h3 className="text-3xl font-black uppercase tracking-tighter text-center">
+            ROUND 4: 4월 미션 - 틀린 그림 찾기
+          </h3>
+
+          <BrutalistCard className="bg-yellow-400/10 border-yellow-400">
+            <p className="text-xl font-bold italic text-center">"{R4_STORY}"</p>
+          </BrutalistCard>
+
+          <BrutalistCard className="space-y-4">
+            <h4 className="text-xl font-black text-yellow-400">게임 규칙</h4>
+            <ul className="space-y-2 text-lg">
+              <li className="flex items-center gap-2">
+                <span className="text-yellow-400">▸</span> 총 3세트의 그림이 있습니다
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="text-yellow-400">▸</span> 각 그림당 3개의 틀린 부분을 찾으세요
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="text-yellow-400">▸</span> 제한 시간: <span className="font-black text-red-400">1분</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="text-yellow-400">▸</span> 실패 시 10초 후 재도전
+              </li>
+            </ul>
+          </BrutalistCard>
+
+          {r4Cleared ? (
+            <div className="space-y-6 animate-fadeIn">
+              <div className="bg-green-600 text-white p-8 brutal-border brutalist-shadow text-center">
+                <h2 className="text-4xl font-black mb-4">게임 완료!</h2>
+                <p className="text-xl">틀린 그림 찾기를 완료했습니다.</p>
+              </div>
+
+              <BrutalistCard className="space-y-4">
+                <label className="block text-lg font-black text-yellow-400 uppercase">정답 (완료 시간)</label>
+                <BrutalistInput
+                  fullWidth
+                  value={`${r4CompletionTime}초`}
+                  readOnly
+                  className="text-center text-2xl font-mono"
+                />
+              </BrutalistCard>
+
+              <BrutalistButton variant="gold" fullWidth className="text-2xl" onClick={handleR4Clear}>
+                다음 라운드로 (R5) →
               </BrutalistButton>
             </div>
-          </div>
-        ) : r4Failed ? (
-          <div className="space-y-6 animate-fadeIn">
-            <div className="bg-red-600 text-white p-8 brutal-border brutalist-shadow text-center">
-              <h2 className="text-4xl font-black mb-4">시간 초과!</h2>
-              <p className="text-xl">1분 안에 모든 차이점을 찾지 못했습니다.</p>
-              <p className="text-6xl font-mono font-black mt-6">{r4RetryCountdown}초</p>
-              <p className="text-lg mt-2">후 자동으로 재도전합니다...</p>
-            </div>
-          </div>
-        ) : !r4GameStarted ? (
-          <div className="space-y-6">
-            <h3 className="text-3xl font-black uppercase tracking-tighter text-center">
-              ROUND 4: 4월 미션 - 틀린 그림 찾기
-            </h3>
-
-            <BrutalistCard className="bg-yellow-400/10 border-yellow-400">
-              <p className="text-xl font-bold italic text-center">"{R4_STORY}"</p>
-            </BrutalistCard>
-
-            <BrutalistCard className="space-y-4">
-              <h4 className="text-xl font-black text-yellow-400">틀린 그림 찾기</h4>
-              <ul className="space-y-2 text-lg">
-                <li className="flex items-center gap-2">
-                  <span className="text-yellow-400">▸</span> 총 3세트의 그림이 있습니다
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="text-yellow-400">▸</span> 각 그림당 3개의 틀린 부분을 찾으세요
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="text-yellow-400">▸</span> 제한 시간: <span className="font-black text-red-400">1분</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="text-yellow-400">▸</span> 실패 시 10초 후 재도전
-                </li>
-              </ul>
-            </BrutalistCard>
-
-            <BrutalistButton variant="gold" fullWidth className="text-2xl" onClick={startR4Game}>
-              게임 시작!
-            </BrutalistButton>
-
-            <BrutalistButton variant="ghost" onClick={() => setViewState('factory')}>← 공장으로 돌아가기</BrutalistButton>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <div className={`px-4 py-2 brutal-border ${r4TimeLeft <= 10 ? 'bg-red-600 animate-pulse' : 'bg-black/70'}`}>
-                <span className="text-sm text-gray-400">남은 시간</span>
-                <p className={`text-3xl font-mono font-black ${r4TimeLeft <= 10 ? 'text-white' : 'text-yellow-400'}`}>
-                  {formatTime(r4TimeLeft)}
-                </p>
+          ) : isR4Completed ? (
+            <div className="space-y-6">
+              <div className="bg-green-600/20 border-2 border-green-500 text-white p-6 brutal-border text-center">
+                <p className="text-2xl font-black text-green-400">✓ 이미 완료한 미션입니다</p>
               </div>
-              <div className="text-right">
-                <span className="text-sm text-gray-400">찾은 차이점</span>
-                <p className="text-3xl font-black text-yellow-400">{getR4TotalFoundDifferences()}/9</p>
+              <div className="flex gap-4">
+                <BrutalistButton variant="ghost" onClick={() => setViewState('factory')} className="flex-shrink-0">← 공장</BrutalistButton>
+                <BrutalistButton variant="gold" fullWidth className="text-xl" onClick={() => { firebaseService.setTeamRound(room.id, auth.teamId, 5); setViewState('factory'); }}>
+                  다음 라운드로 →
+                </BrutalistButton>
               </div>
             </div>
-
-            <div className="text-center">
-              <span className="bg-yellow-400 text-black px-4 py-2 font-black inline-block brutal-border">
-                {r4CurrentSet + 1}/3: {currentSet.name}
-              </span>
+          ) : (
+            <div className="space-y-4">
+              <BrutalistButton variant="gold" fullWidth className="text-2xl" onClick={startR4Game}>
+                게임 시작!
+              </BrutalistButton>
+              <BrutalistButton variant="ghost" onClick={() => setViewState('factory')}>← 공장으로 돌아가기</BrutalistButton>
             </div>
+          )}
+        </div>
 
-            <div className="flex gap-2">
-              {R4_IMAGE_SETS.map((set, idx) => {
-                const foundCount = (r4FoundDifferences[idx] || []).length;
-                return (
-                  <div
-                    key={idx}
-                    className={`flex-1 p-2 brutal-border text-center ${
-                      idx === r4CurrentSet
-                        ? 'bg-yellow-400 text-black'
-                        : foundCount === 3
-                        ? 'bg-green-600 text-white'
-                        : 'bg-black/50'
-                    }`}
-                  >
-                    <p className="text-xs font-bold">{set.name}</p>
-                    <p className="font-black">{foundCount}/3</p>
+        {/* 인앱 팝업: 틀린 그림 찾기 게임 */}
+        {r4GameStarted && !r4Cleared && (
+          <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-2 overflow-auto">
+            <div className="max-w-4xl w-full space-y-3">
+              {r4Failed ? (
+                <div className="bg-red-600 text-white p-8 brutal-border brutalist-shadow text-center animate-fadeIn">
+                  <h2 className="text-4xl font-black mb-4">시간 초과!</h2>
+                  <p className="text-xl">1분 안에 모든 차이점을 찾지 못했습니다.</p>
+                  <p className="text-6xl font-mono font-black mt-6">{r4RetryCountdown}초</p>
+                  <p className="text-lg mt-2">후 자동으로 재도전합니다...</p>
+                </div>
+              ) : (
+                <>
+                  {/* 게임 상태 바 */}
+                  <div className="flex justify-between items-center bg-black p-3 brutal-border">
+                    <div className={`px-4 py-2 brutal-border ${r4TimeLeft <= 10 ? 'bg-red-600 animate-pulse' : 'bg-yellow-400'}`}>
+                      <span className={`text-3xl font-mono font-black ${r4TimeLeft <= 10 ? 'text-white' : 'text-black'}`}>
+                        {formatTime(r4TimeLeft)}
+                      </span>
+                    </div>
+                    <div className="text-center">
+                      <span className="bg-white text-black px-4 py-2 font-black inline-block brutal-border">
+                        {r4CurrentSet + 1}/3: {currentSet.name}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-2xl font-black text-yellow-400">{getR4TotalFoundDifferences()}/9</span>
+                    </div>
                   </div>
-                );
-              })}
-            </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <div className="relative">
-                <p className="text-xs text-center text-gray-400 mb-1">원본</p>
-                <div className="relative brutal-border overflow-hidden bg-black">
-                  <img src={currentSet.original} alt={`${currentSet.name} 원본`} className="w-full h-auto" />
-                  {currentSet.differences.map(diff => (
-                    foundInCurrentSet.includes(diff.id) && (
-                      <div
-                        key={diff.id}
-                        className="absolute border-4 border-green-400 rounded-full animate-pulse"
-                        style={{
-                          left: `${diff.x}%`,
-                          top: `${diff.y}%`,
-                          width: `${diff.width}%`,
-                          height: `${diff.height}%`,
-                          transform: 'translate(-50%, -50%)'
-                        }}
-                      />
-                    )
-                  ))}
-                </div>
-              </div>
+                  {/* 세트 진행 바 */}
+                  <div className="flex gap-2">
+                    {R4_IMAGE_SETS.map((set, idx) => {
+                      const foundCount = (r4FoundDifferences[idx] || []).length;
+                      return (
+                        <div
+                          key={idx}
+                          className={`flex-1 p-2 brutal-border text-center ${
+                            idx === r4CurrentSet
+                              ? 'bg-yellow-400 text-black'
+                              : foundCount === 3
+                              ? 'bg-green-600 text-white'
+                              : 'bg-white/10'
+                          }`}
+                        >
+                          <p className="text-xs font-bold">{set.name}</p>
+                          <p className="font-black">{foundCount}/3</p>
+                        </div>
+                      );
+                    })}
+                  </div>
 
-              <div className="relative">
-                <p className="text-xs text-center text-gray-400 mb-1">틀린 그림 👆</p>
-                <div className="relative brutal-border overflow-hidden bg-black cursor-pointer">
-                  <img src={currentSet.modified} alt={`${currentSet.name} 수정본`} className="w-full h-auto" />
-                  {currentSet.differences.map(diff => (
-                    <div
-                      key={diff.id}
-                      onClick={() => handleR4DifferenceClick(r4CurrentSet, diff.id)}
-                      className={`absolute cursor-pointer transition-all ${
-                        foundInCurrentSet.includes(diff.id)
-                          ? 'border-4 border-green-400 rounded-full bg-green-400/30'
-                          : 'hover:bg-yellow-400/20'
-                      }`}
-                      style={{
-                        left: `${diff.x - diff.width/2}%`,
-                        top: `${diff.y - diff.height/2}%`,
-                        width: `${diff.width}%`,
-                        height: `${diff.height}%`,
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
+                  {/* 이미지 비교 */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="relative">
+                      <p className="text-xs text-center text-gray-400 mb-1">원본</p>
+                      <div className="relative brutal-border overflow-hidden bg-black">
+                        <img src={currentSet.original} alt={`${currentSet.name} 원본`} className="w-full h-auto" />
+                        {currentSet.differences.map(diff => (
+                          foundInCurrentSet.includes(diff.id) && (
+                            <div
+                              key={diff.id}
+                              className="absolute border-4 border-green-400 rounded-full animate-pulse"
+                              style={{
+                                left: `${diff.x}%`,
+                                top: `${diff.y}%`,
+                                width: `${diff.width}%`,
+                                height: `${diff.height}%`,
+                                transform: 'translate(-50%, -50%)'
+                              }}
+                            />
+                          )
+                        ))}
+                      </div>
+                    </div>
 
-            <p className="text-center text-sm text-gray-400">오른쪽 그림에서 틀린 부분을 클릭하세요!</p>
+                    <div className="relative">
+                      <p className="text-xs text-center text-gray-400 mb-1">틀린 그림 👆</p>
+                      <div className="relative brutal-border overflow-hidden bg-black cursor-pointer">
+                        <img src={currentSet.modified} alt={`${currentSet.name} 수정본`} className="w-full h-auto" />
+                        {currentSet.differences.map(diff => (
+                          <div
+                            key={diff.id}
+                            onClick={() => handleR4DifferenceClick(r4CurrentSet, diff.id)}
+                            className={`absolute cursor-pointer transition-all ${
+                              foundInCurrentSet.includes(diff.id)
+                                ? 'border-4 border-green-400 rounded-full bg-green-400/30'
+                                : 'hover:bg-yellow-400/20'
+                            }`}
+                            style={{
+                              left: `${diff.x - diff.width/2}%`,
+                              top: `${diff.y - diff.height/2}%`,
+                              width: `${diff.width}%`,
+                              height: `${diff.height}%`,
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
 
-            <div className="text-center">
-              <span className="text-lg">
-                현재 세트: <span className="font-black text-yellow-400">{foundInCurrentSet.length}/3</span> 찾음
-              </span>
+                  <p className="text-center text-sm text-yellow-400 font-bold">
+                    오른쪽 그림에서 틀린 부분을 클릭하세요! (현재 세트: {foundInCurrentSet.length}/3)
+                  </p>
+                </>
+              )}
             </div>
           </div>
         )}
