@@ -125,11 +125,9 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
     await firebaseService.toggleEvent(room.id, type, eventMinutes, targetTeams);
   };
 
-  // 모든 이벤트 종료
+  // 모든 이벤트 강제 종료 (즉시)
   const endAllEvents = async () => {
-    if (room.activeEvent !== EventType.NONE) {
-      await firebaseService.toggleEvent(room.id, room.activeEvent, 0, 'all');
-    }
+    await firebaseService.forceEndAllEvents(room.id);
   };
 
   const toggleMusic = () => {
