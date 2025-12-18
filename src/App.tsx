@@ -170,23 +170,19 @@ const App: React.FC = () => {
       return;
     }
 
-    // Check reconnection logic: same team + same leader name
+    // 같은 조에 여러 명이 동시에 조인 가능 (최대 12명)
     const existingTeam = currentRoom.teams?.[joinData.teamId];
-    if (existingTeam && existingTeam.isJoined) {
-        const existingLeader = existingTeam.members?.find(m => m.role === '리더 (김부장)');
-        if (existingLeader?.name !== leaderName) {
-            alert('해당 팀은 이미 다른 멤버가 선점하고 있습니다.');
-            return;
-        }
-    }
 
+    // 첫 번째 조인이거나 기존 팀에 합류
     const memberList: TeamMember[] = ROLES.map(r => ({
       role: r.label,
       name: joinData.members[r.id] || '미지정'
     }));
 
+    // 기존 팀이 있으면 멤버 정보만 업데이트하지 않고 그대로 사용
+    // (팀 상태는 공유되므로 각자 조인해도 같은 라운드 진행 상황 공유)
     await firebaseService.joinTeam(currentRoomId, joinData.teamId, {
-      members: memberList,
+      members: existingTeam?.members || memberList,
       roundInstructions: existingTeam?.roundInstructions || {}
     });
 
