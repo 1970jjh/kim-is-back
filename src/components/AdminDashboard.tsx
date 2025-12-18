@@ -331,7 +331,7 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
                   onChange={(e) => setEventMinutes(parseInt(e.target.value) || 0)}
                   className="w-full text-center"
                 />
-                <p className="text-[10px] text-gray-500 mt-1">휴게/점심시간 활성화 시 적용</p>
+                <p className="text-[10px] text-gray-500 mt-1">0 입력 시 수동 종료 (타이머 없음)</p>
               </div>
             </div>
             {/* 2x5 그리드 이벤트 버튼 */}
