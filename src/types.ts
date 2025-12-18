@@ -11,6 +11,10 @@ export enum EventType {
   SPORTS = 'SPORTS',
   ALL_HANDS = 'ALL_HANDS',
   BIRTHDAY = 'BIRTHDAY',
+  WORKSHOP = 'WORKSHOP',
+  HEALTH_CHECK = 'HEALTH_CHECK',
+  VOLUNTEER = 'VOLUNTEER',
+  SPONSORSHIP = 'SPONSORSHIP',
   NONE = 'NONE'
 }
 
@@ -58,6 +62,7 @@ export interface RoomState {
   missionTimerMinutes: number;  // 전체 미션 제한 시간 (분)
   activeEvent: EventType;
   eventEndTime?: number; // Timestamp in ms
+  eventTargetTeams?: number[] | 'all';  // 이벤트 대상 팀 (특정 팀 또는 전체)
   teams: Record<number, TeamState>;
   createdAt: number;  // 방 생성 시간
 }

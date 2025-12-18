@@ -44,6 +44,7 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
   const [showNewRoomModal, setShowNewRoomModal] = useState(false);
   const [newRoomData, setNewRoomData] = useState({ groupName: '', totalTeams: 5, membersPerTeam: 6 });
   const [remainingTime, setRemainingTime] = useState<string>("");
+  const [eventTargetTeam, setEventTargetTeam] = useState<'all' | number>('all'); // 이벤트 대상 팀
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // 전체 미션 타이머
@@ -88,7 +89,8 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
   };
 
   const toggleEvent = async (type: EventType) => {
-    await firebaseService.toggleEvent(room.id, type, eventMinutes);
+    const targetTeams = eventTargetTeam === 'all' ? 'all' : [eventTargetTeam];
+    await firebaseService.toggleEvent(room.id, type, eventMinutes, targetTeams);
   };
 
   const toggleMusic = () => {
@@ -276,16 +278,34 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
             )}
 
             <div className="bg-black/20 p-4 border-2 border-white/10 space-y-4">
-              <label className="block text-xs font-bold uppercase">이벤트 타이머 설정 (분)</label>
-              <BrutalistInput
-                type="number"
-                value={eventMinutes}
-                onChange={(e) => setEventMinutes(parseInt(e.target.value) || 0)}
-                className="w-full text-center"
-              />
-              <p className="text-[10px] text-gray-500 uppercase">휴게/점심시간 활성화 시 적용됩니다.</p>
+              {/* 이벤트 대상 팀 선택 */}
+              <div>
+                <label className="block text-xs font-bold uppercase mb-1">이벤트 대상</label>
+                <select
+                  className="w-full brutal-border bg-white text-black p-2 font-bold text-sm"
+                  value={eventTargetTeam}
+                  onChange={(e) => setEventTargetTeam(e.target.value === 'all' ? 'all' : parseInt(e.target.value))}
+                >
+                  <option value="all">전체 팀</option>
+                  {Array.from({ length: room.totalTeams }).map((_, i) => (
+                    <option key={i+1} value={i+1}>{i+1}조</option>
+                  ))}
+                </select>
+              </div>
+              {/* 타이머 설정 */}
+              <div>
+                <label className="block text-xs font-bold uppercase mb-1">이벤트 타이머 (분)</label>
+                <BrutalistInput
+                  type="number"
+                  value={eventMinutes}
+                  onChange={(e) => setEventMinutes(parseInt(e.target.value) || 0)}
+                  className="w-full text-center"
+                />
+                <p className="text-[10px] text-gray-500 mt-1">휴게/점심시간 활성화 시 적용</p>
+              </div>
             </div>
-            <div className="grid grid-cols-1 gap-2">
+            {/* 2x5 그리드 이벤트 버튼 */}
+            <div className="grid grid-cols-2 gap-2">
               {EVENTS.map((evt) => (
                 <BrutalistButton
                   key={evt.type}
@@ -297,6 +317,12 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
                 </BrutalistButton>
               ))}
             </div>
+            {room.activeEvent !== EventType.NONE && (
+              <p className="text-xs text-center text-yellow-400">
+                현재 활성: {EVENTS.find(e => e.type === room.activeEvent)?.label}
+                {room.eventTargetTeams !== 'all' && room.eventTargetTeams && ` (${room.eventTargetTeams.join(', ')}조)`}
+              </p>
+            )}
           </div>
         </section>
 
