@@ -227,9 +227,10 @@ export const firebaseService = {
       room.eventEndTime = undefined;
       room.eventTargetTeams = undefined;
     } else {
-      const needsTimer = type === EventType.BREAK || type === EventType.LUNCH;
+      // 다른 이벤트 클릭: 새 이벤트로 교체 (기존 이벤트 자동 종료)
       room.activeEvent = type;
-      room.eventEndTime = needsTimer && minutes ? Date.now() + minutes * 60000 : undefined;
+      // 타이머 설정이 있으면 모든 이벤트에 적용 (minutes > 0일 때만)
+      room.eventEndTime = minutes && minutes > 0 ? Date.now() + minutes * 60000 : undefined;
       room.eventTargetTeams = targetTeams || 'all';
     }
 
