@@ -47,16 +47,29 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
   const [eventTargetTeam, setEventTargetTeam] = useState<'all' | number>('all'); // 이벤트 대상 팀
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // 전체 미션 타이머
+  // 전체 미션 타이머 (이벤트 중 일시정지)
   useEffect(() => {
     if (!room.missionStarted || !room.missionStartTime) {
       setRemainingTime("");
       return;
     }
 
-    const timer = setInterval(() => {
+    const calculateRemaining = () => {
       const now = Date.now();
-      const elapsed = Math.floor((now - room.missionStartTime!) / 1000);
+
+      // 이벤트로 인해 일시정지된 총 시간 (초)
+      let pausedSeconds = room.eventPausedTotal || 0;
+
+      // 현재 이벤트가 진행 중이면 추가로 일시정지 시간 계산
+      if (room.activeEvent !== EventType.NONE && room.eventStartedAt) {
+        const currentEventPaused = Math.floor((now - room.eventStartedAt) / 1000);
+        pausedSeconds += currentEventPaused;
+      }
+
+      // 실제 경과 시간 = 총 경과 시간 - 일시정지된 시간
+      const totalElapsed = Math.floor((now - room.missionStartTime!) / 1000);
+      const elapsed = totalElapsed - pausedSeconds;
+
       const totalSeconds = room.missionTimerMinutes * 60;
       const remaining = totalSeconds - elapsed;
 
@@ -65,10 +78,13 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
       } else {
         setRemainingTime(formatTimeWithHours(remaining));
       }
-    }, 1000);
+    };
+
+    calculateRemaining();
+    const timer = setInterval(calculateRemaining, 1000);
 
     return () => clearInterval(timer);
-  }, [room.missionStarted, room.missionStartTime, room.missionTimerMinutes]);
+  }, [room.missionStarted, room.missionStartTime, room.missionTimerMinutes, room.eventPausedTotal, room.activeEvent, room.eventStartedAt]);
 
   useEffect(() => {
     if (room.activeEvent !== EventType.BIRTHDAY && isMusicPlaying) {
@@ -107,6 +123,13 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
     }
 
     await firebaseService.toggleEvent(room.id, type, eventMinutes, targetTeams);
+  };
+
+  // 모든 이벤트 종료
+  const endAllEvents = async () => {
+    if (room.activeEvent !== EventType.NONE) {
+      await firebaseService.toggleEvent(room.id, room.activeEvent, 0, 'all');
+    }
   };
 
   const toggleMusic = () => {
@@ -363,6 +386,16 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
                 </BrutalistButton>
               ))}
             </div>
+            {/* All EVENT 종료 버튼 */}
+            <BrutalistButton
+              variant="danger"
+              fullWidth
+              onClick={endAllEvents}
+              disabled={room.activeEvent === EventType.NONE}
+              className="text-sm py-2 mt-2"
+            >
+              All EVENT 종료
+            </BrutalistButton>
             {room.activeEvent !== EventType.NONE && (
               <p className="text-xs text-center text-yellow-400">
                 현재 활성: {EVENTS.find(e => e.type === room.activeEvent)?.label}
