@@ -38,6 +38,42 @@ const R1_CORRECT_ANSWERS = [
   '010-8448-2354'
 ];
 
+// R2 틀린 그림 찾기 이미지 세트
+const R2_IMAGE_SETS = [
+  {
+    name: '공장',
+    original: 'https://i.imgur.com/suTemUX.png',
+    modified: 'https://i.imgur.com/yvJheGC.png',
+    differences: [
+      { id: 1, x: 15, y: 25, width: 12, height: 12 },
+      { id: 2, x: 55, y: 40, width: 12, height: 12 },
+      { id: 3, x: 80, y: 70, width: 12, height: 12 },
+    ]
+  },
+  {
+    name: '강아지',
+    original: 'https://i.imgur.com/o5HD18z.png',
+    modified: 'https://i.imgur.com/95JRBSC.png',
+    differences: [
+      { id: 1, x: 20, y: 30, width: 12, height: 12 },
+      { id: 2, x: 50, y: 55, width: 12, height: 12 },
+      { id: 3, x: 75, y: 20, width: 12, height: 12 },
+    ]
+  },
+  {
+    name: '기중기',
+    original: 'https://i.imgur.com/sV8YkaB.png',
+    modified: 'https://i.imgur.com/lb9TykR.png',
+    differences: [
+      { id: 1, x: 25, y: 45, width: 12, height: 12 },
+      { id: 2, x: 60, y: 25, width: 12, height: 12 },
+      { id: 3, x: 45, y: 75, width: 12, height: 12 },
+    ]
+  }
+];
+
+const R2_STORY = "본사 복귀를 꿈꾼다면, 먼저 이 낯선 현장의 공기부터 완벽하게 파악해야 한다. 일상처럼 보이는 이 풍경 속에 숨겨진 진실을 찾아라!";
+
 // 월별 이름 (라운드와 매핑: R1=3월, R2=4월, ... R10=12월)
 const MONTHS = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
 const ROUND_TO_MONTH: Record<number, number> = {
@@ -62,6 +98,17 @@ const LearnerMode: React.FC<Props> = ({ room, auth }) => {
 
   // Padlet 팝업 상태
   const [showPadletPopup, setShowPadletPopup] = useState(false);
+
+  // R2 틀린 그림 찾기 상태
+  const [r2GameStarted, setR2GameStarted] = useState(false);
+  const [r2TimeLeft, setR2TimeLeft] = useState(60);
+  const [r2CurrentSet, setR2CurrentSet] = useState(0);
+  const [r2FoundDifferences, setR2FoundDifferences] = useState<{[setIndex: number]: number[]}>({});
+  const [r2Failed, setR2Failed] = useState(false);
+  const [r2RetryCountdown, setR2RetryCountdown] = useState(0);
+  const [r2Cleared, setR2Cleared] = useState(false);
+  const [r2CompletionTime, setR2CompletionTime] = useState('');
+  const [r2StartTime, setR2StartTime] = useState<number | null>(null);
 
   useEffect(() => {
     setTeam(room.teams?.[auth.teamId]);
@@ -169,6 +216,106 @@ const LearnerMode: React.FC<Props> = ({ room, auth }) => {
     setQuizCleared(false);
     setQuizAnswer('');
     setViewState('factory');
+  };
+
+  // R2 게임 타이머
+  useEffect(() => {
+    if (!r2GameStarted || r2Failed || r2Cleared) return;
+
+    if (r2TimeLeft <= 0) {
+      setR2Failed(true);
+      setR2RetryCountdown(10);
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setR2TimeLeft(prev => prev - 1);
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [r2GameStarted, r2TimeLeft, r2Failed, r2Cleared]);
+
+  // R2 재도전 카운트다운
+  useEffect(() => {
+    if (!r2Failed || r2RetryCountdown <= 0) return;
+
+    const timer = setInterval(() => {
+      setR2RetryCountdown(prev => {
+        if (prev <= 1) {
+          // 리셋 및 재시작
+          setR2Failed(false);
+          setR2TimeLeft(60);
+          setR2CurrentSet(0);
+          setR2FoundDifferences({});
+          setR2StartTime(Date.now());
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [r2Failed, r2RetryCountdown]);
+
+  // R2 게임 시작
+  const startR2Game = () => {
+    setR2GameStarted(true);
+    setR2TimeLeft(60);
+    setR2CurrentSet(0);
+    setR2FoundDifferences({});
+    setR2Failed(false);
+    setR2Cleared(false);
+    setR2CompletionTime('');
+    setR2StartTime(Date.now());
+  };
+
+  // R2 틀린 부분 클릭 처리
+  const handleR2DifferenceClick = (setIndex: number, diffId: number) => {
+    if (r2Failed || r2Cleared) return;
+
+    const currentFound = r2FoundDifferences[setIndex] || [];
+    if (currentFound.includes(diffId)) return; // 이미 찾은 것
+
+    const newFound = {
+      ...r2FoundDifferences,
+      [setIndex]: [...currentFound, diffId]
+    };
+    setR2FoundDifferences(newFound);
+
+    // 현재 세트의 모든 차이점을 찾았는지 확인
+    if (newFound[setIndex]?.length === 3) {
+      // 모든 세트 완료 확인
+      const allComplete = R2_IMAGE_SETS.every((_, idx) =>
+        newFound[idx]?.length === 3
+      );
+
+      if (allComplete && r2StartTime) {
+        // 게임 완료!
+        const elapsed = Math.floor((Date.now() - r2StartTime) / 1000);
+        const mins = Math.floor(elapsed / 60);
+        const secs = elapsed % 60;
+        const timeStr = `${mins}분 ${secs}초`;
+        setR2CompletionTime(timeStr);
+        setR2Cleared(true);
+      } else if (r2CurrentSet < R2_IMAGE_SETS.length - 1) {
+        // 다음 세트로 이동
+        setR2CurrentSet(prev => prev + 1);
+      }
+    }
+  };
+
+  // R2 클리어 후 처리
+  const handleR2Clear = async () => {
+    await firebaseService.advanceTeamRound(room.id, auth.teamId);
+    setR2GameStarted(false);
+    setR2Cleared(false);
+    setR2CompletionTime('');
+    setViewState('factory');
+  };
+
+  // 총 찾은 차이점 수 계산
+  const getTotalFoundDifferences = () => {
+    return Object.values(r2FoundDifferences).reduce((sum, arr) => sum + arr.length, 0);
   };
 
   // 전체 팀 성과 (순위 계산용)
@@ -472,9 +619,11 @@ const LearnerMode: React.FC<Props> = ({ room, auth }) => {
   const customInstruction = team?.roundInstructions?.[team?.currentRound || 1];
   const canSkipForward = team && team.currentRound <= team.maxCompletedRound;
   const isR1 = team?.currentRound === 1;
+  const isR2 = team?.currentRound === 2;
 
   // R1 이미 완료 여부 체크
   const isR1Completed = (team?.maxCompletedRound || 0) >= 1;
+  const isR2Completed = (team?.maxCompletedRound || 0) >= 2;
 
   // R1 퀴즈 화면
   if (isR1) {
@@ -670,7 +819,294 @@ const LearnerMode: React.FC<Props> = ({ room, auth }) => {
     );
   }
 
-  // 기본 미션 화면 (R2-R10)
+  // R2 틀린 그림 찾기 화면
+  if (isR2) {
+    const currentSet = R2_IMAGE_SETS[r2CurrentSet];
+    const foundInCurrentSet = r2FoundDifferences[r2CurrentSet] || [];
+
+    return (
+      <div className="max-w-4xl mx-auto p-4 space-y-6 pb-24">
+        <header className="flex justify-between items-center border-b-4 border-white pb-4">
+          <div>
+            <h2 className="text-3xl font-black italic">TEAM {auth.teamId}</h2>
+            <p className="font-bold text-yellow-400">Welcome, {auth.learnerName}</p>
+          </div>
+          <div className="text-right">
+            <span className="text-5xl font-black gold-gradient">R2</span>
+            <p className="text-xs font-bold uppercase tracking-widest">4월 미션</p>
+          </div>
+        </header>
+
+        {/* 전체 미션 타이머 */}
+        {remainingTime && (
+          <div className={`text-center p-4 brutal-border ${remainingTime === "00:00" ? 'bg-red-600 animate-pulse' : 'bg-black/50'}`}>
+            <p className="text-sm text-gray-400 uppercase">남은 미션 시간</p>
+            <p className={`text-4xl font-mono font-black ${remainingTime === "00:00" ? 'text-white' : 'text-yellow-400'}`}>
+              {remainingTime}
+            </p>
+          </div>
+        )}
+
+        {r2Cleared ? (
+          // 게임 클리어 화면
+          <div className="space-y-6 animate-fadeIn">
+            <div className="bg-green-600 text-white p-8 brutal-border brutalist-shadow text-center">
+              <h2 className="text-5xl font-black mb-4">4월달 미션 CLEAR!</h2>
+              <p className="text-xl">축하합니다! 틀린 그림 찾기를 완료했습니다.</p>
+              <p className="text-2xl mt-4 font-mono">완료 시간: {r2CompletionTime}</p>
+            </div>
+
+            {/* 정답 입력란에 자동으로 완료 시간 표시 */}
+            <BrutalistCard className="space-y-4">
+              <label className="block text-lg font-black text-yellow-400 uppercase">정답 (완료 시간)</label>
+              <BrutalistInput
+                fullWidth
+                value={r2CompletionTime}
+                readOnly
+                className="text-center text-xl"
+              />
+            </BrutalistCard>
+
+            <BrutalistButton
+              variant="gold"
+              fullWidth
+              className="text-2xl"
+              onClick={handleR2Clear}
+            >
+              공장으로 돌아가기
+            </BrutalistButton>
+          </div>
+        ) : isR2Completed ? (
+          // 이미 완료한 R2 - 다음 라운드로 쉽게 이동
+          <div className="space-y-6">
+            <div className="bg-green-600/20 border-2 border-green-500 text-white p-6 brutal-border text-center">
+              <p className="text-2xl font-black text-green-400">✓ 이미 완료한 미션입니다</p>
+            </div>
+
+            <h3 className="text-3xl font-black uppercase tracking-tighter text-center">
+              ROUND 2: 4월 미션 - 틀린 그림 찾기
+            </h3>
+
+            {/* 버튼들 */}
+            <div className="flex gap-4">
+              <BrutalistButton
+                variant="ghost"
+                onClick={() => setViewState('factory')}
+                className="flex-shrink-0"
+              >
+                ← 공장
+              </BrutalistButton>
+              <BrutalistButton
+                variant="gold"
+                fullWidth
+                className="text-xl"
+                onClick={() => {
+                  firebaseService.setTeamRound(room.id, auth.teamId, 3);
+                  setViewState('factory');
+                }}
+              >
+                다음 라운드로 →
+              </BrutalistButton>
+            </div>
+          </div>
+        ) : r2Failed ? (
+          // 실패 화면 - 재도전 카운트다운
+          <div className="space-y-6 animate-fadeIn">
+            <div className="bg-red-600 text-white p-8 brutal-border brutalist-shadow text-center">
+              <h2 className="text-4xl font-black mb-4">시간 초과!</h2>
+              <p className="text-xl">1분 안에 모든 차이점을 찾지 못했습니다.</p>
+              <p className="text-6xl font-mono font-black mt-6">{r2RetryCountdown}초</p>
+              <p className="text-lg mt-2">후 자동으로 재도전합니다...</p>
+            </div>
+          </div>
+        ) : !r2GameStarted ? (
+          // 게임 시작 전 - 스토리 및 설명
+          <div className="space-y-6">
+            <h3 className="text-3xl font-black uppercase tracking-tighter text-center">
+              ROUND 2: 4월 미션
+            </h3>
+
+            {/* 스토리 */}
+            <BrutalistCard className="bg-yellow-400/10 border-yellow-400">
+              <p className="text-xl font-bold italic text-center">"{R2_STORY}"</p>
+            </BrutalistCard>
+
+            {/* 게임 설명 */}
+            <BrutalistCard className="space-y-4">
+              <h4 className="text-xl font-black text-yellow-400">틀린 그림 찾기</h4>
+              <ul className="space-y-2 text-lg">
+                <li className="flex items-center gap-2">
+                  <span className="text-yellow-400">▸</span> 총 3세트의 그림이 있습니다
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-yellow-400">▸</span> 각 그림당 3개의 틀린 부분을 찾으세요
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-yellow-400">▸</span> 제한 시간: <span className="font-black text-red-400">1분</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-yellow-400">▸</span> 실패 시 10초 후 재도전
+                </li>
+              </ul>
+            </BrutalistCard>
+
+            <BrutalistButton
+              variant="gold"
+              fullWidth
+              className="text-2xl"
+              onClick={startR2Game}
+            >
+              게임 시작!
+            </BrutalistButton>
+
+            <BrutalistButton
+              variant="ghost"
+              onClick={() => setViewState('factory')}
+            >
+              ← 공장으로 돌아가기
+            </BrutalistButton>
+          </div>
+        ) : (
+          // 게임 진행 중
+          <div className="space-y-4">
+            {/* 게임 타이머 및 진행 상황 */}
+            <div className="flex justify-between items-center">
+              <div className={`px-4 py-2 brutal-border ${r2TimeLeft <= 10 ? 'bg-red-600 animate-pulse' : 'bg-black/70'}`}>
+                <span className="text-sm text-gray-400">남은 시간</span>
+                <p className={`text-3xl font-mono font-black ${r2TimeLeft <= 10 ? 'text-white' : 'text-yellow-400'}`}>
+                  {formatTime(r2TimeLeft)}
+                </p>
+              </div>
+              <div className="text-right">
+                <span className="text-sm text-gray-400">찾은 차이점</span>
+                <p className="text-3xl font-black text-yellow-400">{getTotalFoundDifferences()}/9</p>
+              </div>
+            </div>
+
+            {/* 현재 이미지 세트 표시 */}
+            <div className="text-center">
+              <span className="bg-yellow-400 text-black px-4 py-2 font-black inline-block brutal-border">
+                {r2CurrentSet + 1}/3: {currentSet.name}
+              </span>
+            </div>
+
+            {/* 세트 진행 바 */}
+            <div className="flex gap-2">
+              {R2_IMAGE_SETS.map((set, idx) => {
+                const foundCount = (r2FoundDifferences[idx] || []).length;
+                return (
+                  <div
+                    key={idx}
+                    className={`flex-1 p-2 brutal-border text-center ${
+                      idx === r2CurrentSet
+                        ? 'bg-yellow-400 text-black'
+                        : foundCount === 3
+                        ? 'bg-green-600 text-white'
+                        : 'bg-black/50'
+                    }`}
+                  >
+                    <p className="text-xs font-bold">{set.name}</p>
+                    <p className="font-black">{foundCount}/3</p>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* 이미지 비교 */}
+            <div className="grid grid-cols-2 gap-2">
+              {/* 원본 이미지 */}
+              <div className="relative">
+                <p className="text-xs text-center text-gray-400 mb-1">원본</p>
+                <div className="relative brutal-border overflow-hidden bg-black">
+                  <img
+                    src={currentSet.original}
+                    alt={`${currentSet.name} 원본`}
+                    className="w-full h-auto"
+                  />
+                  {/* 찾은 차이점 표시 */}
+                  {currentSet.differences.map(diff => (
+                    foundInCurrentSet.includes(diff.id) && (
+                      <div
+                        key={diff.id}
+                        className="absolute border-4 border-green-400 rounded-full animate-pulse"
+                        style={{
+                          left: `${diff.x}%`,
+                          top: `${diff.y}%`,
+                          width: `${diff.width}%`,
+                          height: `${diff.height}%`,
+                          transform: 'translate(-50%, -50%)'
+                        }}
+                      />
+                    )
+                  ))}
+                </div>
+              </div>
+
+              {/* 수정된 이미지 (클릭 가능) */}
+              <div className="relative">
+                <p className="text-xs text-center text-gray-400 mb-1">틀린 그림 👆</p>
+                <div className="relative brutal-border overflow-hidden bg-black cursor-pointer">
+                  <img
+                    src={currentSet.modified}
+                    alt={`${currentSet.name} 수정본`}
+                    className="w-full h-auto"
+                  />
+                  {/* 클릭 가능한 차이점 영역 */}
+                  {currentSet.differences.map(diff => (
+                    <div
+                      key={diff.id}
+                      onClick={() => handleR2DifferenceClick(r2CurrentSet, diff.id)}
+                      className={`absolute cursor-pointer transition-all ${
+                        foundInCurrentSet.includes(diff.id)
+                          ? 'border-4 border-green-400 rounded-full bg-green-400/30'
+                          : 'hover:bg-yellow-400/20'
+                      }`}
+                      style={{
+                        left: `${diff.x - diff.width/2}%`,
+                        top: `${diff.y - diff.height/2}%`,
+                        width: `${diff.width}%`,
+                        height: `${diff.height}%`,
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* 힌트 */}
+            <p className="text-center text-sm text-gray-400">
+              오른쪽 그림에서 틀린 부분을 클릭하세요!
+            </p>
+
+            {/* 현재 세트에서 찾은 개수 */}
+            <div className="text-center">
+              <span className="text-lg">
+                현재 세트: <span className="font-black text-yellow-400">{foundInCurrentSet.length}/3</span> 찾음
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* HELP 버튼 */}
+        <div className="fixed bottom-4 right-4 z-40">
+          <button
+            onClick={handleUseHelp}
+            disabled={!team || team.helpCount >= 3 || helpLoading}
+            className={`brutal-border font-black py-3 px-6 transition-all ${
+              team && team.helpCount < 3
+                ? 'bg-orange-500 text-white hover:bg-orange-400 brutalist-shadow active:translate-x-1 active:translate-y-1 active:shadow-none'
+                : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+            }`}
+          >
+            {helpLoading ? '...' : `HELP (${team ? 3 - team.helpCount : 0})`}
+          </button>
+          <p className="text-[10px] text-center text-gray-400 mt-1">사용 시 +3분</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 기본 미션 화면 (R3-R10)
   return (
     <div className="max-w-4xl mx-auto p-4 space-y-8 pb-24">
       <header className="flex justify-between items-center border-b-4 border-white pb-4">
