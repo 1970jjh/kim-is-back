@@ -1,37 +1,41 @@
-
 import React, { useState, useEffect } from 'react';
-import { storageService } from '../services/storageService';
-// Fix: Remove non-existent exports ROLES and ROUNDS from types import, as they are defined in constants.tsx
+import { firebaseService } from '../services/firebaseService';
 import { RoomState, TeamState } from '../types';
-import { BrutalistButton, BrutalistCard, BrutalistInput } from './BrutalistUI';
-import { ROLES as ROLE_CONSTS, ROUNDS as ROUND_CONSTS } from '../constants';
+import { BrutalistButton, BrutalistCard } from './BrutalistUI';
+import { ROUNDS } from '../constants';
 
 interface Props {
   auth: { teamId: number; learnerName: string };
 }
 
 const LearnerMode: React.FC<Props> = ({ auth }) => {
-  const [room, setRoom] = useState<RoomState>(storageService.getRoom());
-  const [team, setTeam] = useState<TeamState | undefined>(room.teams[auth.teamId]);
+  const [room, setRoom] = useState<RoomState | null>(null);
+  const [team, setTeam] = useState<TeamState | undefined>(undefined);
   const [showIntro, setShowIntro] = useState(true);
 
   useEffect(() => {
-    const handleUpdate = () => {
-      const updatedRoom = storageService.getRoom();
+    const unsubscribe = firebaseService.subscribe((updatedRoom) => {
       setRoom(updatedRoom);
       setTeam(updatedRoom.teams[auth.teamId]);
-    };
-    window.addEventListener('roomStateChanged', handleUpdate);
-    return () => window.removeEventListener('roomStateChanged', handleUpdate);
+    });
+    return () => unsubscribe();
   }, [auth.teamId]);
 
-  const completeRound = () => {
-    if (!team) return;
+  const completeRound = async () => {
+    if (!team || !room) return;
     const nextRound = team.currentRound + 1;
     const newRoom = { ...room };
     newRoom.teams[auth.teamId].currentRound = Math.min(10, nextRound);
-    storageService.saveRoom(newRoom);
+    await firebaseService.saveRoom(newRoom);
   };
+
+  if (!room) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-2xl font-bold animate-pulse">Loading...</div>
+      </div>
+    );
+  }
 
   if (!room.missionStarted) {
     return (
@@ -51,19 +55,19 @@ const LearnerMode: React.FC<Props> = ({ auth }) => {
     return (
       <div className="max-w-4xl mx-auto p-4 space-y-8 animate-fadeIn">
         <h1 className="text-5xl font-black text-center border-b-8 border-yellow-400 pb-4">MISSION INTRO</h1>
-        
+
         <BrutalistCard className="aspect-video relative overflow-hidden bg-black flex items-center justify-center">
           <div className="text-center space-y-4">
              <div className="text-yellow-400 text-6xl">🎬</div>
-             <p className="text-2xl font-bold">좌천된 박부장의 본사 복귀 스토리 영상</p>
+             <p className="text-2xl font-bold">좌천된 김부장의 본사 복귀 스토리 영상</p>
              <p className="text-gray-500 italic">[선배들의 낡은 노트를 발견하다...]</p>
           </div>
         </BrutalistCard>
 
         <div className="space-y-4">
-          <img 
-            src="https://images.unsplash.com/photo-1517842645767-c639042777db?auto=format&fit=crop&q=80&w=1200" 
-            alt="낡은 노트" 
+          <img
+            src="https://images.unsplash.com/photo-1517842645767-c639042777db?auto=format&fit=crop&q=80&w=1200"
+            alt="낡은 노트"
             className="w-full brutal-border brutalist-shadow grayscale"
           />
           <div className="bg-[#ffd700] text-black p-8 brutal-border brutalist-shadow text-center">
@@ -78,7 +82,7 @@ const LearnerMode: React.FC<Props> = ({ auth }) => {
     );
   }
 
-  const currentRoundInfo = ROUND_CONSTS[team!.currentRound - 1];
+  const currentRoundInfo = ROUNDS[team!.currentRound - 1];
   const customInstruction = team?.roundInstructions?.[team.currentRound];
 
   return (
@@ -98,7 +102,7 @@ const LearnerMode: React.FC<Props> = ({ auth }) => {
         <h3 className="text-4xl font-black uppercase tracking-tighter">
           {currentRoundInfo.title}: {currentRoundInfo.description}
         </h3>
-        
+
         <BrutalistCard className="min-h-[300px] flex flex-col items-start justify-start border-dashed">
             <div className="w-full space-y-6">
               {customInstruction ? (
@@ -111,17 +115,17 @@ const LearnerMode: React.FC<Props> = ({ auth }) => {
                   <p className="text-2xl font-bold opacity-50">본 라운드의 구체적인 미션은 강사님께서 제공해주시는 오프라인 교구와 대조하여 해결하십시오.</p>
                 </div>
               )}
-              
+
               <div className="p-8 brutal-border border-yellow-400 bg-yellow-400/10 text-center w-full">
                  <span className="text-xl font-mono text-yellow-400 uppercase tracking-widest">[ MISSION ACTIVE ]</span>
               </div>
             </div>
         </BrutalistCard>
 
-        <BrutalistButton 
-          variant="gold" 
-          fullWidth 
-          className="text-2xl" 
+        <BrutalistButton
+          variant="gold"
+          fullWidth
+          className="text-2xl"
           onClick={completeRound}
           disabled={team?.currentRound === 10}
         >

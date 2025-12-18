@@ -1,8 +1,0 @@
-{
-  "name": "Manager Kim's Return Mission!",
-  "description": "A brutalist-style team-building web application where learners complete missions to help Manager Kim return to headquarters, featuring real-time admin controls and event management.",
-  "requestFramePermissions": [
-    "camera",
-    "microphone"
-  ]
-}
