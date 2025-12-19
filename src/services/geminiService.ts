@@ -152,5 +152,39 @@ export const geminiService = {
       console.error('Gemini report infographic error:', error);
       return { success: false, error: '보고서 생성 중 오류가 발생했습니다.' };
     }
+  },
+
+  // Admin: 우승팀 포스터 생성 (Gemini 3 Pro Image Preview)
+  generateWinnerPoster: async (
+    imageBase64: string,
+    mimeType: string,
+    teamId: number,
+    options?: { teamName?: string; rank?: number; groupName?: string }
+  ): Promise<{ success: boolean; imageData?: string; error?: string }> => {
+    try {
+      const response = await fetch(API_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'generateWinnerPoster',
+          payload: {
+            imageBase64,
+            mimeType,
+            teamId,
+            ...options
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        return { success: false, error: error.error || 'API 오류가 발생했습니다.' };
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Gemini winner poster error:', error);
+      return { success: false, error: '포스터 생성 중 오류가 발생했습니다.' };
+    }
   }
 };

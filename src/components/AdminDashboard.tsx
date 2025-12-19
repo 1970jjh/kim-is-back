@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { firebaseService } from '../services/firebaseService';
+import { geminiService } from '../services/geminiService';
 import { RoomState, EventType, TeamPerformance } from '../types';
 import { BrutalistButton, BrutalistCard, BrutalistInput } from './BrutalistUI';
 import { EVENTS, ROUNDS } from '../constants';
@@ -46,6 +47,14 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
   const [remainingTime, setRemainingTime] = useState<string>("");
   const [eventTargetTeam, setEventTargetTeam] = useState<'all' | number>('all'); // 이벤트 대상 팀
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // MISSION POST states
+  const [posterTeamId, setPosterTeamId] = useState<number>(1);
+  const [posterImagePreview, setPosterImagePreview] = useState<string | null>(null);
+  const [posterGenerating, setPosterGenerating] = useState(false);
+  const [generatedPoster, setGeneratedPoster] = useState<string | null>(null);
+  const [posterError, setPosterError] = useState<string | null>(null);
+  const posterFileInputRef = useRef<HTMLInputElement | null>(null);
 
   // 전체 미션 타이머 (이벤트 중 일시정지)
   useEffect(() => {
@@ -229,6 +238,76 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
       setInstructionText("");
     }
   }, [editRound, selectedTeamId, room.teams]);
+
+  // MISSION POST handlers
+  const handlePosterImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setPosterError('이미지 파일만 업로드 가능합니다.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setPosterImagePreview(event.target?.result as string);
+      setPosterError(null);
+      setGeneratedPoster(null);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleGeneratePoster = async () => {
+    if (!posterImagePreview) {
+      setPosterError('먼저 이미지를 업로드해주세요.');
+      return;
+    }
+
+    setPosterGenerating(true);
+    setPosterError(null);
+    setGeneratedPoster(null);
+
+    try {
+      // Get team info for poster
+      const team = room.teams?.[posterTeamId];
+      const performances = firebaseService.calculateAllTeamPerformances(room);
+      const teamPerf = performances.find(p => p.teamId === posterTeamId);
+
+      const result = await geminiService.generateWinnerPoster(
+        posterImagePreview,
+        'image/jpeg',
+        posterTeamId,
+        {
+          teamName: team?.name || `Team ${posterTeamId}`,
+          rank: teamPerf?.rank,
+          groupName: room.groupName
+        }
+      );
+
+      if (result.success && result.imageData) {
+        setGeneratedPoster(result.imageData);
+      } else {
+        setPosterError(result.error || '포스터 생성에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('Poster generation error:', error);
+      setPosterError('포스터 생성 중 오류가 발생했습니다.');
+    } finally {
+      setPosterGenerating(false);
+    }
+  };
+
+  const handleDownloadPoster = () => {
+    if (!generatedPoster) return;
+
+    const link = document.createElement('a');
+    link.href = generatedPoster;
+    link.download = `team${posterTeamId}_winner_poster.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   // 성과 분석 데이터
   const allPerformances = firebaseService.calculateAllTeamPerformances(room);
@@ -465,6 +544,104 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
                  ⚠️ {selectedTeamId === 'all' && editRound === 'all' ? '전체 팀의 전체 라운드에' : selectedTeamId === 'all' ? '전체 팀에' : '전체 라운드에'} 동일한 지침이 저장됩니다.
                </p>
              )}
+          </BrutalistCard>
+
+          {/* MISSION POST Section */}
+          <h2 className="text-2xl font-black italic mt-6">MISSION POST</h2>
+          <BrutalistCard className="space-y-4">
+            <p className="text-xs text-gray-400">
+              우승팀 단체사진을 업로드하면 AI가 멋진 축하 포스터를 생성합니다.
+            </p>
+
+            {/* Team Selection */}
+            <div>
+              <label className="text-xs font-bold uppercase">대상 팀 선택</label>
+              <select
+                className="w-full brutal-border bg-white text-black p-2 font-bold text-sm mt-1"
+                value={posterTeamId}
+                onChange={(e) => setPosterTeamId(parseInt(e.target.value))}
+              >
+                {Array.from({ length: room.totalTeams }).map((_, i) => (
+                  <option key={i+1} value={i+1}>{i+1}조</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Image Upload */}
+            <div>
+              <label className="text-xs font-bold uppercase">단체사진 업로드</label>
+              <input
+                ref={posterFileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handlePosterImageSelect}
+                className="hidden"
+              />
+              <BrutalistButton
+                variant="primary"
+                fullWidth
+                className="text-xs mt-1"
+                onClick={() => posterFileInputRef.current?.click()}
+              >
+                이미지 선택
+              </BrutalistButton>
+            </div>
+
+            {/* Preview Original Image */}
+            {posterImagePreview && (
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase">원본 이미지</label>
+                <img
+                  src={posterImagePreview}
+                  alt="Original"
+                  className="w-full h-auto brutal-border object-cover"
+                  style={{ maxHeight: '150px' }}
+                />
+              </div>
+            )}
+
+            {/* Generate Button */}
+            <BrutalistButton
+              variant="gold"
+              fullWidth
+              className="text-xs"
+              onClick={handleGeneratePoster}
+              disabled={!posterImagePreview || posterGenerating}
+            >
+              {posterGenerating ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="animate-spin">⏳</span>
+                  AI 포스터 생성 중...
+                </span>
+              ) : (
+                '🎨 우승 포스터 생성'
+              )}
+            </BrutalistButton>
+
+            {/* Error Message */}
+            {posterError && (
+              <p className="text-xs text-red-400 text-center">{posterError}</p>
+            )}
+
+            {/* Generated Poster Preview */}
+            {generatedPoster && (
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase text-yellow-400">생성된 포스터</label>
+                <img
+                  src={generatedPoster}
+                  alt="Generated Poster"
+                  className="w-full h-auto brutal-border border-yellow-400"
+                />
+                <BrutalistButton
+                  variant="gold"
+                  fullWidth
+                  className="text-xs"
+                  onClick={handleDownloadPoster}
+                >
+                  📥 포스터 다운로드
+                </BrutalistButton>
+              </div>
+            )}
           </BrutalistCard>
         </section>
 
