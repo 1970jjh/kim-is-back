@@ -1,5 +1,7 @@
 // Canvas 기반 인포그래픽 생성기 - 완벽한 한글 지원
 
+import { jsPDF } from 'jspdf';
+
 interface ReportData {
   oneLine: string;
   bestMission: string;
@@ -202,9 +204,6 @@ export async function generateResultPDF(
   members: Array<{ role: string; name: string }>,
   reportImageData?: string
 ): Promise<Blob> {
-  // jsPDF 동적 로드
-  const { jsPDF } = await import('jspdf');
-
   const pdf = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
