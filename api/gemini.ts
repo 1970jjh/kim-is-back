@@ -523,12 +523,13 @@ async function generateWinnerPoster(payload: {
 - 승리와 성취를 강조하는 시각적 요소`;
 
   try {
-    console.log('Calling Gemini 3 Pro Image Preview for winner poster generation...');
+    console.log('Calling Gemini 2.0 Flash Exp for winner poster generation...');
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 110000); // 110초 타임아웃
 
-    const response = await fetch(`${GEMINI_3_PRO_IMAGE_URL}?key=${GEMINI_API_KEY}`, {
+    // gemini-2.0-flash-exp 사용 (이미지 입력 + 이미지 생성 지원)
+    const response = await fetch(`${GEMINI_IMAGE_GEN_URL}?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -553,17 +554,17 @@ async function generateWinnerPoster(payload: {
     clearTimeout(timeoutId);
 
     const data = await response.json();
-    console.log('Gemini 3 Pro winner poster response:', JSON.stringify(data).slice(0, 500));
+    console.log('Gemini winner poster response:', JSON.stringify(data).slice(0, 500));
 
     if (data.error) {
-      console.error('Gemini 3 Pro winner poster error:', data.error);
+      console.error('Gemini winner poster error:', data.error);
       return { success: false, error: data.error.message || '포스터 생성에 실패했습니다.' };
     }
 
     const parts = data.candidates?.[0]?.content?.parts || [];
     for (const part of parts) {
       if (part.inlineData) {
-        console.log('Successfully generated winner poster with Gemini 3 Pro Image Preview');
+        console.log('Successfully generated winner poster');
         return {
           success: true,
           imageData: `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`
@@ -573,7 +574,7 @@ async function generateWinnerPoster(payload: {
 
     return { success: false, error: '포스터 이미지가 생성되지 않았습니다. 다시 시도해주세요.' };
   } catch (error) {
-    console.error('Gemini 3 Pro winner poster API error:', error);
+    console.error('Gemini winner poster API error:', error);
     return { success: false, error: '포스터 생성 중 오류가 발생했습니다.' };
   }
 }

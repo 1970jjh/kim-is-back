@@ -165,7 +165,7 @@ export const geminiService = {
     }
   },
 
-  // Admin: 우승팀 포스터 생성 (Gemini 3 Pro Image Preview)
+  // Admin: 우승팀 포스터 생성 (Gemini 2.0 Flash Exp)
   generateWinnerPoster: async (
     imageBase64: string,
     mimeType: string,
@@ -173,6 +173,9 @@ export const geminiService = {
     options?: { teamName?: string; rank?: number; groupName?: string }
   ): Promise<{ success: boolean; imageData?: string; error?: string }> => {
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 115000); // 115초 타임아웃
+
       const response = await fetch(API_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -184,8 +187,11 @@ export const geminiService = {
             teamId,
             ...options
           }
-        })
+        }),
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const error = await response.json();
@@ -194,6 +200,10 @@ export const geminiService = {
 
       return await response.json();
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.error('Gemini winner poster timeout (115s)');
+        return { success: false, error: '포스터 생성 시간이 초과되었습니다. 다시 시도해주세요.' };
+      }
       console.error('Gemini winner poster error:', error);
       return { success: false, error: '포스터 생성 중 오류가 발생했습니다.' };
     }
