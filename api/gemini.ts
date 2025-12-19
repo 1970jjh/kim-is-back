@@ -1,5 +1,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
+// Vercel Pro plan - 120초 타임아웃
+export const config = {
+  maxDuration: 120,
+};
+
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 const GEMINI_TEXT_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 const GEMINI_IMAGE_GEN_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent';
@@ -268,37 +273,48 @@ Resolution 3: ${payload.resolutions[2]}
 
 Make it look like a motivational corporate poster with brutalist design elements.`;
 
-  const response = await fetch(`${GEMINI_IMAGE_GEN_URL}?key=${GEMINI_API_KEY}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{
-        parts: [{ text: prompt }]
-      }],
-      generationConfig: {
-        responseModalities: ["image", "text"],
-        imageSafetySetting: "block_none"
-      }
-    })
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 110000); // 110초 타임아웃
 
-  const data = await response.json();
+  try {
+    const response = await fetch(`${GEMINI_IMAGE_GEN_URL}?key=${GEMINI_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{ text: prompt }]
+        }],
+        generationConfig: {
+          responseModalities: ['TEXT', 'IMAGE'],
+        }
+      }),
+      signal: controller.signal
+    });
 
-  if (data.error) {
-    return { success: false, error: data.error.message };
-  }
+    clearTimeout(timeoutId);
 
-  const parts = data.candidates?.[0]?.content?.parts || [];
-  for (const part of parts) {
-    if (part.inlineData) {
-      return {
-        success: true,
-        imageData: `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`
-      };
+    const data = await response.json();
+
+    if (data.error) {
+      return { success: false, error: data.error.message };
     }
-  }
 
-  return { success: false, error: '이미지 생성에 실패했습니다.' };
+    const parts = data.candidates?.[0]?.content?.parts || [];
+    for (const part of parts) {
+      if (part.inlineData) {
+        return {
+          success: true,
+          imageData: `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`
+        };
+      }
+    }
+
+    return { success: false, error: '이미지 생성에 실패했습니다.' };
+  } catch (error) {
+    clearTimeout(timeoutId);
+    console.error('Infographic generation error:', error);
+    return { success: false, error: '이미지 생성 중 타임아웃이 발생했습니다.' };
+  }
 }
 
 // R12: Validate team activity report
@@ -410,9 +426,12 @@ async function generateReportInfographic(payload: { report: { oneLine: string; b
 - 각 카드의 내용은 깔끔하게 줄바꿈하여 표시
 - 전체적으로 세련되고 공유하고 싶은 디자인으로 제작`;
 
-  // Gemini 3 Pro Image Preview API 호출
+  // Gemini 3 Pro Image Preview API 호출 (AbortController로 타임아웃 처리)
   try {
     console.log('Calling Gemini 3 Pro Image Preview for report generation...');
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 110000); // 110초 타임아웃
 
     const response = await fetch(`${GEMINI_3_PRO_IMAGE_URL}?key=${GEMINI_API_KEY}`, {
       method: 'POST',
@@ -422,11 +441,13 @@ async function generateReportInfographic(payload: { report: { oneLine: string; b
           parts: [{ text: prompt }]
         }],
         generationConfig: {
-          responseModalities: ["image", "text"],
-          temperature: 0.8
+          responseModalities: ['TEXT', 'IMAGE'],
         }
-      })
+      }),
+      signal: controller.signal
     });
+
+    clearTimeout(timeoutId);
 
     const data = await response.json();
     console.log('Gemini 3 Pro response:', JSON.stringify(data).slice(0, 500));
@@ -542,38 +563,50 @@ Create a 3:4 portrait poster with:
 - Professional corporate design
 - "KIM IS BACK 2025" at bottom`;
 
-  const response = await fetch(`${GEMINI_IMAGE_GEN_URL}?key=${GEMINI_API_KEY}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{
-        parts: [{ text: prompt }]
-      }],
-      generationConfig: {
-        responseModalities: ["image", "text"]
-      }
-    })
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 110000); // 110초 타임아웃
 
-  const data = await response.json();
-  console.log('Gemini Flash response:', JSON.stringify(data).slice(0, 500));
+  try {
+    const response = await fetch(`${GEMINI_IMAGE_GEN_URL}?key=${GEMINI_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{ text: prompt }]
+        }],
+        generationConfig: {
+          responseModalities: ['TEXT', 'IMAGE'],
+        }
+      }),
+      signal: controller.signal
+    });
 
-  if (data.error) {
-    console.error('Gemini Flash error:', data.error);
-    return { success: false, error: data.error.message };
-  }
+    clearTimeout(timeoutId);
 
-  const parts = data.candidates?.[0]?.content?.parts || [];
-  for (const part of parts) {
-    if (part.inlineData) {
-      return {
-        success: true,
-        imageData: `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`
-      };
+    const data = await response.json();
+    console.log('Gemini Flash response:', JSON.stringify(data).slice(0, 500));
+
+    if (data.error) {
+      console.error('Gemini Flash error:', data.error);
+      return { success: false, error: data.error.message };
     }
-  }
 
-  return { success: false, error: '보고서 이미지 생성에 실패했습니다. 잠시 후 다시 시도해주세요.' };
+    const parts = data.candidates?.[0]?.content?.parts || [];
+    for (const part of parts) {
+      if (part.inlineData) {
+        return {
+          success: true,
+          imageData: `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`
+        };
+      }
+    }
+
+    return { success: false, error: '보고서 이미지 생성에 실패했습니다. 잠시 후 다시 시도해주세요.' };
+  } catch (error) {
+    clearTimeout(timeoutId);
+    console.error('Gemini Flash fallback error:', error);
+    return { success: false, error: '보고서 이미지 생성 중 타임아웃이 발생했습니다.' };
+  }
 }
 
 // Admin: Generate winner team poster with team photo (Gemini 3 Pro Image Preview)
@@ -625,6 +658,9 @@ async function generateWinnerPoster(payload: {
   try {
     console.log('Calling Gemini 3 Pro Image Preview for winner poster generation...');
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 110000); // 110초 타임아웃
+
     const response = await fetch(`${GEMINI_3_PRO_IMAGE_URL}?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -641,11 +677,13 @@ async function generateWinnerPoster(payload: {
           ]
         }],
         generationConfig: {
-          responseModalities: ["image", "text"],
-          temperature: 0.9
+          responseModalities: ['TEXT', 'IMAGE'],
         }
-      })
+      }),
+      signal: controller.signal
     });
+
+    clearTimeout(timeoutId);
 
     const data = await response.json();
     console.log('Gemini 3 Pro winner poster response:', JSON.stringify(data).slice(0, 500));
