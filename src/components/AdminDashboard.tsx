@@ -56,6 +56,13 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
   const [posterError, setPosterError] = useState<string | null>(null);
   const posterFileInputRef = useRef<HTMLInputElement | null>(null);
 
+  // TOTAL PERFORMANCE states
+  const [showAnalysisModal, setShowAnalysisModal] = useState(false);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<Record<string, unknown> | null>(null);
+  const [analysisStats, setAnalysisStats] = useState<Record<string, unknown> | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+
   // 전체 미션 타이머 (이벤트 중 일시정지)
   useEffect(() => {
     if (!room.missionStarted || !room.missionStartTime) {
@@ -307,6 +314,229 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  // TOTAL PERFORMANCE handlers
+  const handleAnalyzeTotalPerformance = async () => {
+    setAnalysisLoading(true);
+    setAnalysisError(null);
+    setAnalysisResult(null);
+    setAnalysisStats(null);
+    setShowAnalysisModal(true);
+
+    try {
+      const performances = firebaseService.calculateAllTeamPerformances(room);
+
+      // 팀 리포트 수집
+      const teamReports = Object.entries(room.teams || {})
+        .filter(([, team]) => team.teamReport)
+        .map(([teamIdStr, team]) => ({
+          teamId: parseInt(teamIdStr),
+          oneLine: team.teamReport?.oneLine || '',
+          bestMission: team.teamReport?.bestMission || '',
+          regret: team.teamReport?.regret || '',
+          futureHelp: team.teamReport?.futureHelp || ''
+        }));
+
+      const performancesWithNames = performances.map(p => ({
+        ...p,
+        teamName: room.teams?.[p.teamId]?.name || `Team ${p.teamId}`,
+        members: room.teams?.[p.teamId]?.members
+      }));
+
+      const result = await geminiService.analyzeTotalPerformance(
+        room.groupName || '교육그룹',
+        room.totalTeams,
+        performancesWithNames,
+        teamReports
+      );
+
+      if (result.success) {
+        setAnalysisResult(result.analysis || null);
+        setAnalysisStats(result.rawStats || null);
+      } else {
+        setAnalysisError(result.error || '분석에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('Analysis error:', error);
+      setAnalysisError('성과 분석 중 오류가 발생했습니다.');
+    } finally {
+      setAnalysisLoading(false);
+    }
+  };
+
+  const handleDownloadAnalysisPDF = async () => {
+    if (!analysisResult || !analysisStats) return;
+
+    try {
+      const { jsPDF } = await import('jspdf');
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 15;
+      let y = 20;
+
+      const stats = analysisStats as Record<string, unknown>;
+      const analysis = analysisResult as Record<string, unknown>;
+
+      // Helper functions
+      const addTitle = (text: string, size: number = 18) => {
+        pdf.setFontSize(size);
+        pdf.setTextColor(40, 40, 40);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(text, pageWidth / 2, y, { align: 'center' });
+        y += size * 0.5;
+      };
+
+      const addSection = (title: string) => {
+        if (y > pageHeight - 40) {
+          pdf.addPage();
+          y = 20;
+        }
+        pdf.setFontSize(14);
+        pdf.setTextColor(60, 60, 60);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(title, margin, y);
+        y += 8;
+      };
+
+      const addText = (text: string, indent: number = 0) => {
+        if (y > pageHeight - 20) {
+          pdf.addPage();
+          y = 20;
+        }
+        pdf.setFontSize(10);
+        pdf.setTextColor(80, 80, 80);
+        pdf.setFont('helvetica', 'normal');
+        const lines = pdf.splitTextToSize(text, pageWidth - margin * 2 - indent);
+        pdf.text(lines, margin + indent, y);
+        y += lines.length * 5;
+      };
+
+      const formatTimeForPDF = (seconds: number): string => {
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${mins}m ${secs}s`;
+      };
+
+      // Title
+      addTitle(`${stats.groupName || 'Education'} Performance Report`, 20);
+      y += 5;
+      addTitle(`Analysis Date: ${stats.dateStr}`, 12);
+      y += 10;
+
+      // Draw separator line
+      pdf.setDrawColor(255, 215, 0);
+      pdf.setLineWidth(1);
+      pdf.line(margin, y, pageWidth - margin, y);
+      y += 10;
+
+      // Executive Summary
+      addSection('Executive Summary');
+      if (analysis.executiveSummary) {
+        addText(String(analysis.executiveSummary));
+      }
+      y += 5;
+
+      // Statistics Overview
+      addSection('Performance Statistics');
+      addText(`Total Teams: ${stats.totalTeams}`);
+      addText(`Average Time: ${formatTimeForPDF(Number(stats.avgTime) || 0)}`);
+      addText(`Fastest Time: ${formatTimeForPDF(Number(stats.minTime) || 0)}`);
+      addText(`Slowest Time: ${formatTimeForPDF(Number(stats.maxTime) || 0)}`);
+      addText(`Total HELP Usage: ${stats.totalHelps} times`);
+      y += 5;
+
+      // Draw simple bar chart for round difficulty
+      addSection('Round Difficulty (Average Time)');
+      const roundAvgTimes = stats.roundAvgTimes as Record<number, number> || {};
+      const maxRoundTime = Math.max(...Object.values(roundAvgTimes).map(Number), 1);
+      const chartWidth = pageWidth - margin * 2;
+      const barHeight = 6;
+      const chartStartY = y;
+
+      Object.entries(roundAvgTimes).forEach(([round, time], idx) => {
+        if (y > pageHeight - 30) {
+          pdf.addPage();
+          y = 20;
+        }
+        const barWidth = (Number(time) / maxRoundTime) * (chartWidth - 40);
+
+        // Label
+        pdf.setFontSize(8);
+        pdf.setTextColor(60, 60, 60);
+        pdf.text(`R${round}`, margin, y + 4);
+
+        // Bar
+        pdf.setFillColor(255, 215, 0);
+        pdf.rect(margin + 15, y, barWidth, barHeight, 'F');
+
+        // Time value
+        pdf.text(formatTimeForPDF(Number(time)), margin + 20 + barWidth, y + 4);
+
+        y += barHeight + 3;
+      });
+      y += 10;
+
+      // Overall Assessment
+      if (analysis.overallAssessment) {
+        addSection('Overall Assessment');
+        addText(String(analysis.overallAssessment));
+        y += 5;
+      }
+
+      // Team Ranking Analysis
+      if (analysis.teamRankingAnalysis) {
+        addSection('Team Ranking Analysis');
+        addText(String(analysis.teamRankingAnalysis));
+        y += 5;
+      }
+
+      // Round Analysis
+      const roundAnalysis = analysis.roundAnalysis as Record<string, unknown>;
+      if (roundAnalysis) {
+        addSection('Round Analysis');
+        if (roundAnalysis.keyInsights) {
+          addText(String(roundAnalysis.keyInsights));
+        }
+        y += 5;
+      }
+
+      // Recommendations
+      const recommendations = analysis.recommendations as string[];
+      if (recommendations && recommendations.length > 0) {
+        addSection('Recommendations');
+        recommendations.forEach((rec, idx) => {
+          addText(`${idx + 1}. ${rec}`, 5);
+        });
+        y += 5;
+      }
+
+      // Best Practices
+      const bestPractices = analysis.bestPractices as string[];
+      if (bestPractices && bestPractices.length > 0) {
+        addSection('Best Practices');
+        bestPractices.forEach((practice, idx) => {
+          addText(`${idx + 1}. ${practice}`, 5);
+        });
+      }
+
+      // Footer
+      pdf.setFontSize(8);
+      pdf.setTextColor(150, 150, 150);
+      pdf.text('Generated by Kim Is Back - AI Performance Analysis', pageWidth / 2, pageHeight - 10, { align: 'center' });
+
+      // Download
+      pdf.save(`${stats.groupName || 'performance'}_analysis_report.pdf`);
+    } catch (error) {
+      console.error('PDF generation error:', error);
+      alert('PDF 생성 중 오류가 발생했습니다.');
+    }
   };
 
   // 성과 분석 데이터
@@ -730,6 +960,62 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
         </section>
       </div>
 
+      {/* TOTAL PERFORMANCE Section */}
+      <section className="mt-8 space-y-4">
+        <h2 className="text-2xl font-black italic">TOTAL PERFORMANCE</h2>
+        <BrutalistCard className="space-y-4">
+          <p className="text-xs text-gray-400">
+            모든 팀의 미션이 종료된 후, AI가 전체 성과를 종합 분석하여 상세 리포트를 생성합니다.
+          </p>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+            <div className="bg-white/10 p-3 brutal-border">
+              <p className="text-[10px] text-gray-400 uppercase">완료 팀</p>
+              <p className="text-2xl font-black text-green-400">{completedTeams.length}</p>
+            </div>
+            <div className="bg-white/10 p-3 brutal-border">
+              <p className="text-[10px] text-gray-400 uppercase">전체 팀</p>
+              <p className="text-2xl font-black">{room.totalTeams}</p>
+            </div>
+            <div className="bg-white/10 p-3 brutal-border">
+              <p className="text-[10px] text-gray-400 uppercase">완료율</p>
+              <p className="text-2xl font-black text-yellow-400">
+                {Math.round((completedTeams.length / room.totalTeams) * 100)}%
+              </p>
+            </div>
+            <div className="bg-white/10 p-3 brutal-border">
+              <p className="text-[10px] text-gray-400 uppercase">상태</p>
+              <p className={`text-lg font-black ${completedTeams.length === room.totalTeams ? 'text-green-400' : 'text-orange-400'}`}>
+                {completedTeams.length === room.totalTeams ? 'READY' : 'IN PROGRESS'}
+              </p>
+            </div>
+          </div>
+
+          <BrutalistButton
+            variant="gold"
+            fullWidth
+            className="text-sm"
+            onClick={handleAnalyzeTotalPerformance}
+            disabled={completedTeams.length === 0 || analysisLoading}
+          >
+            {analysisLoading ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="animate-spin">⏳</span>
+                AI 종합 분석 중...
+              </span>
+            ) : (
+              '📊 AI 종합 성과 분석 시작'
+            )}
+          </BrutalistButton>
+
+          {completedTeams.length === 0 && (
+            <p className="text-xs text-orange-400 text-center">
+              ⚠️ 최소 1개 팀 이상 미션을 완료해야 분석이 가능합니다.
+            </p>
+          )}
+        </BrutalistCard>
+      </section>
+
       {/* Nav buttons */}
       <nav className="fixed bottom-4 right-4 flex gap-2 z-40">
         <BrutalistButton variant="danger" onClick={onLogout}>LOGOUT</BrutalistButton>
@@ -874,6 +1160,171 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
                 })}
               </div>
             </div>
+          </BrutalistCard>
+        </div>
+      )}
+
+      {/* Analysis Modal */}
+      {showAnalysisModal && (
+        <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-50 p-4 overflow-auto">
+          <BrutalistCard className="max-w-4xl w-full space-y-6 my-8 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center sticky top-0 bg-black/90 pb-4 -mt-2 pt-2">
+              <h2 className="text-3xl font-black uppercase gold-gradient">AI 종합 성과 분석</h2>
+              <div className="flex gap-2">
+                {analysisResult && (
+                  <BrutalistButton variant="gold" onClick={handleDownloadAnalysisPDF} className="text-sm">
+                    📥 PDF 다운로드
+                  </BrutalistButton>
+                )}
+                <BrutalistButton variant="ghost" onClick={() => setShowAnalysisModal(false)}>닫기</BrutalistButton>
+              </div>
+            </div>
+
+            {analysisLoading && (
+              <div className="text-center py-20">
+                <div className="text-6xl mb-4 animate-bounce">🤖</div>
+                <p className="text-xl font-bold text-yellow-400">AI가 데이터를 분석하고 있습니다...</p>
+                <p className="text-sm text-gray-400 mt-2">잠시만 기다려주세요.</p>
+              </div>
+            )}
+
+            {analysisError && (
+              <div className="text-center py-10">
+                <div className="text-6xl mb-4">❌</div>
+                <p className="text-xl font-bold text-red-400">분석 중 오류가 발생했습니다</p>
+                <p className="text-sm text-gray-400 mt-2">{analysisError}</p>
+                <BrutalistButton variant="primary" className="mt-4" onClick={handleAnalyzeTotalPerformance}>
+                  다시 시도
+                </BrutalistButton>
+              </div>
+            )}
+
+            {analysisResult && analysisStats && (
+              <div className="space-y-6">
+                {/* Statistics Cards */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <BrutalistCard className="text-center bg-gradient-to-br from-green-900/50 to-green-700/30">
+                    <p className="text-xs text-gray-400 uppercase">평균 소요시간</p>
+                    <p className="text-2xl font-mono font-black text-green-400">
+                      {formatTimeWithHours(Number((analysisStats as Record<string, unknown>).avgTime) || 0)}
+                    </p>
+                  </BrutalistCard>
+                  <BrutalistCard className="text-center bg-gradient-to-br from-yellow-900/50 to-yellow-700/30">
+                    <p className="text-xs text-gray-400 uppercase">최단 기록</p>
+                    <p className="text-2xl font-mono font-black text-yellow-400">
+                      {formatTimeWithHours(Number((analysisStats as Record<string, unknown>).minTime) || 0)}
+                    </p>
+                  </BrutalistCard>
+                  <BrutalistCard className="text-center bg-gradient-to-br from-red-900/50 to-red-700/30">
+                    <p className="text-xs text-gray-400 uppercase">최장 기록</p>
+                    <p className="text-2xl font-mono font-black text-red-400">
+                      {formatTimeWithHours(Number((analysisStats as Record<string, unknown>).maxTime) || 0)}
+                    </p>
+                  </BrutalistCard>
+                  <BrutalistCard className="text-center bg-gradient-to-br from-orange-900/50 to-orange-700/30">
+                    <p className="text-xs text-gray-400 uppercase">총 HELP 사용</p>
+                    <p className="text-2xl font-black text-orange-400">
+                      {(analysisStats as Record<string, unknown>).totalHelps || 0}회
+                    </p>
+                  </BrutalistCard>
+                </div>
+
+                {/* Round Difficulty Chart */}
+                <BrutalistCard>
+                  <h3 className="text-lg font-black mb-4 text-yellow-400">📊 라운드별 난이도 (평균 소요시간)</h3>
+                  <div className="space-y-2">
+                    {Object.entries((analysisStats as Record<string, unknown>).roundAvgTimes as Record<number, number> || {}).map(([round, time]) => {
+                      const maxTime = Math.max(...Object.values((analysisStats as Record<string, unknown>).roundAvgTimes as Record<number, number> || {}));
+                      const percentage = (Number(time) / maxTime) * 100;
+                      return (
+                        <div key={round} className="flex items-center gap-2">
+                          <span className="w-8 text-xs font-bold">R{round}</span>
+                          <div className="flex-1 h-6 bg-white/10 brutal-border overflow-hidden">
+                            <div
+                              className="h-full bg-gradient-to-r from-yellow-500 to-orange-500 transition-all duration-500"
+                              style={{ width: `${percentage}%` }}
+                            />
+                          </div>
+                          <span className="w-16 text-xs font-mono text-right">
+                            {formatTime(Number(time))}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </BrutalistCard>
+
+                {/* Executive Summary */}
+                {(analysisResult as Record<string, unknown>).executiveSummary && (
+                  <BrutalistCard className="border-yellow-400">
+                    <h3 className="text-lg font-black mb-2 text-yellow-400">📋 핵심 요약</h3>
+                    <p className="text-sm text-gray-300 leading-relaxed">
+                      {String((analysisResult as Record<string, unknown>).executiveSummary)}
+                    </p>
+                  </BrutalistCard>
+                )}
+
+                {/* Overall Assessment */}
+                {(analysisResult as Record<string, unknown>).overallAssessment && (
+                  <BrutalistCard>
+                    <h3 className="text-lg font-black mb-2 text-blue-400">📈 종합 평가</h3>
+                    <p className="text-sm text-gray-300 leading-relaxed">
+                      {String((analysisResult as Record<string, unknown>).overallAssessment)}
+                    </p>
+                  </BrutalistCard>
+                )}
+
+                {/* Team Ranking Analysis */}
+                {(analysisResult as Record<string, unknown>).teamRankingAnalysis && (
+                  <BrutalistCard>
+                    <h3 className="text-lg font-black mb-2 text-green-400">🏆 팀 순위 분석</h3>
+                    <p className="text-sm text-gray-300 leading-relaxed">
+                      {String((analysisResult as Record<string, unknown>).teamRankingAnalysis)}
+                    </p>
+                  </BrutalistCard>
+                )}
+
+                {/* Teamwork Insights */}
+                {(analysisResult as Record<string, unknown>).teamworkInsights && (
+                  <BrutalistCard>
+                    <h3 className="text-lg font-black mb-2 text-purple-400">🤝 팀워크 인사이트</h3>
+                    <p className="text-sm text-gray-300 leading-relaxed">
+                      {String((analysisResult as Record<string, unknown>).teamworkInsights)}
+                    </p>
+                  </BrutalistCard>
+                )}
+
+                {/* Recommendations */}
+                {((analysisResult as Record<string, unknown>).recommendations as string[])?.length > 0 && (
+                  <BrutalistCard>
+                    <h3 className="text-lg font-black mb-2 text-cyan-400">💡 개선 제안</h3>
+                    <ul className="space-y-2">
+                      {((analysisResult as Record<string, unknown>).recommendations as string[]).map((rec, idx) => (
+                        <li key={idx} className="text-sm text-gray-300 flex gap-2">
+                          <span className="text-yellow-400 font-bold">{idx + 1}.</span>
+                          {rec}
+                        </li>
+                      ))}
+                    </ul>
+                  </BrutalistCard>
+                )}
+
+                {/* Best Practices */}
+                {((analysisResult as Record<string, unknown>).bestPractices as string[])?.length > 0 && (
+                  <BrutalistCard className="border-green-400">
+                    <h3 className="text-lg font-black mb-2 text-green-400">⭐ 베스트 프랙티스</h3>
+                    <ul className="space-y-2">
+                      {((analysisResult as Record<string, unknown>).bestPractices as string[]).map((practice, idx) => (
+                        <li key={idx} className="text-sm text-gray-300 flex gap-2">
+                          <span className="text-green-400">✓</span>
+                          {practice}
+                        </li>
+                      ))}
+                    </ul>
+                  </BrutalistCard>
+                )}
+              </div>
+            )}
           </BrutalistCard>
         </div>
       )}

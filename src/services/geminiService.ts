@@ -186,5 +186,60 @@ export const geminiService = {
       console.error('Gemini winner poster error:', error);
       return { success: false, error: '포스터 생성 중 오류가 발생했습니다.' };
     }
+  },
+
+  // Admin: 전체 팀 성과 종합 분석 (Gemini Pro)
+  analyzeTotalPerformance: async (
+    groupName: string,
+    totalTeams: number,
+    performances: Array<{
+      teamId: number;
+      teamName: string;
+      rank: number;
+      totalTime: number;
+      totalTimeWithBonus: number;
+      helpCount: number;
+      helpBonusTime: number;
+      roundTimes: Record<number, number>;
+      members?: Array<{ role: string; name: string }>;
+    }>,
+    teamReports?: Array<{
+      teamId: number;
+      oneLine: string;
+      bestMission: string;
+      regret: string;
+      futureHelp: string;
+    }>
+  ): Promise<{
+    success: boolean;
+    analysis?: Record<string, unknown>;
+    rawStats?: Record<string, unknown>;
+    error?: string;
+  }> => {
+    try {
+      const response = await fetch(API_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'analyzeTotalPerformance',
+          payload: {
+            groupName,
+            totalTeams,
+            performances,
+            teamReports
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        return { success: false, error: error.error || 'API 오류가 발생했습니다.' };
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Gemini total performance analysis error:', error);
+      return { success: false, error: '성과 분석 중 오류가 발생했습니다.' };
+    }
   }
 };
