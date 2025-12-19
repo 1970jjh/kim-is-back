@@ -116,24 +116,28 @@ const FACTORY_BG = 'https://i.imgur.com/G66myVZ.jpeg';
 const DIARY_IMAGE = 'https://i.imgur.com/vvbLGIm.jpeg';
 
 // R1 신입사원 채용 서류전형 미션 (1월)
+const R1_STORY = `여느 때처럼 나른한 오후를 즐기며 결재 서류를 뒤적이는 당신.
+"적당히 스펙 좋고, 시키는 대로 일할 사람 하나 뽑지 뭐." 관행에 젖어 기계적으로 이력서를 집어 든다.
+이 무심한 선택 하나가, 당신의 운명을 저 먼 아산 공장 바닥으로 내동댕이칠 트리거가 될 줄은 꿈에도 모른 채.`;
+
 const R1_PROFILES = [
   {
     id: 1,
     name: '지원자 A',
-    image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=500&fit=crop',
+    image: 'https://i.ibb.co/G3tPykrx/1.jpg',
   },
   {
     id: 2,
     name: '지원자 B',
-    image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=500&fit=crop',
+    image: 'https://i.ibb.co/kn3X0T4/2.jpg',
   },
   {
     id: 3,
     name: '지원자 C',
-    image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=500&fit=crop',
+    image: 'https://i.ibb.co/HpbZt1BZ/3.jpg',
   }
 ];
-const R1_CORRECT_ANSWER = '주도형';
+const R1_CORRECT_ANSWER = '박낙하';
 
 // R2 매너리즘 김부장 미션 (2월)
 const R2_IMAGES = [
@@ -428,7 +432,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
   // R1 신입사원 채용 정답 체크 (1월)
   const handleR1Submit = () => {
     const normalizedAnswer = r1Answer.replace(/\s/g, '').trim();
-    if (normalizedAnswer === R1_CORRECT_ANSWER || normalizedAnswer === '주도형') {
+    if (normalizedAnswer === R1_CORRECT_ANSWER || normalizedAnswer === '박낙하') {
       setR1Cleared(true);
       setR1Error('');
     } else {
@@ -1324,21 +1328,39 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
               ROUND 1: 1월 미션 - 신입사원 채용
             </h3>
 
-            <BrutalistCard className="bg-yellow-400/10 border-yellow-400">
-              <p className="text-xl font-bold text-center">
-                "조직의 성장과 발전에 기여할 인재의 조건은?<br/>김부장은 과연 누구를 뽑을 것인가?"
-              </p>
-            </BrutalistCard>
+            {/* 브루탈리즘 스타일 시나리오 */}
+            <div className="bg-black border-4 border-white p-4 md:p-6" style={{ boxShadow: '8px 8px 0px 0px #fbbf24' }}>
+              <div className="space-y-4 font-mono">
+                <p className="text-gray-300 leading-relaxed text-sm md:text-base">
+                  여느 때처럼 나른한 오후를 즐기며 결재 서류를 뒤적이는 당신.
+                </p>
+                <p className="text-yellow-400 font-bold text-sm md:text-base italic">
+                  "적당히 스펙 좋고, 시키는 대로 일할 사람 하나 뽑지 뭐."
+                </p>
+                <p className="text-gray-300 leading-relaxed text-sm md:text-base">
+                  관행에 젖어 기계적으로 이력서를 집어 든다.
+                </p>
+                <p className="text-red-400 font-bold text-sm md:text-base">
+                  이 무심한 선택 하나가, 당신의 운명을 저 먼 아산 공장 바닥으로 내동댕이칠 트리거가 될 줄은 꿈에도 모른 채.
+                </p>
+              </div>
+            </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="bg-yellow-400 text-black p-4 brutal-border text-center">
+              <p className="text-xl md:text-2xl font-black">
+                과연, 영업팀 김부장은 누구를 뽑았을까?
+              </p>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 md:gap-4">
               {R1_PROFILES.map((profile) => (
                 <div
                   key={profile.id}
                   className="cursor-pointer brutal-border overflow-hidden hover:scale-105 transition-transform bg-black"
                   onClick={() => setR1SelectedProfile(profile.id)}
                 >
-                  <img src={profile.image} alt={profile.name} className="w-full h-40 object-cover" />
-                  <p className="text-center font-black py-2 bg-white text-black">{profile.name}</p>
+                  <img src={profile.image} alt={profile.name} className="w-full h-32 md:h-48 object-cover" />
+                  <p className="text-center font-black py-2 bg-white text-black text-sm md:text-base">{profile.name}</p>
                 </div>
               ))}
             </div>
@@ -1348,7 +1370,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
               <label className="block text-lg font-black text-yellow-400 uppercase">정답 입력</label>
               <BrutalistInput
                 fullWidth
-                placeholder="인재의 조건을 입력하세요"
+                placeholder="김부장이 뽑은 사람의 이름은?"
                 value={r1Answer}
                 onChange={(e) => { setR1Answer(e.target.value); setR1Error(''); }}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleR1Submit(); }}
