@@ -2752,14 +2752,26 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
                   />
                 </div>
 
-                {r12ValidationResult && (
+                {r12ValidationResult && !r12Generating && (
                   <div className={`p-4 brutal-border text-center font-bold ${r12ValidationResult.pass ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
                     {r12ValidationResult.message}
                   </div>
                 )}
 
+                {/* AI 보고서 생성 중 로딩 화면 */}
+                {r12Generating && (
+                  <div className="p-8 brutal-border bg-gradient-to-r from-purple-600 to-blue-600 text-white text-center space-y-4">
+                    <div className="flex justify-center">
+                      <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                    <p className="text-2xl font-black animate-pulse">AI 보고서가 생성 중입니다</p>
+                    <p className="text-lg">잠시만 기다려주세요... ✨</p>
+                    <p className="text-sm text-white/70">Gemini AI가 팀 활동 인포그래픽을 제작하고 있습니다</p>
+                  </div>
+                )}
+
                 <BrutalistButton variant="gold" fullWidth onClick={handleR12Validate} disabled={r12Validating || r12Generating}>
-                  {r12Validating ? 'AI 검증 중...' : r12Generating ? '보고서 생성 중...' : '보고서 제출하기'}
+                  {r12Validating ? 'AI 검증 중...' : r12Generating ? '🎨 AI 보고서 생성 중...' : '보고서 제출하기'}
                 </BrutalistButton>
               </BrutalistCard>
               <BrutalistButton variant="ghost" onClick={() => setViewState('factory')}>← 공장으로 돌아가기</BrutalistButton>
