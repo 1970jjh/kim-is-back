@@ -1100,12 +1100,14 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
           )}
         </div>
 
-        <BrutalistCard className="aspect-video relative overflow-hidden bg-black flex items-center justify-center">
-          <div className="text-center space-y-4">
-             <div className="text-yellow-400 text-6xl">🎬</div>
-             <p className="text-2xl font-bold">좌천된 김부장의 본사 복귀 스토리 영상</p>
-             <p className="text-gray-500 italic">[선배들의 낡은 노트를 발견하다...]</p>
-          </div>
+        <BrutalistCard className="aspect-video relative overflow-hidden bg-black p-0">
+          <iframe
+            src="https://drive.google.com/file/d/1aBzRxcHVYTRS0grk4QbmNEAiLGkZa7a1/preview"
+            className="w-full h-full"
+            allow="autoplay; encrypted-media"
+            allowFullScreen
+            title="김부장의 본사 복귀 미션 오프닝 영상"
+          />
         </BrutalistCard>
 
         <div className="space-y-4">
