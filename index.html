@@ -20,10 +20,31 @@
             box-shadow: 8px 8px 0px 0px #b8860b;
         }
         .gold-gradient {
-            background: linear-gradient(135deg, #ffd700 0%, #b8860b 50%, #8b6508 100%);
+            background: linear-gradient(
+                135deg,
+                #f5e6a3 0%,
+                #e6c65c 15%,
+                #d4a843 30%,
+                #c49a3a 45%,
+                #f0d875 50%,
+                #c49a3a 55%,
+                #d4a843 70%,
+                #e6c65c 85%,
+                #f5e6a3 100%
+            );
             -webkit-background-clip: text;
+            background-clip: text;
             -webkit-text-fill-color: transparent;
-            text-shadow: 2px 2px 0px rgba(0,0,0,0.2);
+            filter: drop-shadow(2px 2px 1px rgba(0,0,0,0.4)) drop-shadow(0 0 3px rgba(212,168,67,0.3));
+        }
+        .gold-metallic {
+            color: #d4a843;
+            text-shadow:
+                0 1px 0 #f5e6a3,
+                0 2px 0 #c49a3a,
+                0 3px 0 #b08a30,
+                0 4px 3px rgba(0,0,0,0.4),
+                0 0 10px rgba(212,168,67,0.3);
         }
         .city-bg {
             background-image: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url('https://images.unsplash.com/photo-1449824913935-59a10b8d2000?auto=format&fit=crop&q=80&w=1920');
