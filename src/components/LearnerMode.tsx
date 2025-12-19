@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { firebaseService } from '../services/firebaseService';
+import { geminiService } from '../services/geminiService';
 import { RoomState, TeamState, TeamPerformance } from '../types';
 import { BrutalistButton, BrutalistCard, BrutalistInput } from './BrutalistUI';
 import { ROUNDS } from '../constants';
@@ -103,6 +104,40 @@ const R4_GAME_DATA = [
 
 const R4_STORY = "본사 복귀를 꿈꾼다면, 먼저 이 낯선 현장의 공기부터 완벽하게 파악해야 한다. 일상처럼 보이는 이 풍경 속에 숨겨진 진실을 찾아라!";
 
+// R5 팀 단체사진 (5월)
+const R5_SAMPLE_IMAGE = 'https://i.imgur.com/TlJe72B.jpeg';
+const R5_STORY = "김부장은 팀원들과 함께 공장 주변을 탐방하게 되었다. 이곳의 자연과 함께하는 팀의 모습을 기록으로 남겨라!";
+
+// R6 사진 퀴즈 (6월)
+const R6_IMAGES = [
+  { id: 1, url: 'https://images.unsplash.com/photo-1605833556294-ea5c7a74f57d?w=600', title: '힌트 1' },
+  { id: 2, url: 'https://images.unsplash.com/photo-1581351721010-8cf859cb14a4?w=600', title: '힌트 2' }
+];
+const R6_CORRECT_ANSWER = 'LASVEGAS';
+const R6_STORY = "김부장은 본사 복귀 전 마지막 해외 출장을 다녀왔다. 두 장의 사진 속에 숨겨진 도시의 이름을 찾아라!";
+
+// R7 음성 퀴즈 (7월)
+const R7_AUDIO_URL = 'https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3'; // 샘플 음성
+const R7_CORRECT_ANSWER = '환불';
+const R7_STORY = "고객센터에서 급히 전화가 왔다. 음성 메시지를 듣고 고객이 원하는 것이 무엇인지 파악하라!";
+
+// R8 문신 퀴즈 (8월)
+const R8_IMAGE = 'https://images.unsplash.com/photo-1611501275019-9b5cda994e8d?w=600';
+const R8_CORRECT_ANSWER = 'STAR';
+const R8_STORY = "전무님과의 회식 자리에서 우연히 전무님 팔에 새겨진 문신을 보게 되었다. 문신에 새겨진 단어는?";
+
+// R9 심폐소생술 게임 (9월) - 플레이스홀더
+const R9_STORY = "안전관리팀에서 긴급 호출이 왔다! 심폐소생술 자격증을 갱신해야 한다. 게임을 통해 실력을 증명하라!";
+
+// R10 팀워크 미션 (10월)
+const R10_STORY = "팀워크가 필요한 순간! 팀원들과 함께 완벽한 3개의 정사각형을 완성하라. 모두 앞으로 나오세요!";
+
+// R11 공감대화 (11월)
+const R11_STORY = "전무님이 평소와 다르게 침울해 보인다. 공감지능(EQ)을 발휘하여 전무님의 마음을 열어보자.";
+
+// R12 새해 다짐 (12월)
+const R12_STORY = "김부장의 본사 복귀가 확정되었다! 새로운 시작을 앞두고, 앞으로의 다짐을 작성하라.";
+
 // 월별 이름 (라운드와 매핑: R1=1월, R2=2월, ... R12=12월)
 const MONTHS = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
 const ROUND_TO_MONTH: Record<number, number> = {
@@ -139,7 +174,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
   const [r3Error, setR3Error] = useState('');
   const [showPadletPopup, setShowPadletPopup] = useState(false);
 
-  // R4 틀린 그림 찾기 상태 (4월) - 기존 R2
+  // R4 틀린 그림 찾기 상태 (4월)
   const [r4GameStarted, setR4GameStarted] = useState(false);
   const [r4TimeLeft, setR4TimeLeft] = useState(60);
   const [r4CurrentSet, setR4CurrentSet] = useState(0);
@@ -149,6 +184,56 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
   const [r4Cleared, setR4Cleared] = useState(false);
   const [r4CompletionTime, setR4CompletionTime] = useState('');
   const [r4StartTime, setR4StartTime] = useState<number | null>(null);
+
+  // R5 팀 단체사진 상태 (5월)
+  const [r5ImagePreview, setR5ImagePreview] = useState<string | null>(null);
+  const [r5ImageFile, setR5ImageFile] = useState<File | null>(null);
+  const [r5Verifying, setR5Verifying] = useState(false);
+  const [r5Result, setR5Result] = useState<{ pass: boolean; message: string } | null>(null);
+  const [r5Cleared, setR5Cleared] = useState(false);
+
+  // R6 사진 퀴즈 상태 (6월)
+  const [r6Answer, setR6Answer] = useState('');
+  const [r6Cleared, setR6Cleared] = useState(false);
+  const [r6Error, setR6Error] = useState('');
+  const [r6SelectedImage, setR6SelectedImage] = useState<number | null>(null);
+
+  // R7 음성 퀴즈 상태 (7월)
+  const [r7Answer, setR7Answer] = useState('');
+  const [r7Cleared, setR7Cleared] = useState(false);
+  const [r7Error, setR7Error] = useState('');
+
+  // R8 문신 퀴즈 상태 (8월)
+  const [r8Answer, setR8Answer] = useState('');
+  const [r8Cleared, setR8Cleared] = useState(false);
+  const [r8Error, setR8Error] = useState('');
+
+  // R9 심폐소생술 게임 상태 (9월)
+  const [r9GameStarted, setR9GameStarted] = useState(false);
+  const [r9Cleared, setR9Cleared] = useState(false);
+  const [r9CompletionTime, setR9CompletionTime] = useState('');
+
+  // R10 팀워크 미션 상태 (10월)
+  const [r10Answer, setR10Answer] = useState('');
+  const [r10Cleared, setR10Cleared] = useState(false);
+  const [r10Error, setR10Error] = useState('');
+
+  // R11 공감대화 상태 (11월)
+  const [r11ChatHistory, setR11ChatHistory] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
+  const [r11UserInput, setR11UserInput] = useState('');
+  const [r11EmpathyScore, setR11EmpathyScore] = useState(50);
+  const [r11Sending, setR11Sending] = useState(false);
+  const [r11Cleared, setR11Cleared] = useState(false);
+  const [r11StartTime, setR11StartTime] = useState<number | null>(null);
+  const [r11CompletionTime, setR11CompletionTime] = useState('');
+
+  // R12 새해 다짐 상태 (12월)
+  const [r12Resolutions, setR12Resolutions] = useState(['', '', '']);
+  const [r12Validating, setR12Validating] = useState(false);
+  const [r12ValidationResult, setR12ValidationResult] = useState<{ pass: boolean; message: string } | null>(null);
+  const [r12Generating, setR12Generating] = useState(false);
+  const [r12InfographicUrl, setR12InfographicUrl] = useState<string | null>(null);
+  const [r12Cleared, setR12Cleared] = useState(false);
 
   useEffect(() => {
     setTeam(room.teams?.[auth.teamId]);
@@ -428,6 +513,260 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
   // R4 현재 스테이지 정보
   const r4CurrentStage = R4_GAME_DATA[r4CurrentSet];
   const r4FoundInCurrentSet = r4FoundDifferences[r4CurrentSet] || [];
+
+  // R5 이미지 업로드 처리
+  const handleR5ImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setR5ImageFile(file);
+    setR5Result(null);
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setR5ImagePreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // R5 이미지 검증
+  const handleR5Verify = async () => {
+    if (!r5ImagePreview || !r5ImageFile) return;
+
+    setR5Verifying(true);
+    setR5Result(null);
+
+    try {
+      const result = await geminiService.verifyPlantInPhoto(
+        r5ImagePreview,
+        r5ImageFile.type
+      );
+      setR5Result(result);
+      if (result.pass) {
+        setR5Cleared(true);
+      }
+    } catch (error) {
+      setR5Result({ pass: false, message: '검증 중 오류가 발생했습니다.' });
+    } finally {
+      setR5Verifying(false);
+    }
+  };
+
+  // R5 클리어 후 처리
+  const handleR5Clear = async () => {
+    await firebaseService.advanceTeamRound(room.id, auth.teamId);
+    setR5Cleared(false);
+    setR5ImagePreview(null);
+    setR5ImageFile(null);
+    setR5Result(null);
+    setViewState('factory');
+  };
+
+  // R6 정답 체크
+  const handleR6Submit = () => {
+    const normalizedAnswer = r6Answer.toUpperCase().replace(/\s/g, '');
+    if (normalizedAnswer === R6_CORRECT_ANSWER) {
+      setR6Cleared(true);
+      setR6Error('');
+    } else {
+      setR6Error('정답이 아닙니다. 다시 시도해주세요.');
+    }
+  };
+
+  // R6 클리어 후 처리
+  const handleR6Clear = async () => {
+    await firebaseService.advanceTeamRound(room.id, auth.teamId);
+    setR6Cleared(false);
+    setR6Answer('');
+    setViewState('factory');
+  };
+
+  // R7 정답 체크
+  const handleR7Submit = () => {
+    const normalizedAnswer = r7Answer.replace(/\s/g, '').trim();
+    if (normalizedAnswer === R7_CORRECT_ANSWER) {
+      setR7Cleared(true);
+      setR7Error('');
+    } else {
+      setR7Error('정답이 아닙니다. 다시 시도해주세요.');
+    }
+  };
+
+  // R7 클리어 후 처리
+  const handleR7Clear = async () => {
+    await firebaseService.advanceTeamRound(room.id, auth.teamId);
+    setR7Cleared(false);
+    setR7Answer('');
+    setViewState('factory');
+  };
+
+  // R8 정답 체크
+  const handleR8Submit = () => {
+    const normalizedAnswer = r8Answer.toUpperCase().replace(/\s/g, '');
+    if (normalizedAnswer === R8_CORRECT_ANSWER) {
+      setR8Cleared(true);
+      setR8Error('');
+    } else {
+      setR8Error('정답이 아닙니다. 다시 시도해주세요.');
+    }
+  };
+
+  // R8 클리어 후 처리
+  const handleR8Clear = async () => {
+    await firebaseService.advanceTeamRound(room.id, auth.teamId);
+    setR8Cleared(false);
+    setR8Answer('');
+    setViewState('factory');
+  };
+
+  // R9 게임 시작
+  const startR9Game = () => {
+    setR9GameStarted(true);
+  };
+
+  // R9 게임 완료 (외부에서 호출 가능하도록)
+  const handleR9GameComplete = (completionTime: string) => {
+    setR9CompletionTime(completionTime);
+    setR9Cleared(true);
+    setR9GameStarted(false);
+  };
+
+  // R9 클리어 후 처리
+  const handleR9Clear = async () => {
+    await firebaseService.advanceTeamRound(room.id, auth.teamId);
+    setR9Cleared(false);
+    setR9CompletionTime('');
+    setViewState('factory');
+  };
+
+  // R10 정답 체크 (강사가 알려준 시간)
+  const handleR10Submit = () => {
+    if (r10Answer.trim().length > 0) {
+      setR10Cleared(true);
+      setR10Error('');
+    } else {
+      setR10Error('강사님이 알려준 시간을 입력해주세요.');
+    }
+  };
+
+  // R10 클리어 후 처리
+  const handleR10Clear = async () => {
+    await firebaseService.advanceTeamRound(room.id, auth.teamId);
+    setR10Cleared(false);
+    setR10Answer('');
+    setViewState('factory');
+  };
+
+  // R11 대화 시작
+  const startR11Chat = () => {
+    setR11StartTime(Date.now());
+    setR11ChatHistory([{
+      role: 'assistant',
+      content: '(한숨)... 아, 김부장. 무슨 일이야?'
+    }]);
+  };
+
+  // R11 메시지 전송
+  const handleR11SendMessage = async () => {
+    if (!r11UserInput.trim() || r11Sending) return;
+
+    const userMessage = r11UserInput.trim();
+    setR11UserInput('');
+    setR11Sending(true);
+
+    // 사용자 메시지 추가
+    const newHistory = [...r11ChatHistory, { role: 'user' as const, content: userMessage }];
+    setR11ChatHistory(newHistory);
+
+    try {
+      const result = await geminiService.chatWithExecutive(r11ChatHistory, userMessage);
+
+      // AI 응답 추가
+      setR11ChatHistory([...newHistory, { role: 'assistant', content: result.response }]);
+      setR11EmpathyScore(result.empathyScore);
+
+      // 90점 이상이면 클리어
+      if (result.empathyScore >= 90 && r11StartTime) {
+        const elapsed = Math.floor((Date.now() - r11StartTime) / 1000);
+        const mins = Math.floor(elapsed / 60);
+        const secs = elapsed % 60;
+        setR11CompletionTime(`${mins}분 ${secs}초`);
+        setR11Cleared(true);
+      }
+    } catch (error) {
+      console.error('R11 chat error:', error);
+    } finally {
+      setR11Sending(false);
+    }
+  };
+
+  // R11 클리어 후 처리
+  const handleR11Clear = async () => {
+    await firebaseService.advanceTeamRound(room.id, auth.teamId);
+    setR11Cleared(false);
+    setR11ChatHistory([]);
+    setR11EmpathyScore(50);
+    setR11CompletionTime('');
+    setViewState('factory');
+  };
+
+  // R12 다짐 검증
+  const handleR12Validate = async () => {
+    if (r12Resolutions.some(r => r.trim().length < 5)) {
+      setR12ValidationResult({ pass: false, message: '각 다짐은 최소 5자 이상 작성해주세요.' });
+      return;
+    }
+
+    setR12Validating(true);
+    setR12ValidationResult(null);
+
+    try {
+      const result = await geminiService.validateResolutions(r12Resolutions);
+      setR12ValidationResult(result);
+
+      if (result.pass) {
+        // 인포그래픽 생성
+        setR12Generating(true);
+        const imgResult = await geminiService.generateInfographic(r12Resolutions);
+
+        if (imgResult.success && imgResult.imageData) {
+          setR12InfographicUrl(imgResult.imageData);
+        } else {
+          // 이미지 생성 실패 시에도 텍스트 기반 인포그래픽 표시
+          setR12ValidationResult({
+            pass: true,
+            message: 'PASS! 다짐이 승인되었습니다. (이미지 생성은 나중에 시도해주세요)'
+          });
+        }
+        setR12Generating(false);
+      }
+    } catch (error) {
+      setR12ValidationResult({ pass: false, message: '검증 중 오류가 발생했습니다.' });
+    } finally {
+      setR12Validating(false);
+    }
+  };
+
+  // R12 이미지 다운로드
+  const handleR12Download = () => {
+    if (!r12InfographicUrl) return;
+
+    const link = document.createElement('a');
+    link.href = r12InfographicUrl;
+    link.download = `team${auth.teamId}_다짐_인포그래픽.png`;
+    link.click();
+    setR12Cleared(true);
+  };
+
+  // R12 최종 클리어 처리
+  const handleR12FinalClear = async () => {
+    await firebaseService.advanceTeamRound(room.id, auth.teamId);
+    setR12Cleared(false);
+    setR12Resolutions(['', '', '']);
+    setR12InfographicUrl(null);
+    setR12ValidationResult(null);
+    setViewState('factory');
+  };
 
   // 전체 팀 성과 (순위 계산용)
   const allPerformances = firebaseService.calculateAllTeamPerformances(room);
@@ -739,12 +1078,31 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
   const isR2 = team?.currentRound === 2;
   const isR3 = team?.currentRound === 3;
   const isR4 = team?.currentRound === 4;
+  const isR5 = team?.currentRound === 5;
+  const isR6 = team?.currentRound === 6;
+  const isR7 = team?.currentRound === 7;
+  const isR8 = team?.currentRound === 8;
+  const isR9 = team?.currentRound === 9;
+  const isR10 = team?.currentRound === 10;
+  const isR11 = team?.currentRound === 11;
+  const isR12 = team?.currentRound === 12;
 
   // 라운드별 완료 여부 체크
   const isR1Completed = (team?.maxCompletedRound || 0) >= 1;
   const isR2Completed = (team?.maxCompletedRound || 0) >= 2;
   const isR3Completed = (team?.maxCompletedRound || 0) >= 3;
   const isR4Completed = (team?.maxCompletedRound || 0) >= 4;
+  const isR5Completed = (team?.maxCompletedRound || 0) >= 5;
+  const isR6Completed = (team?.maxCompletedRound || 0) >= 6;
+  const isR7Completed = (team?.maxCompletedRound || 0) >= 7;
+  const isR8Completed = (team?.maxCompletedRound || 0) >= 8;
+  const isR9Completed = (team?.maxCompletedRound || 0) >= 9;
+  const isR10Completed = (team?.maxCompletedRound || 0) >= 10;
+  const isR11Completed = (team?.maxCompletedRound || 0) >= 11;
+  const isR12Completed = (team?.maxCompletedRound || 0) >= 12;
+
+  // R11 채팅 스크롤 ref
+  const chatContainerRef = useRef<HTMLDivElement>(null);
 
   // R1 신입사원 채용 서류전형 화면 (1월)
   if (isR1) {
@@ -1316,7 +1674,661 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
     );
   }
 
-  // 기본 미션 화면 (R5-R12)
+  // R5 팀 단체사진 (5월)
+  if (isR5) {
+    return (
+      <div className="max-w-4xl mx-auto p-4 space-y-6 pb-24">
+        <header className="flex justify-between items-center border-b-4 border-white pb-4">
+          <div>
+            <h2 className="text-3xl font-black italic">TEAM {auth.teamId}</h2>
+            <p className="font-bold text-yellow-400">Welcome, {auth.learnerName}</p>
+          </div>
+          <div className="text-right">
+            <span className="text-5xl font-black gold-gradient">R5</span>
+            <p className="text-xs font-bold uppercase tracking-widest">5월 미션</p>
+          </div>
+        </header>
+
+        {remainingTime && (
+          <div className={`text-center p-4 brutal-border ${remainingTime === "00:00" ? 'bg-red-600 animate-pulse' : 'bg-black/50'}`}>
+            <p className="text-sm text-gray-400 uppercase">남은 미션 시간</p>
+            <p className={`text-4xl font-mono font-black ${remainingTime === "00:00" ? 'text-white' : 'text-yellow-400'}`}>{remainingTime}</p>
+          </div>
+        )}
+
+        <div className="space-y-6">
+          <h3 className="text-3xl font-black uppercase tracking-tighter text-center">ROUND 5: 5월 미션 - 팀 단체사진</h3>
+
+          <BrutalistCard className="bg-yellow-400/10 border-yellow-400">
+            <p className="text-xl font-bold italic text-center">"{R5_STORY}"</p>
+          </BrutalistCard>
+
+          <BrutalistCard className="space-y-4">
+            <p className="text-lg font-bold text-center">팀원 전원이 함께 찍은 단체사진을 업로드하세요!</p>
+            <p className="text-center text-yellow-400 font-black">단, 사진에 식물(화초, 나무, 꽃 등)이 반드시 포함되어야 합니다!</p>
+            <img src={R5_SAMPLE_IMAGE} alt="샘플 이미지" className="w-full max-w-md mx-auto brutal-border" />
+            <p className="text-center text-sm text-gray-400">↑ 샘플 이미지 (이런 식으로 식물과 함께!)</p>
+          </BrutalistCard>
+
+          {r5Cleared ? (
+            <div className="space-y-6 animate-fadeIn">
+              <div className="bg-green-600 text-white p-8 brutal-border brutalist-shadow text-center">
+                <h2 className="text-4xl font-black mb-4">5월 미션 CLEAR!</h2>
+                <p className="text-xl">{r5Result?.message}</p>
+              </div>
+              <BrutalistButton variant="gold" fullWidth className="text-2xl" onClick={handleR5Clear}>월 업무 마감하기(클릭)</BrutalistButton>
+            </div>
+          ) : isR5Completed ? (
+            <div className="space-y-6">
+              <div className="bg-green-600/20 border-2 border-green-500 text-white p-6 brutal-border text-center">
+                <p className="text-2xl font-black text-green-400">✓ 이미 완료한 미션입니다</p>
+              </div>
+              <div className="flex gap-4">
+                <BrutalistButton variant="ghost" onClick={() => setViewState('factory')} className="flex-shrink-0">← 공장</BrutalistButton>
+                <BrutalistButton variant="gold" fullWidth onClick={() => { firebaseService.setTeamRound(room.id, auth.teamId, 6); setViewState('factory'); }}>다음 라운드로 →</BrutalistButton>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <BrutalistCard className="space-y-4">
+                <label className="block text-lg font-black text-yellow-400 uppercase">사진 업로드</label>
+                <input type="file" accept="image/*" onChange={handleR5ImageUpload} className="w-full p-3 brutal-border bg-white text-black" />
+                {r5ImagePreview && (
+                  <div className="space-y-4">
+                    <img src={r5ImagePreview} alt="미리보기" className="w-full max-w-md mx-auto brutal-border" />
+                    <BrutalistButton variant="gold" fullWidth onClick={handleR5Verify} disabled={r5Verifying}>
+                      {r5Verifying ? 'AI 검증 중...' : 'AI 검증하기'}
+                    </BrutalistButton>
+                  </div>
+                )}
+                {r5Result && (
+                  <div className={`p-4 brutal-border text-center font-bold ${r5Result.pass ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
+                    {r5Result.message}
+                  </div>
+                )}
+              </BrutalistCard>
+              <BrutalistButton variant="ghost" onClick={() => setViewState('factory')}>월 업무 마감하기(클릭)</BrutalistButton>
+            </div>
+          )}
+        </div>
+
+        <div className="fixed bottom-4 right-4 z-40">
+          <button onClick={handleUseHelp} disabled={!team || team.helpCount >= 3 || helpLoading} className={`brutal-border font-black py-3 px-6 transition-all ${team && team.helpCount < 3 ? 'bg-orange-500 text-white hover:bg-orange-400 brutalist-shadow' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}>
+            {helpLoading ? '...' : `HELP (${team ? 3 - team.helpCount : 0})`}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // R6 사진 퀴즈 (6월)
+  if (isR6) {
+    return (
+      <div className="max-w-4xl mx-auto p-4 space-y-6 pb-24">
+        <header className="flex justify-between items-center border-b-4 border-white pb-4">
+          <div>
+            <h2 className="text-3xl font-black italic">TEAM {auth.teamId}</h2>
+            <p className="font-bold text-yellow-400">Welcome, {auth.learnerName}</p>
+          </div>
+          <div className="text-right">
+            <span className="text-5xl font-black gold-gradient">R6</span>
+            <p className="text-xs font-bold uppercase tracking-widest">6월 미션</p>
+          </div>
+        </header>
+
+        {remainingTime && (
+          <div className={`text-center p-4 brutal-border ${remainingTime === "00:00" ? 'bg-red-600 animate-pulse' : 'bg-black/50'}`}>
+            <p className="text-sm text-gray-400 uppercase">남은 미션 시간</p>
+            <p className={`text-4xl font-mono font-black ${remainingTime === "00:00" ? 'text-white' : 'text-yellow-400'}`}>{remainingTime}</p>
+          </div>
+        )}
+
+        <div className="space-y-6">
+          <h3 className="text-3xl font-black uppercase tracking-tighter text-center">ROUND 6: 6월 미션 - 사진 퀴즈</h3>
+
+          <BrutalistCard className="bg-yellow-400/10 border-yellow-400">
+            <p className="text-xl font-bold italic text-center">"{R6_STORY}"</p>
+          </BrutalistCard>
+
+          <div className="grid grid-cols-2 gap-4">
+            {R6_IMAGES.map((img) => (
+              <div key={img.id} className="cursor-pointer brutal-border overflow-hidden hover:scale-105 transition-transform" onClick={() => setR6SelectedImage(img.id)}>
+                <img src={img.url} alt={img.title} className="w-full h-48 object-cover" />
+                <p className="text-center font-black py-2 bg-white text-black">{img.title}</p>
+              </div>
+            ))}
+          </div>
+          <p className="text-center text-sm text-gray-400">👆 이미지를 클릭하여 크게 보기</p>
+
+          {r6Cleared ? (
+            <div className="space-y-6 animate-fadeIn">
+              <div className="bg-green-600 text-white p-8 brutal-border brutalist-shadow text-center">
+                <h2 className="text-4xl font-black mb-4">6월 미션 CLEAR!</h2>
+              </div>
+              <BrutalistButton variant="gold" fullWidth className="text-2xl" onClick={handleR6Clear}>월 업무 마감하기(클릭)</BrutalistButton>
+            </div>
+          ) : isR6Completed ? (
+            <div className="space-y-6">
+              <div className="bg-green-600/20 border-2 border-green-500 text-white p-6 brutal-border text-center">
+                <p className="text-2xl font-black text-green-400">✓ 이미 완료한 미션입니다</p>
+              </div>
+              <div className="flex gap-4">
+                <BrutalistButton variant="ghost" onClick={() => setViewState('factory')} className="flex-shrink-0">← 공장</BrutalistButton>
+                <BrutalistButton variant="gold" fullWidth onClick={() => { firebaseService.setTeamRound(room.id, auth.teamId, 7); setViewState('factory'); }}>다음 라운드로 →</BrutalistButton>
+              </div>
+            </div>
+          ) : (
+            <BrutalistCard className="space-y-4">
+              <label className="block text-lg font-black text-yellow-400 uppercase">정답 입력</label>
+              <BrutalistInput fullWidth placeholder="도시 이름을 영어로 입력하세요" value={r6Answer} onChange={(e) => { setR6Answer(e.target.value); setR6Error(''); }} onKeyDown={(e) => { if (e.key === 'Enter') handleR6Submit(); }} />
+              {r6Error && <p className="text-red-500 font-bold text-sm">{r6Error}</p>}
+              <BrutalistButton variant="gold" fullWidth onClick={handleR6Submit}>정답 제출</BrutalistButton>
+            </BrutalistCard>
+          )}
+        </div>
+
+        {r6SelectedImage && (
+          <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setR6SelectedImage(null)}>
+            <div className="max-w-3xl w-full bg-white brutal-border brutalist-shadow" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between items-center p-3 bg-yellow-400 border-b-4 border-black">
+                <span className="font-black text-black">{R6_IMAGES.find(p => p.id === r6SelectedImage)?.title}</span>
+                <button onClick={() => setR6SelectedImage(null)} className="bg-black text-white px-4 py-2 font-black brutal-border">닫기 ✕</button>
+              </div>
+              <img src={R6_IMAGES.find(p => p.id === r6SelectedImage)?.url} alt="이미지" className="w-full" />
+            </div>
+          </div>
+        )}
+
+        <div className="fixed bottom-4 right-4 z-40">
+          <button onClick={handleUseHelp} disabled={!team || team.helpCount >= 3 || helpLoading} className={`brutal-border font-black py-3 px-6 transition-all ${team && team.helpCount < 3 ? 'bg-orange-500 text-white hover:bg-orange-400 brutalist-shadow' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}>
+            {helpLoading ? '...' : `HELP (${team ? 3 - team.helpCount : 0})`}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // R7 음성 퀴즈 (7월)
+  if (isR7) {
+    return (
+      <div className="max-w-4xl mx-auto p-4 space-y-6 pb-24">
+        <header className="flex justify-between items-center border-b-4 border-white pb-4">
+          <div>
+            <h2 className="text-3xl font-black italic">TEAM {auth.teamId}</h2>
+            <p className="font-bold text-yellow-400">Welcome, {auth.learnerName}</p>
+          </div>
+          <div className="text-right">
+            <span className="text-5xl font-black gold-gradient">R7</span>
+            <p className="text-xs font-bold uppercase tracking-widest">7월 미션</p>
+          </div>
+        </header>
+
+        {remainingTime && (
+          <div className={`text-center p-4 brutal-border ${remainingTime === "00:00" ? 'bg-red-600 animate-pulse' : 'bg-black/50'}`}>
+            <p className="text-sm text-gray-400 uppercase">남은 미션 시간</p>
+            <p className={`text-4xl font-mono font-black ${remainingTime === "00:00" ? 'text-white' : 'text-yellow-400'}`}>{remainingTime}</p>
+          </div>
+        )}
+
+        <div className="space-y-6">
+          <h3 className="text-3xl font-black uppercase tracking-tighter text-center">ROUND 7: 7월 미션 - 음성 퀴즈</h3>
+
+          <BrutalistCard className="bg-yellow-400/10 border-yellow-400">
+            <p className="text-xl font-bold italic text-center">"{R7_STORY}"</p>
+          </BrutalistCard>
+
+          <BrutalistCard className="space-y-4">
+            <p className="text-lg font-bold text-center">음성을 듣고 고객이 원하는 것을 맞추세요!</p>
+            <audio controls className="w-full">
+              <source src={R7_AUDIO_URL} type="audio/mpeg" />
+              브라우저가 오디오를 지원하지 않습니다.
+            </audio>
+          </BrutalistCard>
+
+          {r7Cleared ? (
+            <div className="space-y-6 animate-fadeIn">
+              <div className="bg-green-600 text-white p-8 brutal-border brutalist-shadow text-center">
+                <h2 className="text-4xl font-black mb-4">7월 미션 CLEAR!</h2>
+              </div>
+              <BrutalistButton variant="gold" fullWidth className="text-2xl" onClick={handleR7Clear}>월 업무 마감하기(클릭)</BrutalistButton>
+            </div>
+          ) : isR7Completed ? (
+            <div className="space-y-6">
+              <div className="bg-green-600/20 border-2 border-green-500 text-white p-6 brutal-border text-center">
+                <p className="text-2xl font-black text-green-400">✓ 이미 완료한 미션입니다</p>
+              </div>
+              <div className="flex gap-4">
+                <BrutalistButton variant="ghost" onClick={() => setViewState('factory')} className="flex-shrink-0">← 공장</BrutalistButton>
+                <BrutalistButton variant="gold" fullWidth onClick={() => { firebaseService.setTeamRound(room.id, auth.teamId, 8); setViewState('factory'); }}>다음 라운드로 →</BrutalistButton>
+              </div>
+            </div>
+          ) : (
+            <BrutalistCard className="space-y-4">
+              <label className="block text-lg font-black text-yellow-400 uppercase">정답 입력 (두 글자)</label>
+              <BrutalistInput fullWidth placeholder="두 글자를 입력하세요" value={r7Answer} onChange={(e) => { setR7Answer(e.target.value); setR7Error(''); }} onKeyDown={(e) => { if (e.key === 'Enter') handleR7Submit(); }} />
+              {r7Error && <p className="text-red-500 font-bold text-sm">{r7Error}</p>}
+              <BrutalistButton variant="gold" fullWidth onClick={handleR7Submit}>정답 제출</BrutalistButton>
+            </BrutalistCard>
+          )}
+        </div>
+
+        <div className="fixed bottom-4 right-4 z-40">
+          <button onClick={handleUseHelp} disabled={!team || team.helpCount >= 3 || helpLoading} className={`brutal-border font-black py-3 px-6 transition-all ${team && team.helpCount < 3 ? 'bg-orange-500 text-white hover:bg-orange-400 brutalist-shadow' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}>
+            {helpLoading ? '...' : `HELP (${team ? 3 - team.helpCount : 0})`}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // R8 문신 퀴즈 (8월)
+  if (isR8) {
+    return (
+      <div className="max-w-4xl mx-auto p-4 space-y-6 pb-24">
+        <header className="flex justify-between items-center border-b-4 border-white pb-4">
+          <div>
+            <h2 className="text-3xl font-black italic">TEAM {auth.teamId}</h2>
+            <p className="font-bold text-yellow-400">Welcome, {auth.learnerName}</p>
+          </div>
+          <div className="text-right">
+            <span className="text-5xl font-black gold-gradient">R8</span>
+            <p className="text-xs font-bold uppercase tracking-widest">8월 미션</p>
+          </div>
+        </header>
+
+        {remainingTime && (
+          <div className={`text-center p-4 brutal-border ${remainingTime === "00:00" ? 'bg-red-600 animate-pulse' : 'bg-black/50'}`}>
+            <p className="text-sm text-gray-400 uppercase">남은 미션 시간</p>
+            <p className={`text-4xl font-mono font-black ${remainingTime === "00:00" ? 'text-white' : 'text-yellow-400'}`}>{remainingTime}</p>
+          </div>
+        )}
+
+        <div className="space-y-6">
+          <h3 className="text-3xl font-black uppercase tracking-tighter text-center">ROUND 8: 8월 미션 - 전무님의 문신</h3>
+
+          <BrutalistCard className="bg-yellow-400/10 border-yellow-400">
+            <p className="text-xl font-bold italic text-center">"{R8_STORY}"</p>
+          </BrutalistCard>
+
+          <img src={R8_IMAGE} alt="전무님 문신 힌트" className="w-full max-w-md mx-auto brutal-border brutalist-shadow" />
+
+          {r8Cleared ? (
+            <div className="space-y-6 animate-fadeIn">
+              <div className="bg-green-600 text-white p-8 brutal-border brutalist-shadow text-center">
+                <h2 className="text-4xl font-black mb-4">8월 미션 CLEAR!</h2>
+              </div>
+              <BrutalistButton variant="gold" fullWidth className="text-2xl" onClick={handleR8Clear}>월 업무 마감하기(클릭)</BrutalistButton>
+            </div>
+          ) : isR8Completed ? (
+            <div className="space-y-6">
+              <div className="bg-green-600/20 border-2 border-green-500 text-white p-6 brutal-border text-center">
+                <p className="text-2xl font-black text-green-400">✓ 이미 완료한 미션입니다</p>
+              </div>
+              <div className="flex gap-4">
+                <BrutalistButton variant="ghost" onClick={() => setViewState('factory')} className="flex-shrink-0">← 공장</BrutalistButton>
+                <BrutalistButton variant="gold" fullWidth onClick={() => { firebaseService.setTeamRound(room.id, auth.teamId, 9); setViewState('factory'); }}>다음 라운드로 →</BrutalistButton>
+              </div>
+            </div>
+          ) : (
+            <BrutalistCard className="space-y-4">
+              <label className="block text-lg font-black text-yellow-400 uppercase">정답 입력</label>
+              <BrutalistInput fullWidth placeholder="문신에 새겨진 단어를 입력하세요 (영문)" value={r8Answer} onChange={(e) => { setR8Answer(e.target.value); setR8Error(''); }} onKeyDown={(e) => { if (e.key === 'Enter') handleR8Submit(); }} />
+              {r8Error && <p className="text-red-500 font-bold text-sm">{r8Error}</p>}
+              <BrutalistButton variant="gold" fullWidth onClick={handleR8Submit}>정답 제출</BrutalistButton>
+            </BrutalistCard>
+          )}
+        </div>
+
+        <div className="fixed bottom-4 right-4 z-40">
+          <button onClick={handleUseHelp} disabled={!team || team.helpCount >= 3 || helpLoading} className={`brutal-border font-black py-3 px-6 transition-all ${team && team.helpCount < 3 ? 'bg-orange-500 text-white hover:bg-orange-400 brutalist-shadow' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}>
+            {helpLoading ? '...' : `HELP (${team ? 3 - team.helpCount : 0})`}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // R9 심폐소생술 게임 (9월) - 플레이스홀더
+  if (isR9) {
+    return (
+      <div className="max-w-4xl mx-auto p-4 space-y-6 pb-24">
+        <header className="flex justify-between items-center border-b-4 border-white pb-4">
+          <div>
+            <h2 className="text-3xl font-black italic">TEAM {auth.teamId}</h2>
+            <p className="font-bold text-yellow-400">Welcome, {auth.learnerName}</p>
+          </div>
+          <div className="text-right">
+            <span className="text-5xl font-black gold-gradient">R9</span>
+            <p className="text-xs font-bold uppercase tracking-widest">9월 미션</p>
+          </div>
+        </header>
+
+        {remainingTime && (
+          <div className={`text-center p-4 brutal-border ${remainingTime === "00:00" ? 'bg-red-600 animate-pulse' : 'bg-black/50'}`}>
+            <p className="text-sm text-gray-400 uppercase">남은 미션 시간</p>
+            <p className={`text-4xl font-mono font-black ${remainingTime === "00:00" ? 'text-white' : 'text-yellow-400'}`}>{remainingTime}</p>
+          </div>
+        )}
+
+        <div className="space-y-6">
+          <h3 className="text-3xl font-black uppercase tracking-tighter text-center">ROUND 9: 9월 미션 - 심폐소생술</h3>
+
+          <BrutalistCard className="bg-yellow-400/10 border-yellow-400">
+            <p className="text-xl font-bold italic text-center">"{R9_STORY}"</p>
+          </BrutalistCard>
+
+          {r9Cleared ? (
+            <div className="space-y-6 animate-fadeIn">
+              <div className="bg-green-600 text-white p-8 brutal-border brutalist-shadow text-center">
+                <h2 className="text-4xl font-black mb-4">9월 미션 CLEAR!</h2>
+                <p className="text-xl">완료 시간: {r9CompletionTime}초</p>
+              </div>
+              <BrutalistButton variant="gold" fullWidth className="text-2xl" onClick={handleR9Clear}>월 업무 마감하기(클릭)</BrutalistButton>
+            </div>
+          ) : isR9Completed ? (
+            <div className="space-y-6">
+              <div className="bg-green-600/20 border-2 border-green-500 text-white p-6 brutal-border text-center">
+                <p className="text-2xl font-black text-green-400">✓ 이미 완료한 미션입니다</p>
+              </div>
+              <div className="flex gap-4">
+                <BrutalistButton variant="ghost" onClick={() => setViewState('factory')} className="flex-shrink-0">← 공장</BrutalistButton>
+                <BrutalistButton variant="gold" fullWidth onClick={() => { firebaseService.setTeamRound(room.id, auth.teamId, 10); setViewState('factory'); }}>다음 라운드로 →</BrutalistButton>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <BrutalistCard className="text-center p-8">
+                <p className="text-lg mb-4">게임을 시작하면 심폐소생술 미니게임이 시작됩니다.</p>
+                <p className="text-sm text-gray-400 mb-6">(게임 코드는 추후 제공 예정)</p>
+                <BrutalistButton variant="gold" fullWidth onClick={startR9Game}>게임 시작!</BrutalistButton>
+              </BrutalistCard>
+              <BrutalistButton variant="ghost" onClick={() => setViewState('factory')}>월 업무 마감하기(클릭)</BrutalistButton>
+            </div>
+          )}
+        </div>
+
+        {/* R9 게임 팝업 - 플레이스홀더 */}
+        {r9GameStarted && (
+          <div className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-4">
+            <div className="max-w-2xl w-full bg-white brutal-border brutalist-shadow p-6 relative">
+              <button onClick={() => setR9GameStarted(false)} className="absolute -top-3 -right-3 bg-red-600 text-white w-10 h-10 rounded-full brutal-border font-black">✕</button>
+              <h2 className="text-2xl font-black text-black mb-4 text-center">심폐소생술 게임</h2>
+              <p className="text-center text-gray-600 mb-6">게임 코드가 추후 제공될 예정입니다.</p>
+              <BrutalistButton variant="gold" fullWidth onClick={() => { handleR9GameComplete('30.00'); }}>테스트: 게임 완료 (30초)</BrutalistButton>
+            </div>
+          </div>
+        )}
+
+        <div className="fixed bottom-4 right-4 z-40">
+          <button onClick={handleUseHelp} disabled={!team || team.helpCount >= 3 || helpLoading} className={`brutal-border font-black py-3 px-6 transition-all ${team && team.helpCount < 3 ? 'bg-orange-500 text-white hover:bg-orange-400 brutalist-shadow' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}>
+            {helpLoading ? '...' : `HELP (${team ? 3 - team.helpCount : 0})`}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // R10 팀워크 미션 (10월)
+  if (isR10) {
+    return (
+      <div className="max-w-4xl mx-auto p-4 space-y-6 pb-24">
+        <header className="flex justify-between items-center border-b-4 border-white pb-4">
+          <div>
+            <h2 className="text-3xl font-black italic">TEAM {auth.teamId}</h2>
+            <p className="font-bold text-yellow-400">Welcome, {auth.learnerName}</p>
+          </div>
+          <div className="text-right">
+            <span className="text-5xl font-black gold-gradient">R10</span>
+            <p className="text-xs font-bold uppercase tracking-widest">10월 미션</p>
+          </div>
+        </header>
+
+        {remainingTime && (
+          <div className={`text-center p-4 brutal-border ${remainingTime === "00:00" ? 'bg-red-600 animate-pulse' : 'bg-black/50'}`}>
+            <p className="text-sm text-gray-400 uppercase">남은 미션 시간</p>
+            <p className={`text-4xl font-mono font-black ${remainingTime === "00:00" ? 'text-white' : 'text-yellow-400'}`}>{remainingTime}</p>
+          </div>
+        )}
+
+        <div className="space-y-6">
+          <h3 className="text-3xl font-black uppercase tracking-tighter text-center">ROUND 10: 10월 미션 - 팀워크</h3>
+
+          <BrutalistCard className="bg-yellow-400/10 border-yellow-400">
+            <p className="text-xl font-bold italic text-center">"{R10_STORY}"</p>
+          </BrutalistCard>
+
+          <BrutalistCard className="space-y-4 text-center">
+            <p className="text-xl font-bold">팀원들과 함께 완벽한 3개의 정사각형을 완성하세요!</p>
+            <p className="text-lg text-yellow-400">모두 앞으로 나오세요.</p>
+            <p className="text-sm text-gray-400">완료 후 강사님이 알려주는 시간을 입력하세요.</p>
+          </BrutalistCard>
+
+          {r10Cleared ? (
+            <div className="space-y-6 animate-fadeIn">
+              <div className="bg-green-600 text-white p-8 brutal-border brutalist-shadow text-center">
+                <h2 className="text-4xl font-black mb-4">10월 미션 CLEAR!</h2>
+                <p className="text-xl">기록: {r10Answer}</p>
+              </div>
+              <BrutalistButton variant="gold" fullWidth className="text-2xl" onClick={handleR10Clear}>월 업무 마감하기(클릭)</BrutalistButton>
+            </div>
+          ) : isR10Completed ? (
+            <div className="space-y-6">
+              <div className="bg-green-600/20 border-2 border-green-500 text-white p-6 brutal-border text-center">
+                <p className="text-2xl font-black text-green-400">✓ 이미 완료한 미션입니다</p>
+              </div>
+              <div className="flex gap-4">
+                <BrutalistButton variant="ghost" onClick={() => setViewState('factory')} className="flex-shrink-0">← 공장</BrutalistButton>
+                <BrutalistButton variant="gold" fullWidth onClick={() => { firebaseService.setTeamRound(room.id, auth.teamId, 11); setViewState('factory'); }}>다음 라운드로 →</BrutalistButton>
+              </div>
+            </div>
+          ) : (
+            <BrutalistCard className="space-y-4">
+              <label className="block text-lg font-black text-yellow-400 uppercase">강사님이 알려준 시간 입력</label>
+              <BrutalistInput fullWidth placeholder="예: 2분 30초" value={r10Answer} onChange={(e) => { setR10Answer(e.target.value); setR10Error(''); }} onKeyDown={(e) => { if (e.key === 'Enter') handleR10Submit(); }} />
+              {r10Error && <p className="text-red-500 font-bold text-sm">{r10Error}</p>}
+              <BrutalistButton variant="gold" fullWidth onClick={handleR10Submit}>확인</BrutalistButton>
+            </BrutalistCard>
+          )}
+        </div>
+
+        <div className="fixed bottom-4 right-4 z-40">
+          <button onClick={handleUseHelp} disabled={!team || team.helpCount >= 3 || helpLoading} className={`brutal-border font-black py-3 px-6 transition-all ${team && team.helpCount < 3 ? 'bg-orange-500 text-white hover:bg-orange-400 brutalist-shadow' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}>
+            {helpLoading ? '...' : `HELP (${team ? 3 - team.helpCount : 0})`}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // R11 공감대화 (11월)
+  if (isR11) {
+    return (
+      <div className="max-w-4xl mx-auto p-4 space-y-6 pb-24">
+        <header className="flex justify-between items-center border-b-4 border-white pb-4">
+          <div>
+            <h2 className="text-3xl font-black italic">TEAM {auth.teamId}</h2>
+            <p className="font-bold text-yellow-400">Welcome, {auth.learnerName}</p>
+          </div>
+          <div className="text-right">
+            <span className="text-5xl font-black gold-gradient">R11</span>
+            <p className="text-xs font-bold uppercase tracking-widest">11월 미션</p>
+          </div>
+        </header>
+
+        {remainingTime && (
+          <div className={`text-center p-4 brutal-border ${remainingTime === "00:00" ? 'bg-red-600 animate-pulse' : 'bg-black/50'}`}>
+            <p className="text-sm text-gray-400 uppercase">남은 미션 시간</p>
+            <p className={`text-4xl font-mono font-black ${remainingTime === "00:00" ? 'text-white' : 'text-yellow-400'}`}>{remainingTime}</p>
+          </div>
+        )}
+
+        <div className="space-y-6">
+          <h3 className="text-3xl font-black uppercase tracking-tighter text-center">ROUND 11: 11월 미션 - 공감대화</h3>
+
+          <BrutalistCard className="bg-yellow-400/10 border-yellow-400">
+            <p className="text-xl font-bold italic text-center">"{R11_STORY}"</p>
+          </BrutalistCard>
+
+          {/* 공감 점수 표시 */}
+          <div className="text-center">
+            <p className="text-sm text-gray-400 mb-2">공감 지수</p>
+            <div className="w-full h-8 bg-gray-700 brutal-border overflow-hidden">
+              <div className={`h-full transition-all duration-500 ${r11EmpathyScore >= 90 ? 'bg-green-500' : r11EmpathyScore >= 70 ? 'bg-yellow-400' : 'bg-orange-500'}`} style={{ width: `${r11EmpathyScore}%` }} />
+            </div>
+            <p className={`text-4xl font-black mt-2 ${r11EmpathyScore >= 90 ? 'text-green-400' : r11EmpathyScore >= 70 ? 'text-yellow-400' : 'text-orange-400'}`}>{r11EmpathyScore}점</p>
+            {r11EmpathyScore >= 90 && <p className="text-green-400 font-bold animate-pulse">목표 달성!</p>}
+          </div>
+
+          {r11Cleared ? (
+            <div className="space-y-6 animate-fadeIn">
+              <div className="bg-green-600 text-white p-8 brutal-border brutalist-shadow text-center">
+                <h2 className="text-4xl font-black mb-4">11월 미션 CLEAR!</h2>
+                <p className="text-xl">소요 시간: {r11CompletionTime}</p>
+                <p className="text-lg mt-2">전무님의 마음을 열었습니다!</p>
+              </div>
+              <BrutalistButton variant="gold" fullWidth className="text-2xl" onClick={handleR11Clear}>월 업무 마감하기(클릭)</BrutalistButton>
+            </div>
+          ) : isR11Completed ? (
+            <div className="space-y-6">
+              <div className="bg-green-600/20 border-2 border-green-500 text-white p-6 brutal-border text-center">
+                <p className="text-2xl font-black text-green-400">✓ 이미 완료한 미션입니다</p>
+              </div>
+              <div className="flex gap-4">
+                <BrutalistButton variant="ghost" onClick={() => setViewState('factory')} className="flex-shrink-0">← 공장</BrutalistButton>
+                <BrutalistButton variant="gold" fullWidth onClick={() => { firebaseService.setTeamRound(room.id, auth.teamId, 12); setViewState('factory'); }}>다음 라운드로 →</BrutalistButton>
+              </div>
+            </div>
+          ) : r11ChatHistory.length === 0 ? (
+            <div className="space-y-4">
+              <BrutalistCard className="text-center p-8">
+                <p className="text-lg mb-4">전무님과의 대화를 시작하세요.</p>
+                <p className="text-sm text-gray-400 mb-6">공감 지수가 90점 이상이 되면 미션 클리어!</p>
+                <BrutalistButton variant="gold" fullWidth onClick={startR11Chat}>대화 시작하기</BrutalistButton>
+              </BrutalistCard>
+              <BrutalistButton variant="ghost" onClick={() => setViewState('factory')}>월 업무 마감하기(클릭)</BrutalistButton>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* 채팅 영역 */}
+              <div ref={chatContainerRef} className="h-[300px] overflow-y-auto bg-black/50 brutal-border p-4 space-y-3">
+                {r11ChatHistory.map((msg, idx) => (
+                  <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[80%] p-3 brutal-border ${msg.role === 'user' ? 'bg-yellow-400 text-black' : 'bg-white text-black'}`}>
+                      <p className="text-xs font-bold mb-1">{msg.role === 'user' ? '나' : '전무님'}</p>
+                      <p className="text-sm">{msg.content}</p>
+                    </div>
+                  </div>
+                ))}
+                {r11Sending && <div className="text-center text-gray-400 animate-pulse">전무님이 답변 중...</div>}
+              </div>
+
+              {/* 입력 영역 */}
+              <div className="flex gap-2">
+                <BrutalistInput fullWidth placeholder="공감하는 말을 입력하세요..." value={r11UserInput} onChange={(e) => setR11UserInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleR11SendMessage(); } }} disabled={r11Sending} />
+                <BrutalistButton variant="gold" onClick={handleR11SendMessage} disabled={r11Sending || !r11UserInput.trim()}>전송</BrutalistButton>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="fixed bottom-4 right-4 z-40">
+          <button onClick={handleUseHelp} disabled={!team || team.helpCount >= 3 || helpLoading} className={`brutal-border font-black py-3 px-6 transition-all ${team && team.helpCount < 3 ? 'bg-orange-500 text-white hover:bg-orange-400 brutalist-shadow' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}>
+            {helpLoading ? '...' : `HELP (${team ? 3 - team.helpCount : 0})`}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // R12 새해 다짐 (12월)
+  if (isR12) {
+    return (
+      <div className="max-w-4xl mx-auto p-4 space-y-6 pb-24">
+        <header className="flex justify-between items-center border-b-4 border-white pb-4">
+          <div>
+            <h2 className="text-3xl font-black italic">TEAM {auth.teamId}</h2>
+            <p className="font-bold text-yellow-400">Welcome, {auth.learnerName}</p>
+          </div>
+          <div className="text-right">
+            <span className="text-5xl font-black gold-gradient">R12</span>
+            <p className="text-xs font-bold uppercase tracking-widest">12월 미션</p>
+          </div>
+        </header>
+
+        {remainingTime && (
+          <div className={`text-center p-4 brutal-border ${remainingTime === "00:00" ? 'bg-red-600 animate-pulse' : 'bg-black/50'}`}>
+            <p className="text-sm text-gray-400 uppercase">남은 미션 시간</p>
+            <p className={`text-4xl font-mono font-black ${remainingTime === "00:00" ? 'text-white' : 'text-yellow-400'}`}>{remainingTime}</p>
+          </div>
+        )}
+
+        <div className="space-y-6">
+          <h3 className="text-3xl font-black uppercase tracking-tighter text-center">ROUND 12: 12월 미션 - 새해 다짐</h3>
+
+          <BrutalistCard className="bg-yellow-400/10 border-yellow-400">
+            <p className="text-xl font-bold italic text-center">"{R12_STORY}"</p>
+          </BrutalistCard>
+
+          {r12Cleared ? (
+            <div className="space-y-6 animate-fadeIn">
+              <div className="bg-green-600 text-white p-8 brutal-border brutalist-shadow text-center">
+                <h2 className="text-4xl font-black mb-4">🎉 KIM IS BACK!</h2>
+                <p className="text-xl">축하합니다! 모든 미션을 완료했습니다!</p>
+              </div>
+              <BrutalistButton variant="gold" fullWidth className="text-2xl" onClick={handleR12FinalClear}>미션 최종 완료</BrutalistButton>
+            </div>
+          ) : isR12Completed ? (
+            <div className="space-y-6">
+              <div className="bg-green-600/20 border-2 border-green-500 text-white p-6 brutal-border text-center">
+                <p className="text-2xl font-black text-green-400">✓ 모든 미션을 완료했습니다!</p>
+              </div>
+              <BrutalistButton variant="gold" fullWidth onClick={() => setViewState('result')}>결과 보기</BrutalistButton>
+            </div>
+          ) : r12InfographicUrl ? (
+            <div className="space-y-6">
+              <BrutalistCard className="text-center space-y-4">
+                <p className="text-lg font-bold text-green-400">인포그래픽이 생성되었습니다!</p>
+                <img src={r12InfographicUrl} alt="다짐 인포그래픽" className="w-full brutal-border" />
+                <BrutalistButton variant="gold" fullWidth onClick={handleR12Download}>이미지 다운로드</BrutalistButton>
+              </BrutalistCard>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <BrutalistCard className="space-y-4">
+                <label className="block text-lg font-black text-yellow-400 uppercase">새해 다짐 3가지</label>
+                <p className="text-sm text-gray-400">각 다짐은 진정성 있게 구체적으로 작성해주세요.</p>
+                {r12Resolutions.map((res, idx) => (
+                  <div key={idx}>
+                    <label className="text-sm font-bold text-gray-400">다짐 {idx + 1}</label>
+                    <BrutalistInput fullWidth placeholder={`${idx + 1}번째 다짐을 입력하세요...`} value={res} onChange={(e) => { const newRes = [...r12Resolutions]; newRes[idx] = e.target.value; setR12Resolutions(newRes); }} />
+                  </div>
+                ))}
+
+                {r12ValidationResult && (
+                  <div className={`p-4 brutal-border text-center font-bold ${r12ValidationResult.pass ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
+                    {r12ValidationResult.message}
+                  </div>
+                )}
+
+                <BrutalistButton variant="gold" fullWidth onClick={handleR12Validate} disabled={r12Validating || r12Generating}>
+                  {r12Validating ? 'AI 검증 중...' : r12Generating ? '인포그래픽 생성 중...' : '다짐 제출하기'}
+                </BrutalistButton>
+              </BrutalistCard>
+              <BrutalistButton variant="ghost" onClick={() => setViewState('factory')}>월 업무 마감하기(클릭)</BrutalistButton>
+            </div>
+          )}
+        </div>
+
+        <div className="fixed bottom-4 right-4 z-40">
+          <button onClick={handleUseHelp} disabled={!team || team.helpCount >= 3 || helpLoading} className={`brutal-border font-black py-3 px-6 transition-all ${team && team.helpCount < 3 ? 'bg-orange-500 text-white hover:bg-orange-400 brutalist-shadow' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}>
+            {helpLoading ? '...' : `HELP (${team ? 3 - team.helpCount : 0})`}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // 기본 미션 화면 (fallback)
   return (
     <div className="max-w-4xl mx-auto p-4 space-y-8 pb-24">
       <header className="flex justify-between items-center border-b-4 border-white pb-4">
