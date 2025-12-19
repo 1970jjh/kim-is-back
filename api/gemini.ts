@@ -34,6 +34,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.json(await validateResolutions(payload));
       case 'generateInfographic':
         return res.json(await generateInfographic(payload));
+      case 'validateReport':
+        return res.json(await validateReport(payload));
+      case 'generateReportInfographic':
+        return res.json(await generateReportInfographic(payload));
       default:
         return res.status(400).json({ error: 'Invalid action' });
     }
@@ -286,4 +290,119 @@ Make it look like a motivational corporate poster with brutalist design elements
   }
 
   return { success: false, error: '이미지 생성에 실패했습니다.' };
+}
+
+// R12: Validate team activity report
+async function validateReport(payload: { report: { oneLine: string; bestMission: string; regret: string; futureHelp: string } }) {
+  const { oneLine, bestMission, regret, futureHelp } = payload.report;
+
+  const response = await fetch(`${GEMINI_TEXT_URL}?key=${GEMINI_API_KEY}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{
+        parts: [{
+          text: `다음은 팀활동 결과보고서입니다. 각 항목이 충분히 진정성 있고 구체적인지 평가해주세요.
+
+1. 한 줄 정리: ${oneLine}
+2. 가장 기억에 남는 미션과 이유: ${bestMission}
+3. 아쉬운 점: ${regret}
+4. 앞으로 AI가 도와줬으면 하는 것: ${futureHelp}
+
+평가 기준:
+- 각 항목이 최소 10자 이상인가?
+- 구체적인 내용이 포함되어 있는가?
+- 성의 있게 작성되었는가? (단순히 "좋았다", "없다" 같은 추상적 표현만 있으면 안됨)
+- 팀 활동에 대한 실제 경험이 담겨 있는가?
+
+JSON 형식으로 응답:
+{"pass": true/false, "reason": "판단 이유", "feedback": "피드백 메시지"}`
+        }]
+      }],
+      generationConfig: {
+        temperature: 0.3,
+        maxOutputTokens: 300
+      }
+    })
+  });
+
+  const data = await response.json();
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+  try {
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const result = JSON.parse(jsonMatch[0]);
+      return {
+        pass: result.pass,
+        message: result.pass
+          ? 'PASS! 진정성 있는 보고서입니다. 결과보고서를 생성합니다...'
+          : `FAIL: ${result.feedback || '다시 정성껏 작성해주세요.'}`
+      };
+    }
+  } catch {
+    // JSON parsing failed
+  }
+
+  return { pass: false, message: '보고서 검증 중 오류가 발생했습니다.' };
+}
+
+// R12: Generate team activity report infographic (Bento Grid style)
+async function generateReportInfographic(payload: { report: { oneLine: string; bestMission: string; regret: string; futureHelp: string }; teamId: number }) {
+  const { oneLine, bestMission, regret, futureHelp } = payload.report;
+  const teamId = payload.teamId;
+
+  const prompt = `Create a modern Bento Grid style infographic poster for a Korean team's activity report. The design should look like a professional team summary card.
+
+Design requirements:
+- Bento Grid layout (asymmetric grid boxes)
+- Modern, clean glassmorphism style
+- Gradient backgrounds (purple to pink or blue to cyan)
+- White text with subtle shadows
+- Rounded corners on all elements
+- Professional corporate aesthetic
+- 9:16 aspect ratio (portrait mode for mobile)
+
+Content (in Korean):
+Team Number: ${teamId}조
+Title: 팀활동 결과보고서
+
+Section 1 (한 줄 정리 - largest box): ${oneLine}
+Section 2 (가장 기억에 남는 미션): ${bestMission}
+Section 3 (아쉬운 점): ${regret}
+Section 4 (AI에게 바라는 것): ${futureHelp}
+
+Make it look like a stylish team achievement card with modern UI design elements. Include icons or emojis appropriate for each section.`;
+
+  const response = await fetch(`${GEMINI_IMAGE_GEN_URL}?key=${GEMINI_API_KEY}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{
+        parts: [{ text: prompt }]
+      }],
+      generationConfig: {
+        responseModalities: ["image", "text"],
+        imageSafetySetting: "block_none"
+      }
+    })
+  });
+
+  const data = await response.json();
+
+  if (data.error) {
+    return { success: false, error: data.error.message };
+  }
+
+  const parts = data.candidates?.[0]?.content?.parts || [];
+  for (const part of parts) {
+    if (part.inlineData) {
+      return {
+        success: true,
+        imageData: `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`
+      };
+    }
+  }
+
+  return { success: false, error: '보고서 이미지 생성에 실패했습니다.' };
 }

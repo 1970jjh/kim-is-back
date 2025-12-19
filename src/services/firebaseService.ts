@@ -346,5 +346,25 @@ export const firebaseService = {
     };
 
     await firebaseService.saveRoom(room);
+  },
+
+  // R12: 팀활동 결과보고서 저장
+  saveTeamReport: async (
+    roomId: string,
+    teamId: number,
+    report: { oneLine: string; bestMission: string; regret: string; futureHelp: string },
+    imageData?: string
+  ): Promise<void> => {
+    const room = await firebaseService.getRoom(roomId);
+    if (!room || !room.teams[teamId]) return;
+
+    const team = room.teams[teamId];
+    team.teamReport = {
+      ...report,
+      imageData,
+      submittedAt: Date.now()
+    };
+
+    await firebaseService.saveRoom(room);
   }
 };

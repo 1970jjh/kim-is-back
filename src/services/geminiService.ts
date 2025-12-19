@@ -79,7 +79,7 @@ export const geminiService = {
     }
   },
 
-  // R12: 인포그래픽 이미지 생성
+  // R12: 인포그래픽 이미지 생성 (레거시)
   generateInfographic: async (resolutions: string[]): Promise<{ success: boolean; imageData?: string; error?: string }> => {
     try {
       const response = await fetch(API_ENDPOINT, {
@@ -100,6 +100,57 @@ export const geminiService = {
     } catch (error) {
       console.error('Gemini image generation error:', error);
       return { success: false, error: '이미지 생성 중 오류가 발생했습니다.' };
+    }
+  },
+
+  // R12: 팀활동 결과보고서 검증
+  validateReport: async (report: { oneLine: string; bestMission: string; regret: string; futureHelp: string }): Promise<{ pass: boolean; message: string }> => {
+    try {
+      const response = await fetch(API_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'validateReport',
+          payload: { report }
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        return { pass: false, message: error.error || 'API 오류가 발생했습니다.' };
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Gemini report validation error:', error);
+      return { pass: false, message: '검증 중 오류가 발생했습니다.' };
+    }
+  },
+
+  // R12: 팀활동 결과보고서 인포그래픽 생성
+  generateReportInfographic: async (
+    report: { oneLine: string; bestMission: string; regret: string; futureHelp: string },
+    teamId: number
+  ): Promise<{ success: boolean; imageData?: string; error?: string }> => {
+    try {
+      const response = await fetch(API_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'generateReportInfographic',
+          payload: { report, teamId }
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        return { success: false, error: error.error || 'API 오류가 발생했습니다.' };
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Gemini report infographic error:', error);
+      return { success: false, error: '보고서 생성 중 오류가 발생했습니다.' };
     }
   }
 };
