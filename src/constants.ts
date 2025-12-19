@@ -75,16 +75,16 @@ export const EVENTS = [
 ];
 
 export const ROUNDS = [
-  { id: 1, title: 'ROUND 1', description: '1월: 신입사원 채용 - 서류전형' },
-  { id: 2, title: 'ROUND 2', description: '2월: 매너리즘 김부장' },
+  { id: 1, title: 'ROUND 1', description: '1월: 신입사원 채용' },
+  { id: 2, title: 'ROUND 2', description: '2월: 노트북 비밀번호' },
   { id: 3, title: 'ROUND 3', description: '3월: 공장 위치 찾기' },
   { id: 4, title: 'ROUND 4', description: '4월: 틀린 그림 찾기' },
-  { id: 5, title: 'ROUND 5', description: '5월: 팀 단체사진 (식물 포함)' },
-  { id: 6, title: 'ROUND 6', description: '6월: 사진 퀴즈' },
-  { id: 7, title: 'ROUND 7', description: '7월: 음성 퀴즈' },
+  { id: 5, title: 'ROUND 5', description: '5월: 팀 단체사진' },
+  { id: 6, title: 'ROUND 6', description: '6월: 출장지 추적' },
+  { id: 7, title: 'ROUND 7', description: '7월: VOC 분석' },
   { id: 8, title: 'ROUND 8', description: '8월: 전무님의 문신' },
-  { id: 9, title: 'ROUND 9', description: '9월: 심폐소생술 게임' },
-  { id: 10, title: 'ROUND 10', description: '10월: 팀워크 미션' },
-  { id: 11, title: 'ROUND 11', description: '11월: 공감지능 대화' },
-  { id: 12, title: 'ROUND 12', description: '12월: 새해 다짐' },
+  { id: 9, title: 'ROUND 9', description: '9월: 심폐소생술' },
+  { id: 10, title: 'ROUND 10', description: '10월: 현장 정상화(5S)' },
+  { id: 11, title: 'ROUND 11', description: '11월: 공감대화' },
+  { id: 12, title: 'ROUND 12', description: '12월: 최종 보고서' },
 ];
