@@ -139,19 +139,11 @@ const R1_PROFILES = [
 ];
 const R1_CORRECT_ANSWER = '박낙하';
 
-// R2 매너리즘 김부장 미션 (2월)
-const R2_IMAGES = [
-  {
-    id: 1,
-    title: '독수리 타법',
-    image: 'https://images.unsplash.com/photo-1515378791036-0648a3ef77b2?w=800&h=600&fit=crop',
-  },
-  {
-    id: 2,
-    title: '시계만 바라보며',
-    image: 'https://images.unsplash.com/photo-1501139083538-0139583c060f?w=800&h=600&fit=crop',
-  }
-];
+// R2 노트북 비밀번호 미션 (2월)
+const R2_STORY = `1월 신입 채용을 마친 2월의 영업팀, 강화된 보안 규정 탓에 급하게 바꾼 노트북 비밀번호가 도무지 떠오르지 않는다.
+짜증을 내며 책상 위를 보니, 급하게 휘갈긴 메모와 찢겨진 다이어리 조각만이 덩그러니 놓여 있다.
+모두 함께 단서들을 조합해 김부장의 노트북 비밀번호를 알아내야 한다!`;
+const R2_IMAGE = 'https://i.imgur.com/placeholder.png'; // TODO: 이미지 링크 교체 필요
 const R2_CORRECT_ANSWER = '4035';
 
 // R3 공장 위치 퀴즈 이미지 및 정답 (3월) - 기존 R1
@@ -170,25 +162,25 @@ const R4_GAME_DATA = [
   {
     img: 'https://i.imgur.com/suTemUX.png',
     answers: [
-      { x: 54.817903491055716, y: 16.47816779243625, r: 7 },
-      { x: 71.54779688213627, y: 50.29665224071047, r: 7 },
-      { x: 85.77389670448369, y: 53.856492708949865, r: 7 }
+      { x: 55.1, y: 16.7, r: 7 },
+      { x: 71.3, y: 50.3, r: 7 },
+      { x: 85.7, y: 54.1, r: 7 }
     ]
   },
   {
     img: 'https://i.imgur.com/o5HD18z.png',
     answers: [
-      { x: 81.7905887542264, y: 7.237609447127244, r: 7 },
-      { x: 53.79362430384671, y: 70.21068487157399, r: 7 },
-      { x: 74.7344432423421, y: 62.01716204683184, r: 7 }
+      { x: 82.5, y: 10.1, r: 7 },
+      { x: 74.4, y: 63.9, r: 7 },
+      { x: 53.7, y: 71.2, r: 7 }
     ]
   },
   {
     img: 'https://i.imgur.com/sV8YkaB.png',
     answers: [
-      { x: 84.6358087186959, y: 42.86717981218394, r: 7 },
-      { x: 67.79210652903656, y: 30.77034727803591, r: 7 },
-      { x: 58.45978504557666, y: 22.628248456974728, r: 7 }
+      { x: 84.6, y: 43.3, r: 7 },
+      { x: 67.6, y: 30.5, r: 7 },
+      { x: 57.9, y: 22.4, r: 7 }
     ]
   }
 ];
@@ -1438,7 +1430,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
           <div className="space-y-6 animate-fadeIn">
             <div className="bg-green-600 text-white p-8 brutal-border brutalist-shadow text-center">
               <h2 className="text-5xl font-black mb-4">2월 미션 CLEAR!</h2>
-              <p className="text-xl">축하합니다! 매너리즘 미션을 완료했습니다.</p>
+              <p className="text-xl">축하합니다! 노트북 비밀번호를 찾았습니다.</p>
             </div>
             <BrutalistButton variant="gold" fullWidth className="text-2xl" onClick={handleR2Clear}>
               월 업무 마감하기(클릭)
@@ -1460,40 +1452,35 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
         ) : (
           <div className="space-y-6">
             <h3 className="text-3xl font-black uppercase tracking-tighter text-center">
-              ROUND 2: 2월 미션 - 매너리즘 김부장
+              ROUND 2: 2월 미션 - 노트북 비밀번호
             </h3>
 
-            <BrutalistCard className="bg-yellow-400/10 border-yellow-400">
-              <p className="text-xl font-bold text-center">
-                "학습민첩성이 없는 김부장은 AI시대인데도 불구하고<br/>
-                독수리 타법으로 키보드를 치고,<br/>
-                시계와 달력만 보면서 퇴근시간이 빨리 오기만을 기다리고 있다."
-              </p>
-            </BrutalistCard>
-
-            <div className="grid grid-cols-2 gap-4">
-              {R2_IMAGES.map((item) => (
-                <div
-                  key={item.id}
-                  className="cursor-pointer brutal-border overflow-hidden hover:scale-105 transition-transform bg-black"
-                  onClick={() => setR2SelectedImage(item.id)}
-                >
-                  <img src={item.image} alt={item.title} className="w-full h-48 object-cover" />
-                  <p className="text-center font-black py-2 bg-white text-black">{item.title}</p>
-                </div>
-              ))}
+            {/* 브루탈리즘 스타일 시나리오 */}
+            <div className="bg-black border-4 border-white p-4 md:p-6" style={{ boxShadow: '8px 8px 0px 0px #fbbf24' }}>
+              <div className="space-y-4 font-mono">
+                <p className="text-gray-300 leading-relaxed text-sm md:text-base">
+                  1월 신입 채용을 마친 2월의 영업팀, 강화된 보안 규정 탓에 급하게 바꾼 노트북 비밀번호가 도무지 떠오르지 않는다.
+                </p>
+                <p className="text-yellow-400 font-bold text-sm md:text-base">
+                  짜증을 내며 책상 위를 보니, 급하게 휘갈긴 메모와 찢겨진 다이어리 조각만이 덩그러니 놓여 있다.
+                </p>
+                <p className="text-red-400 font-bold text-sm md:text-base">
+                  모두 함께 단서들을 조합해 김부장의 노트북 비밀번호를 알아내야 한다!
+                </p>
+              </div>
             </div>
-            <p className="text-center text-sm text-gray-400">👆 이미지를 클릭하여 크게 보기</p>
 
-            <BrutalistCard className="bg-red-900/20 border-red-500">
-              <p className="text-xl font-bold text-center text-red-400">
-                "아직도 독수리 타법에..<br/>
-                마냥 시계만 바라보며 허송세월을 보내는 김부장.."
-              </p>
-            </BrutalistCard>
+            {/* 단서 이미지 */}
+            <div
+              className="cursor-pointer brutal-border overflow-hidden hover:scale-[1.02] transition-transform bg-black"
+              onClick={() => setR2SelectedImage(1)}
+            >
+              <img src={R2_IMAGE} alt="단서" className="w-full object-contain" />
+              <p className="text-center font-black py-2 bg-white text-black">단서 이미지 (클릭하여 크게 보기)</p>
+            </div>
 
             <BrutalistCard className="space-y-4">
-              <label className="block text-lg font-black text-yellow-400 uppercase">정답 입력</label>
+              <label className="block text-lg font-black text-yellow-400 uppercase">비밀번호 입력</label>
               <BrutalistInput
                 fullWidth
                 placeholder="숫자 4자리를 입력하세요"
@@ -1507,7 +1494,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
               </BrutalistButton>
             </BrutalistCard>
 
-            <BrutalistButton variant="ghost" onClick={() => setViewState('factory')}>월 업무 마감하기(클릭)</BrutalistButton>
+            <BrutalistButton variant="ghost" onClick={() => setViewState('factory')}>← 공장으로 돌아가기</BrutalistButton>
           </div>
         )}
 
@@ -1515,12 +1502,12 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
           <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setR2SelectedImage(null)}>
             <div className="max-w-3xl w-full bg-white brutal-border brutalist-shadow" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between items-center p-3 bg-yellow-400 border-b-4 border-black">
-                <span className="font-black text-black">{R2_IMAGES.find(p => p.id === r2SelectedImage)?.title}</span>
+                <span className="font-black text-black">단서 이미지</span>
                 <button onClick={() => setR2SelectedImage(null)} className="bg-black text-white px-4 py-2 font-black hover:bg-gray-800 brutal-border">
                   닫기 ✕
                 </button>
               </div>
-              <img src={R2_IMAGES.find(p => p.id === r2SelectedImage)?.image} alt="이미지" className="w-full" />
+              <img src={R2_IMAGE} alt="단서" className="w-full" />
             </div>
           </div>
         )}
