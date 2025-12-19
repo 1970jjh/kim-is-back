@@ -241,7 +241,6 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
   const [team, setTeam] = useState<TeamState | undefined>(room.teams?.[auth.teamId]);
   const [viewState, setViewState] = useState<ViewState>('waiting');
   const [remainingTime, setRemainingTime] = useState<string>("");
-  const [helpLoading, setHelpLoading] = useState(false);
 
   // R1 신입사원 채용 미션 상태 (1월)
   const [r1Answer, setR1Answer] = useState('');
@@ -421,24 +420,6 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
       firebaseService.setTeamRound(room.id, auth.teamId, team.currentRound + 1);
     }
     setViewState('mission');
-  };
-
-  const handleUseHelp = async () => {
-    if (!team || team.helpCount >= 3) return;
-
-    if (!window.confirm(`HELP를 사용하시겠습니까?\n\n• 남은 횟수: ${3 - team.helpCount}회\n• 사용 시 미션 시간 +3분 추가됩니다.`)) {
-      return;
-    }
-
-    setHelpLoading(true);
-    const success = await firebaseService.useHelp(room.id, auth.teamId);
-    setHelpLoading(false);
-
-    if (success) {
-      alert('HELP 사용 완료! 미션 시간이 3분 추가되었습니다.');
-    } else {
-      alert('HELP를 사용할 수 없습니다.');
-    }
   };
 
   // R1 신입사원 채용 정답 체크 (1월)
@@ -1351,20 +1332,14 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
           </section>
         </div>
 
-        {/* HELP 버튼 */}
+        {/* 공장으로 버튼 */}
         <div className="fixed bottom-4 right-4 z-40">
           <button
-            onClick={handleUseHelp}
-            disabled={!team || team.helpCount >= 3 || helpLoading}
-            className={`brutal-border font-black py-3 px-6 transition-all ${
-              team && team.helpCount < 3
-                ? 'bg-orange-500 text-white hover:bg-orange-400 brutalist-shadow active:translate-x-1 active:translate-y-1 active:shadow-none'
-                : 'bg-gray-600 text-gray-400 cursor-not-allowed'
-            }`}
+            onClick={() => setViewState('factory')}
+            className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow active:translate-x-1 active:translate-y-1 active:shadow-none"
           >
-            {helpLoading ? '...' : `HELP (${team ? 3 - team.helpCount : 0})`}
+            ← 공장으로
           </button>
-          <p className="text-[10px] text-center text-white mt-1">사용 시 +3분</p>
         </div>
       </div>
     );
@@ -1527,11 +1502,9 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
         )}
 
         <div className="fixed bottom-4 right-4 z-40">
-          <button onClick={handleUseHelp} disabled={!team || team.helpCount >= 3 || helpLoading}
-            className={`brutal-border font-black py-3 px-6 transition-all ${team && team.helpCount < 3 ? 'bg-orange-500 text-white hover:bg-orange-400 brutalist-shadow' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}>
-            {helpLoading ? '...' : `HELP (${team ? 3 - team.helpCount : 0})`}
+          <button onClick={() => setViewState('factory')} className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow">
+            ← 공장으로
           </button>
-          <p className="text-[10px] text-center text-gray-400 mt-1">사용 시 +3분</p>
         </div>
       </div>
     );
@@ -1648,11 +1621,9 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
         )}
 
         <div className="fixed bottom-4 right-4 z-40">
-          <button onClick={handleUseHelp} disabled={!team || team.helpCount >= 3 || helpLoading}
-            className={`brutal-border font-black py-3 px-6 transition-all ${team && team.helpCount < 3 ? 'bg-orange-500 text-white hover:bg-orange-400 brutalist-shadow' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}>
-            {helpLoading ? '...' : `HELP (${team ? 3 - team.helpCount : 0})`}
+          <button onClick={() => setViewState('factory')} className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow">
+            ← 공장으로
           </button>
-          <p className="text-[10px] text-center text-gray-400 mt-1">사용 시 +3분</p>
         </div>
       </div>
     );
@@ -1772,11 +1743,9 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
         )}
 
         <div className="fixed bottom-4 right-4 z-40">
-          <button onClick={handleUseHelp} disabled={!team || team.helpCount >= 3 || helpLoading}
-            className={`brutal-border font-black py-3 px-6 transition-all ${team && team.helpCount < 3 ? 'bg-orange-500 text-white hover:bg-orange-400 brutalist-shadow' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}>
-            {helpLoading ? '...' : `HELP (${team ? 3 - team.helpCount : 0})`}
+          <button onClick={() => setViewState('factory')} className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow">
+            ← 공장으로
           </button>
-          <p className="text-[10px] text-center text-gray-400 mt-1">사용 시 +3분</p>
         </div>
       </div>
     );
@@ -2060,11 +2029,9 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
         )}
 
         <div className="fixed bottom-4 right-4 z-40">
-          <button onClick={handleUseHelp} disabled={!team || team.helpCount >= 3 || helpLoading}
-            className={`brutal-border font-black py-3 px-6 transition-all ${team && team.helpCount < 3 ? 'bg-orange-500 text-white hover:bg-orange-400 brutalist-shadow' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}>
-            {helpLoading ? '...' : `HELP (${team ? 3 - team.helpCount : 0})`}
+          <button onClick={() => setViewState('factory')} className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow">
+            ← 공장으로
           </button>
-          <p className="text-[10px] text-center text-gray-400 mt-1">사용 시 +3분</p>
         </div>
       </div>
     );
@@ -2149,8 +2116,8 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
         </div>
 
         <div className="fixed bottom-4 right-4 z-40">
-          <button onClick={handleUseHelp} disabled={!team || team.helpCount >= 3 || helpLoading} className={`brutal-border font-black py-3 px-6 transition-all ${team && team.helpCount < 3 ? 'bg-orange-500 text-white hover:bg-orange-400 brutalist-shadow' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}>
-            {helpLoading ? '...' : `HELP (${team ? 3 - team.helpCount : 0})`}
+          <button onClick={() => setViewState('factory')} className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow">
+            ← 공장으로
           </button>
         </div>
       </div>
@@ -2236,8 +2203,8 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
         )}
 
         <div className="fixed bottom-4 right-4 z-40">
-          <button onClick={handleUseHelp} disabled={!team || team.helpCount >= 3 || helpLoading} className={`brutal-border font-black py-3 px-6 transition-all ${team && team.helpCount < 3 ? 'bg-orange-500 text-white hover:bg-orange-400 brutalist-shadow' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}>
-            {helpLoading ? '...' : `HELP (${team ? 3 - team.helpCount : 0})`}
+          <button onClick={() => setViewState('factory')} className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow">
+            ← 공장으로
           </button>
         </div>
       </div>
@@ -2309,8 +2276,8 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
         </div>
 
         <div className="fixed bottom-4 right-4 z-40">
-          <button onClick={handleUseHelp} disabled={!team || team.helpCount >= 3 || helpLoading} className={`brutal-border font-black py-3 px-6 transition-all ${team && team.helpCount < 3 ? 'bg-orange-500 text-white hover:bg-orange-400 brutalist-shadow' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}>
-            {helpLoading ? '...' : `HELP (${team ? 3 - team.helpCount : 0})`}
+          <button onClick={() => setViewState('factory')} className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow">
+            ← 공장으로
           </button>
         </div>
       </div>
@@ -2376,8 +2343,8 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
         </div>
 
         <div className="fixed bottom-4 right-4 z-40">
-          <button onClick={handleUseHelp} disabled={!team || team.helpCount >= 3 || helpLoading} className={`brutal-border font-black py-3 px-6 transition-all ${team && team.helpCount < 3 ? 'bg-orange-500 text-white hover:bg-orange-400 brutalist-shadow' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}>
-            {helpLoading ? '...' : `HELP (${team ? 3 - team.helpCount : 0})`}
+          <button onClick={() => setViewState('factory')} className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow">
+            ← 공장으로
           </button>
         </div>
       </div>
@@ -2453,8 +2420,8 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
         )}
 
         <div className="fixed bottom-4 right-4 z-40">
-          <button onClick={handleUseHelp} disabled={!team || team.helpCount >= 3 || helpLoading} className={`brutal-border font-black py-3 px-6 transition-all ${team && team.helpCount < 3 ? 'bg-orange-500 text-white hover:bg-orange-400 brutalist-shadow' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}>
-            {helpLoading ? '...' : `HELP (${team ? 3 - team.helpCount : 0})`}
+          <button onClick={() => setViewState('factory')} className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow">
+            ← 공장으로
           </button>
         </div>
       </div>
@@ -2525,8 +2492,8 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
         </div>
 
         <div className="fixed bottom-4 right-4 z-40">
-          <button onClick={handleUseHelp} disabled={!team || team.helpCount >= 3 || helpLoading} className={`brutal-border font-black py-3 px-6 transition-all ${team && team.helpCount < 3 ? 'bg-orange-500 text-white hover:bg-orange-400 brutalist-shadow' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}>
-            {helpLoading ? '...' : `HELP (${team ? 3 - team.helpCount : 0})`}
+          <button onClick={() => setViewState('factory')} className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow">
+            ← 공장으로
           </button>
         </div>
       </div>
@@ -2639,8 +2606,8 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
         </div>
 
         <div className="fixed bottom-4 right-4 z-40">
-          <button onClick={handleUseHelp} disabled={!team || team.helpCount >= 3 || helpLoading} className={`brutal-border font-black py-3 px-6 transition-all ${team && team.helpCount < 3 ? 'bg-orange-500 text-white hover:bg-orange-400 brutalist-shadow' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}>
-            {helpLoading ? '...' : `HELP (${team ? 3 - team.helpCount : 0})`}
+          <button onClick={() => setViewState('factory')} className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow">
+            ← 공장으로
           </button>
         </div>
       </div>
@@ -2780,8 +2747,8 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
         </div>
 
         <div className="fixed bottom-4 right-4 z-40">
-          <button onClick={handleUseHelp} disabled={!team || team.helpCount >= 3 || helpLoading} className={`brutal-border font-black py-3 px-6 transition-all ${team && team.helpCount < 3 ? 'bg-orange-500 text-white hover:bg-orange-400 brutalist-shadow' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}>
-            {helpLoading ? '...' : `HELP (${team ? 3 - team.helpCount : 0})`}
+          <button onClick={() => setViewState('factory')} className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow">
+            ← 공장으로
           </button>
         </div>
       </div>
@@ -2874,20 +2841,14 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
         </div>
       </div>
 
-      {/* HELP 버튼 (우측 하단 고정) */}
+      {/* 공장으로 버튼 (우측 하단 고정) */}
       <div className="fixed bottom-4 right-4 z-40">
         <button
-          onClick={handleUseHelp}
-          disabled={!team || team.helpCount >= 3 || helpLoading}
-          className={`brutal-border font-black py-3 px-6 transition-all ${
-            team && team.helpCount < 3
-              ? 'bg-orange-500 text-white hover:bg-orange-400 brutalist-shadow active:translate-x-1 active:translate-y-1 active:shadow-none'
-              : 'bg-gray-600 text-gray-400 cursor-not-allowed'
-          }`}
+          onClick={() => setViewState('factory')}
+          className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow active:translate-x-1 active:translate-y-1 active:shadow-none"
         >
-          {helpLoading ? '...' : `HELP (${team ? 3 - team.helpCount : 0})`}
+          ← 공장으로
         </button>
-        <p className="text-[10px] text-center text-gray-400 mt-1">사용 시 +3분</p>
       </div>
     </div>
   );
