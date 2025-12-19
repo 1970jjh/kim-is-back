@@ -207,11 +207,17 @@ const App: React.FC = () => {
   // Event Overlay Component with Countdown
   const EventOverlay = () => {
     const [timeLeft, setTimeLeft] = useState<string>("");
+    const [shouldHide, setShouldHide] = useState(false);
     const hasTriggeredClose = React.useRef(false);
+    const currentEventRef = React.useRef<string | null>(null);
 
     // 이벤트 변경 시 ref 초기화
     useEffect(() => {
-      hasTriggeredClose.current = false;
+      if (currentRoom?.activeEvent !== currentEventRef.current) {
+        hasTriggeredClose.current = false;
+        setShouldHide(false);
+        currentEventRef.current = currentRoom?.activeEvent || null;
+      }
     }, [currentRoom?.activeEvent]);
 
     useEffect(() => {
@@ -225,8 +231,9 @@ const App: React.FC = () => {
       if (initialDiff <= 0 && !hasTriggeredClose.current) {
         hasTriggeredClose.current = true;
         setTimeLeft("00:00");
-        // 이벤트 종료 요청 (한 번만)
-        firebaseService.toggleEvent(currentRoom.id, currentRoom.activeEvent);
+        setShouldHide(true);
+        // 강제 이벤트 종료 (더 강력한 방식)
+        firebaseService.forceEndAllEvents(currentRoom.id);
         return;
       }
 
@@ -236,32 +243,45 @@ const App: React.FC = () => {
         if (diff <= 0) {
           setTimeLeft("00:00");
           clearInterval(timer);
-          // 시간이 완료되면 자동으로 이벤트 종료 (한 번만 호출)
-          if (!hasTriggeredClose.current && currentRoom.activeEvent !== EventType.NONE) {
+          // 시간이 완료되면 자동으로 이벤트 강제 종료
+          if (!hasTriggeredClose.current) {
             hasTriggeredClose.current = true;
-            firebaseService.toggleEvent(currentRoom.id, currentRoom.activeEvent);
+            setShouldHide(true);
+            // 강력한 강제 종료 사용
+            firebaseService.forceEndAllEvents(currentRoom.id);
           }
         } else {
           const minutes = Math.floor(diff / 60000);
           const seconds = Math.floor((diff % 60000) / 1000);
           setTimeLeft(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
         }
-      }, 1000);
+      }, 500); // 더 빠른 체크 (500ms)
 
       return () => clearInterval(timer);
     }, [currentRoom?.eventEndTime, currentRoom?.activeEvent, currentRoom?.id]);
+
+    // 강제 숨김 상태면 즉시 닫기
+    if (shouldHide) {
+      return null;
+    }
 
     // 이벤트가 없거나 NONE이면 즉시 닫기 (문자열/enum 모두 체크)
     if (!currentRoom ||
         currentRoom.activeEvent === EventType.NONE ||
         currentRoom.activeEvent === 'NONE' ||
+        String(currentRoom.activeEvent) === 'NONE' ||
         !currentRoom.activeEvent ||
         auth.role === UserRole.ADMIN) {
       return null;
     }
 
-    // 타이머가 만료되었으면 렌더링하지 않음 (Firebase 동기화 대기)
+    // 타이머가 만료되었으면 렌더링하지 않음 (즉시)
     if (currentRoom.eventEndTime && currentRoom.eventEndTime <= Date.now()) {
+      // 아직 종료 처리 안됐으면 강제 종료 호출
+      if (!hasTriggeredClose.current) {
+        hasTriggeredClose.current = true;
+        firebaseService.forceEndAllEvents(currentRoom.id);
+      }
       return null;
     }
 
@@ -280,7 +300,7 @@ const App: React.FC = () => {
     const hasTimer = currentRoom.eventEndTime !== undefined;
 
     return (
-      <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4 animate-fadeIn">
+      <div className="fixed inset-0 z-[9999] bg-black/70 flex items-center justify-center p-4 animate-fadeIn">
         <BrutalistCard className="max-w-2xl w-full text-center space-y-4 bg-white text-black p-6 md:p-8 max-h-[90vh] overflow-y-auto">
            <h2 className="text-4xl md:text-5xl font-black uppercase tracking-tighter">{eventInfo.label}</h2>
 
