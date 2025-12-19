@@ -165,7 +165,7 @@ export const geminiService = {
     }
   },
 
-  // Admin: 우승팀 포스터 생성 (Gemini 2.0 Flash Exp)
+  // Admin: 우승팀 포스터 생성 (Gemini 3 Pro Image Preview)
   generateWinnerPoster: async (
     imageBase64: string,
     mimeType: string,
