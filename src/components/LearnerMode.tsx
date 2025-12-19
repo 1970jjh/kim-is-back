@@ -200,7 +200,7 @@ const R6_IMAGES = [
   { id: 1, url: 'https://images.unsplash.com/photo-1605833556294-ea5c7a74f57d?w=600', title: '힌트 1' },
   { id: 2, url: 'https://images.unsplash.com/photo-1581351721010-8cf859cb14a4?w=600', title: '힌트 2' }
 ];
-const R6_CORRECT_ANSWER = 'LASVEGAS';
+const R6_CORRECT_ANSWER = 'BERLIN';
 const R6_STORY = "김부장은 본사 복귀 전 마지막 해외 출장을 다녀왔다. 두 장의 사진 속에 숨겨진 도시의 이름을 찾아라!";
 
 // R7 음성 퀴즈 (7월)
@@ -277,9 +277,16 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
   const [r4WrongMarkers, setR4WrongMarkers] = useState<{x: number, y: number, id: number}[]>([]);
   const r4SoundIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const r4WrongMarkerIdRef = useRef(0);
+  // R4 이미지 ref (좌표 계산용)
+  const r4ImageRef = useRef<HTMLImageElement>(null);
+  const r4ContainerRef = useRef<HTMLDivElement>(null);
+  // R4 레이아웃 재계산 트리거 (이미지 로드, 리사이즈 시)
+  const [r4LayoutKey, setR4LayoutKey] = useState(0);
 
   // R11 채팅 스크롤 ref
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  // R11 채팅 입력창 ref (자동 포커스용)
+  const r11InputRef = useRef<HTMLTextAreaElement>(null);
 
   // R5 팀 단체사진 상태 (5월)
   const [r5ImagePreview, setR5ImagePreview] = useState<string | null>(null);
@@ -318,7 +325,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
   // R11 공감대화 상태 (11월)
   const [r11ChatHistory, setR11ChatHistory] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const [r11UserInput, setR11UserInput] = useState('');
-  const [r11EmpathyScore, setR11EmpathyScore] = useState(50);
+  const [r11EmpathyScore, setR11EmpathyScore] = useState(0);
   const [r11Sending, setR11Sending] = useState(false);
   const [r11Cleared, setR11Cleared] = useState(false);
   const [r11StartTime, setR11StartTime] = useState<number | null>(null);
@@ -517,6 +524,18 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
     return () => clearInterval(timer);
   }, [r4GameStarted, r4TimeLeft, r4Failed, r4Cleared]);
 
+  // R4 윈도우 리사이즈 시 레이아웃 재계산
+  useEffect(() => {
+    if (!r4GameStarted) return;
+
+    const handleResize = () => {
+      setR4LayoutKey(prev => prev + 1);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [r4GameStarted]);
+
   // R4 긴장감 효과음 (시간이 갈수록 빨라짐)
   useEffect(() => {
     if (!r4GameStarted || r4Failed || r4Cleared) return;
@@ -592,13 +611,75 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
     setR4ScreenShake(false);
   };
 
-  // R4 이미지 클릭 처리 (좌표 기반 정답 판정)
+  // R4 실제 렌더링된 이미지 영역 계산 (object-contain으로 인한 여백 처리)
+  const getR4RenderedLayout = () => {
+    const img = r4ImageRef.current;
+    const container = r4ContainerRef.current;
+    if (!img || !container || !img.naturalWidth) return null;
+
+    const containerRect = container.getBoundingClientRect();
+    const naturalRatio = img.naturalWidth / img.naturalHeight;
+    const containerRatio = containerRect.width / containerRect.height;
+
+    let renderWidth, renderHeight, offsetX, offsetY;
+
+    if (naturalRatio > containerRatio) {
+      // 이미지가 컨테이너보다 더 넓음 -> 너비에 맞춤 (위/아래 여백)
+      renderWidth = containerRect.width;
+      renderHeight = containerRect.width / naturalRatio;
+      offsetX = 0;
+      offsetY = (containerRect.height - renderHeight) / 2;
+    } else {
+      // 이미지가 컨테이너보다 더 높음 -> 높이에 맞춤 (좌/우 여백)
+      renderHeight = containerRect.height;
+      renderWidth = containerRect.height * naturalRatio;
+      offsetX = (containerRect.width - renderWidth) / 2;
+      offsetY = 0;
+    }
+
+    return { containerRect, renderWidth, renderHeight, offsetX, offsetY };
+  };
+
+  // R4 이미지 클릭 처리 (좌표 기반 정답 판정) - 정밀 좌표 계산
   const handleR4ImageClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (r4Failed || r4Cleared) return;
 
-    const rect = e.currentTarget.getBoundingClientRect();
-    const clickX = ((e.clientX - rect.left) / rect.width) * 100;
-    const clickY = ((e.clientY - rect.top) / rect.height) * 100;
+    const layout = getR4RenderedLayout();
+    if (!layout) {
+      // 레이아웃 계산 실패 시 기존 방식으로 폴백
+      const rect = e.currentTarget.getBoundingClientRect();
+      const clickX = ((e.clientX - rect.left) / rect.width) * 100;
+      const clickY = ((e.clientY - rect.top) / rect.height) * 100;
+      processR4Click(clickX, clickY, clickX, clickY);
+      return;
+    }
+
+    const { containerRect, renderWidth, renderHeight, offsetX, offsetY } = layout;
+
+    // 마우스 위치 (컨테이너 기준)
+    const clientX = e.clientX - containerRect.left;
+    const clientY = e.clientY - containerRect.top;
+
+    // 클릭이 실제 이미지 영역 내인지 확인
+    if (clientX < offsetX || clientX > offsetX + renderWidth ||
+        clientY < offsetY || clientY > offsetY + renderHeight) {
+      // 여백 영역 클릭 무시
+      return;
+    }
+
+    // 이미지 내의 퍼센트 좌표 계산
+    const clickX = ((clientX - offsetX) / renderWidth) * 100;
+    const clickY = ((clientY - offsetY) / renderHeight) * 100;
+
+    // 마커 표시용 퍼센트 좌표 (컨테이너 기준)
+    const markerX = (clientX / containerRect.width) * 100;
+    const markerY = (clientY / containerRect.height) * 100;
+
+    processR4Click(clickX, clickY, markerX, markerY);
+  };
+
+  // R4 클릭 처리 로직 (정답 체크)
+  const processR4Click = (clickX: number, clickY: number, markerX: number, markerY: number) => {
 
     const currentStage = R4_GAME_DATA[r4CurrentSet];
     const currentFound = r4FoundDifferences[r4CurrentSet] || [];
@@ -651,9 +732,9 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
       const newMistakes = r4Mistakes + 1;
       setR4Mistakes(newMistakes);
 
-      // 오답 마커 추가 (1초 후 자동 삭제)
+      // 오답 마커 추가 (1초 후 자동 삭제) - markerX/Y는 컨테이너 기준 좌표
       const markerId = r4WrongMarkerIdRef.current++;
-      setR4WrongMarkers(prev => [...prev, { x: clickX, y: clickY, id: markerId }]);
+      setR4WrongMarkers(prev => [...prev, { x: markerX, y: markerY, id: markerId }]);
       setTimeout(() => {
         setR4WrongMarkers(prev => prev.filter(m => m.id !== markerId));
       }, 1000);
@@ -684,6 +765,27 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
   // R4 총 찾은 차이점 수 계산
   const getR4TotalFoundDifferences = () => {
     return Object.values(r4FoundDifferences).reduce((sum, arr) => sum + arr.length, 0);
+  };
+
+  // R4 마커 위치 계산 (이미지 % -> 컨테이너 %)
+  const getR4MarkerPosition = (imageXPercent: number, imageYPercent: number) => {
+    const layout = getR4RenderedLayout();
+    if (!layout) {
+      // 폴백: 원래 퍼센트 그대로 사용
+      return { x: imageXPercent, y: imageYPercent };
+    }
+
+    const { containerRect, renderWidth, renderHeight, offsetX, offsetY } = layout;
+
+    // 이미지 내 퍼센트를 컨테이너 내 픽셀로 변환
+    const pixelX = offsetX + (imageXPercent / 100 * renderWidth);
+    const pixelY = offsetY + (imageYPercent / 100 * renderHeight);
+
+    // 컨테이너 기준 퍼센트로 변환
+    return {
+      x: (pixelX / containerRect.width) * 100,
+      y: (pixelY / containerRect.height) * 100
+    };
   };
 
   // R4 현재 스테이지 정보
@@ -881,6 +983,10 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
       console.error('R11 chat error:', error);
     } finally {
       setR11Sending(false);
+      // 전송 후 자동으로 입력창에 포커스
+      setTimeout(() => {
+        r11InputRef.current?.focus();
+      }, 100);
     }
   };
 
@@ -889,18 +995,26 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
     await firebaseService.advanceTeamRound(room.id, auth.teamId);
     setR11Cleared(false);
     setR11ChatHistory([]);
-    setR11EmpathyScore(50);
+    setR11EmpathyScore(0);
     setR11CompletionTime('');
     setViewState('factory');
   };
 
-  // R12 다짐 검증
+  // R12 다짐 검증 - 간소화된 검증 (1번 무조건 통과, 2/3/4번 100자 이상)
   const handleR12Validate = async () => {
     const { oneLine, bestMission, regret, futureHelp } = r12Report;
 
-    if (oneLine.trim().length < 10 || bestMission.trim().length < 15 ||
-        regret.trim().length < 15 || futureHelp.trim().length < 15) {
-      setR12ValidationResult({ pass: false, message: '각 항목을 충분히 작성해주세요. (최소 10~15자 이상)' });
+    // 1번 항목(한줄 소감)은 무조건 통과, 2/3/4번은 100자 이상 필요
+    if (bestMission.trim().length < 100) {
+      setR12ValidationResult({ pass: false, message: '2번 항목(가장 빛났던 미션)을 100자 이상 작성해주세요. (현재: ' + bestMission.trim().length + '자)' });
+      return;
+    }
+    if (regret.trim().length < 100) {
+      setR12ValidationResult({ pass: false, message: '3번 항목(아쉬웠던 점)을 100자 이상 작성해주세요. (현재: ' + regret.trim().length + '자)' });
+      return;
+    }
+    if (futureHelp.trim().length < 100) {
+      setR12ValidationResult({ pass: false, message: '4번 항목(현업 도움)을 100자 이상 작성해주세요. (현재: ' + futureHelp.trim().length + '자)' });
       return;
     }
 
@@ -908,32 +1022,27 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
     setR12ValidationResult(null);
 
     try {
-      const result = await geminiService.validateReport(r12Report);
-      setR12ValidationResult(result);
+      // AI 검증 스킵하고 바로 PASS 처리
+      setR12ValidationResult({ pass: true, message: 'PASS! 보고서가 승인되었습니다. 인포그래픽을 생성합니다...' });
 
-      if (result.pass) {
-        // 인포그래픽 생성
-        setR12Generating(true);
-        const imgResult = await geminiService.generateReportInfographic(r12Report, auth.teamId);
+      // 인포그래픽 생성
+      setR12Generating(true);
+      const imgResult = await geminiService.generateReportInfographic(r12Report, auth.teamId);
 
-        if (imgResult.success && imgResult.imageData) {
-          setR12InfographicUrl(imgResult.imageData);
-          // Firebase에 보고서 저장
-          await firebaseService.saveTeamReport(room.id, auth.teamId, {
-            ...r12Report,
-            infographicUrl: imgResult.imageData,
-            submittedAt: new Date().toISOString()
-          });
-        } else {
-          setR12ValidationResult({
-            pass: true,
-            message: 'PASS! 보고서가 승인되었습니다. (이미지 생성은 나중에 시도해주세요)'
-          });
-        }
-        setR12Generating(false);
+      if (imgResult.success && imgResult.imageData) {
+        setR12InfographicUrl(imgResult.imageData);
+        // Firebase에 보고서 저장
+        await firebaseService.saveTeamReport(room.id, auth.teamId, r12Report, imgResult.imageData);
+      } else {
+        setR12ValidationResult({
+          pass: true,
+          message: 'PASS! 보고서가 승인되었습니다. (이미지 생성은 나중에 시도해주세요)'
+        });
       }
+      setR12Generating(false);
     } catch (error) {
-      setR12ValidationResult({ pass: false, message: '검증 중 오류가 발생했습니다.' });
+      // 에러가 발생해도 보고서 자체는 통과 처리
+      setR12ValidationResult({ pass: true, message: 'PASS! 보고서가 승인되었습니다. (이미지 생성 중 오류 발생)' });
     } finally {
       setR12Validating(false);
     }
@@ -954,7 +1063,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
   const handleR12FinalClear = async () => {
     await firebaseService.advanceTeamRound(room.id, auth.teamId);
     setR12Cleared(false);
-    setR12Resolutions(['', '', '']);
+    setR12Report({ oneLine: '', bestMission: '', regret: '', futureHelp: '' });
     setR12InfographicUrl(null);
     setR12ValidationResult(null);
     setViewState('factory');
@@ -1826,33 +1935,38 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
               {/* Image Area */}
               <div className="relative flex-grow h-full overflow-hidden border-r-4 border-black">
                 <div
+                  ref={r4ContainerRef}
                   className="w-full h-full bg-gray-200 relative cursor-crosshair"
                   onClick={handleR4ImageClick}
                 >
                   <img
+                    ref={r4ImageRef}
                     src={r4CurrentStage?.img}
                     alt={`Stage ${r4CurrentSet + 1}`}
                     className="w-full h-full object-contain block select-none"
                     draggable={false}
+                    onLoad={() => setR4LayoutKey(prev => prev + 1)}
                   />
 
-                  {/* 찾은 정답 마커 (녹색 사각형) */}
-                  {r4CurrentStage?.answers.map((answer, idx) => (
-                    r4FoundInCurrentSet.includes(idx) && (
+                  {/* 찾은 정답 마커 (녹색 사각형) - 레이아웃 기반 위치 계산 */}
+                  {r4CurrentStage?.answers.map((answer, idx) => {
+                    if (!r4FoundInCurrentSet.includes(idx)) return null;
+                    const pos = getR4MarkerPosition(answer.x, answer.y);
+                    return (
                       <div
-                        key={idx}
+                        key={`${idx}-${r4LayoutKey}`}
                         className="absolute border-4 border-green-500 bg-green-500/30 pointer-events-none"
                         style={{
-                          left: `${answer.x}%`,
-                          top: `${answer.y}%`,
+                          left: `${pos.x}%`,
+                          top: `${pos.y}%`,
                           width: '40px',
                           height: '40px',
                           transform: 'translate(-50%, -50%)',
                           zIndex: 10
                         }}
                       />
-                    )
-                  ))}
+                    );
+                  })}
 
                   {/* 오답 마커 (빨간 사각형) */}
                   {r4WrongMarkers.map((marker) => (
@@ -2504,6 +2618,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
               {/* 입력 영역 - shift+enter 줄바꿈 지원 */}
               <div className="flex gap-2 items-end">
                 <BrutalistTextarea
+                  ref={r11InputRef}
                   fullWidth
                   rows={2}
                   placeholder="공감하는 말을 입력하세요... (Shift+Enter: 줄바꿈)"
