@@ -349,7 +349,7 @@ const App: React.FC = () => {
                </div>
              )}
 
-             <img src={eventInfo.image} alt={eventInfo.label} className="w-full h-32 md:h-48 object-cover brutal-border brutalist-shadow" />
+             <img src={eventInfo.image} alt={eventInfo.label} className="w-full aspect-video object-contain brutal-border brutalist-shadow bg-black" />
 
              {/* 이벤트 지령 */}
              {eventInfo.instruction && (
