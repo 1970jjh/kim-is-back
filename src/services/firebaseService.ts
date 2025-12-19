@@ -231,9 +231,9 @@ export const firebaseService = {
         room.eventPausedTotal = (room.eventPausedTotal || 0) + pausedSeconds;
       }
       room.activeEvent = EventType.NONE;
-      room.eventEndTime = undefined;
-      room.eventTargetTeams = undefined;
-      room.eventStartedAt = undefined;
+      room.eventEndTime = null as any;
+      room.eventTargetTeams = null as any;
+      room.eventStartedAt = null as any;
     } else {
       // 다른 이벤트 클릭: 새 이벤트로 교체 (기존 이벤트 자동 종료)
       // 기존 이벤트가 있었다면 그 시간도 누적
@@ -243,7 +243,7 @@ export const firebaseService = {
       }
       room.activeEvent = type;
       // 타이머 설정이 있으면 모든 이벤트에 적용 (minutes > 0일 때만)
-      room.eventEndTime = minutes && minutes > 0 ? now + minutes * 60000 : undefined;
+      room.eventEndTime = minutes && minutes > 0 ? now + minutes * 60000 : null as any;
       room.eventTargetTeams = targetTeams || 'all';
       room.eventStartedAt = now;  // 이벤트 시작 시간 기록
     }
@@ -266,9 +266,9 @@ export const firebaseService = {
 
     // 모든 이벤트 관련 필드 강제 초기화
     room.activeEvent = EventType.NONE;
-    room.eventEndTime = undefined;
-    room.eventTargetTeams = undefined;
-    room.eventStartedAt = undefined;
+    room.eventEndTime = null as any;
+    room.eventTargetTeams = null as any;
+    room.eventStartedAt = null as any;
 
     await firebaseService.saveRoom(room);
   },
