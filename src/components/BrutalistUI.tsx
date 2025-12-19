@@ -50,3 +50,16 @@ export const BrutalistCard: React.FC<{ children: React.ReactNode; className?: st
     </div>
   );
 };
+
+export const BrutalistTextarea: React.FC<React.TextareaHTMLAttributes<HTMLTextAreaElement> & { fullWidth?: boolean }> = ({
+  className = '',
+  fullWidth = false,
+  ...props
+}) => {
+  return (
+    <textarea
+      className={`brutal-border bg-white text-black p-4 font-bold brutalist-shadow outline-none focus:ring-4 ring-yellow-400 resize-none ${fullWidth ? 'w-full' : ''} ${className}`}
+      {...props}
+    />
+  );
+};

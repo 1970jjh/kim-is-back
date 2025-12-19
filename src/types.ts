@@ -35,6 +35,16 @@ export interface HelpUsage {
   usedAt: number;  // timestamp
 }
 
+// 팀활동 결과보고서
+export interface TeamReport {
+  oneLine: string;
+  bestMission: string;
+  regret: string;
+  futureHelp: string;
+  imageData?: string;
+  submittedAt?: number;
+}
+
 export interface TeamState {
   id: number;
   name: string;
@@ -50,6 +60,7 @@ export interface TeamState {
   roundTimes: Record<number, RoundTime>;  // 라운드별 시간 기록
   missionClearTime?: number;  // 미션 완료 시간
   totalBonusTime: number;  // 헬프로 추가된 시간 (초)
+  teamReport?: TeamReport;  // R12 팀활동 결과보고서
 }
 
 export interface RoomState {
