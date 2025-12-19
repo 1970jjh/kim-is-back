@@ -282,6 +282,9 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
   const r4SoundIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const r4WrongMarkerIdRef = useRef(0);
 
+  // R11 채팅 스크롤 ref
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+
   // R5 팀 단체사진 상태 (5월)
   const [r5ImagePreview, setR5ImagePreview] = useState<string | null>(null);
   const [r5ImageFile, setR5ImageFile] = useState<File | null>(null);
@@ -1271,9 +1274,6 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
   const isR10Completed = (team?.maxCompletedRound || 0) >= 10;
   const isR11Completed = (team?.maxCompletedRound || 0) >= 11;
   const isR12Completed = (team?.maxCompletedRound || 0) >= 12;
-
-  // R11 채팅 스크롤 ref
-  const chatContainerRef = useRef<HTMLDivElement>(null);
 
   // R1 신입사원 채용 서류전형 화면 (1월)
   if (isR1) {
