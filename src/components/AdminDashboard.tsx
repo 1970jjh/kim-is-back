@@ -369,7 +369,32 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
     if (!analysisResult || !analysisStats) return;
 
     try {
+      const html2canvas = (await import('html2canvas')).default;
       const { jsPDF } = await import('jspdf');
+
+      // 분석 콘텐츠 요소 찾기
+      const contentElement = document.getElementById('analysis-pdf-content');
+      if (!contentElement) {
+        alert('PDF 생성 대상을 찾을 수 없습니다.');
+        return;
+      }
+
+      // 로딩 표시
+      const originalButtonText = document.querySelector('[data-pdf-button]')?.textContent;
+      const pdfButton = document.querySelector('[data-pdf-button]');
+      if (pdfButton) pdfButton.textContent = 'PDF 생성 중...';
+
+      // html2canvas로 콘텐츠 캡처 (고해상도)
+      const canvas = await html2canvas(contentElement, {
+        scale: 2, // 고해상도
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#1a1a1a', // 배경색
+        logging: false
+      });
+
+      // PDF 생성
+      const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
@@ -378,161 +403,53 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
 
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 15;
-      let y = 20;
+      const margin = 10;
+      const contentWidth = pageWidth - margin * 2;
 
+      // 이미지 비율 계산
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+      const ratio = contentWidth / imgWidth;
+      const scaledHeight = imgHeight * ratio;
+
+      // 여러 페이지로 분할
+      let remainingHeight = scaledHeight;
+      let srcY = 0;
+      let pageNum = 0;
+
+      while (remainingHeight > 0) {
+        if (pageNum > 0) {
+          pdf.addPage();
+        }
+
+        const availableHeight = pageHeight - margin * 2;
+        const drawHeight = Math.min(availableHeight, remainingHeight);
+        const srcHeight = drawHeight / ratio;
+
+        // 캔버스에서 해당 부분만 추출
+        const pageCanvas = document.createElement('canvas');
+        pageCanvas.width = imgWidth;
+        pageCanvas.height = srcHeight;
+        const ctx = pageCanvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(canvas, 0, srcY, imgWidth, srcHeight, 0, 0, imgWidth, srcHeight);
+          const pageImgData = pageCanvas.toDataURL('image/png');
+          pdf.addImage(pageImgData, 'PNG', margin, margin, contentWidth, drawHeight);
+        }
+
+        srcY += srcHeight;
+        remainingHeight -= drawHeight;
+        pageNum++;
+      }
+
+      // 파일명 생성
       const stats = analysisStats as Record<string, unknown>;
-      const analysis = analysisResult as Record<string, unknown>;
+      const fileName = `${stats.groupName || '성과분석'}_analysis_report.pdf`;
+      pdf.save(fileName);
 
-      // Helper functions
-      const addTitle = (text: string, size: number = 18) => {
-        pdf.setFontSize(size);
-        pdf.setTextColor(40, 40, 40);
-        pdf.setFont('helvetica', 'bold');
-        pdf.text(text, pageWidth / 2, y, { align: 'center' });
-        y += size * 0.5;
-      };
+      // 버튼 텍스트 복원
+      if (pdfButton && originalButtonText) pdfButton.textContent = originalButtonText;
 
-      const addSection = (title: string) => {
-        if (y > pageHeight - 40) {
-          pdf.addPage();
-          y = 20;
-        }
-        pdf.setFontSize(14);
-        pdf.setTextColor(60, 60, 60);
-        pdf.setFont('helvetica', 'bold');
-        pdf.text(title, margin, y);
-        y += 8;
-      };
-
-      const addText = (text: string, indent: number = 0) => {
-        if (y > pageHeight - 20) {
-          pdf.addPage();
-          y = 20;
-        }
-        pdf.setFontSize(10);
-        pdf.setTextColor(80, 80, 80);
-        pdf.setFont('helvetica', 'normal');
-        const lines = pdf.splitTextToSize(text, pageWidth - margin * 2 - indent);
-        pdf.text(lines, margin + indent, y);
-        y += lines.length * 5;
-      };
-
-      const formatTimeForPDF = (seconds: number): string => {
-        const mins = Math.floor(seconds / 60);
-        const secs = Math.floor(seconds % 60);
-        return `${mins}m ${secs}s`;
-      };
-
-      // Title
-      addTitle(`${stats.groupName || 'Education'} Performance Report`, 20);
-      y += 5;
-      addTitle(`Analysis Date: ${stats.dateStr}`, 12);
-      y += 10;
-
-      // Draw separator line
-      pdf.setDrawColor(255, 215, 0);
-      pdf.setLineWidth(1);
-      pdf.line(margin, y, pageWidth - margin, y);
-      y += 10;
-
-      // Executive Summary
-      addSection('Executive Summary');
-      if (analysis.executiveSummary) {
-        addText(String(analysis.executiveSummary));
-      }
-      y += 5;
-
-      // Statistics Overview
-      addSection('Performance Statistics');
-      addText(`Total Teams: ${stats.totalTeams}`);
-      addText(`Average Time: ${formatTimeForPDF(Number(stats.avgTime) || 0)}`);
-      addText(`Fastest Time: ${formatTimeForPDF(Number(stats.minTime) || 0)}`);
-      addText(`Slowest Time: ${formatTimeForPDF(Number(stats.maxTime) || 0)}`);
-      addText(`Total HELP Usage: ${stats.totalHelps} times`);
-      y += 5;
-
-      // Draw simple bar chart for round difficulty
-      addSection('Round Difficulty (Average Time)');
-      const roundAvgTimes = stats.roundAvgTimes as Record<number, number> || {};
-      const maxRoundTime = Math.max(...Object.values(roundAvgTimes).map(Number), 1);
-      const chartWidth = pageWidth - margin * 2;
-      const barHeight = 6;
-      const chartStartY = y;
-
-      Object.entries(roundAvgTimes).forEach(([round, time], idx) => {
-        if (y > pageHeight - 30) {
-          pdf.addPage();
-          y = 20;
-        }
-        const barWidth = (Number(time) / maxRoundTime) * (chartWidth - 40);
-
-        // Label
-        pdf.setFontSize(8);
-        pdf.setTextColor(60, 60, 60);
-        pdf.text(`R${round}`, margin, y + 4);
-
-        // Bar
-        pdf.setFillColor(255, 215, 0);
-        pdf.rect(margin + 15, y, barWidth, barHeight, 'F');
-
-        // Time value
-        pdf.text(formatTimeForPDF(Number(time)), margin + 20 + barWidth, y + 4);
-
-        y += barHeight + 3;
-      });
-      y += 10;
-
-      // Overall Assessment
-      if (analysis.overallAssessment) {
-        addSection('Overall Assessment');
-        addText(String(analysis.overallAssessment));
-        y += 5;
-      }
-
-      // Team Ranking Analysis
-      if (analysis.teamRankingAnalysis) {
-        addSection('Team Ranking Analysis');
-        addText(String(analysis.teamRankingAnalysis));
-        y += 5;
-      }
-
-      // Round Analysis
-      const roundAnalysis = analysis.roundAnalysis as Record<string, unknown>;
-      if (roundAnalysis) {
-        addSection('Round Analysis');
-        if (roundAnalysis.keyInsights) {
-          addText(String(roundAnalysis.keyInsights));
-        }
-        y += 5;
-      }
-
-      // Recommendations
-      const recommendations = analysis.recommendations as string[];
-      if (recommendations && recommendations.length > 0) {
-        addSection('Recommendations');
-        recommendations.forEach((rec, idx) => {
-          addText(`${idx + 1}. ${rec}`, 5);
-        });
-        y += 5;
-      }
-
-      // Best Practices
-      const bestPractices = analysis.bestPractices as string[];
-      if (bestPractices && bestPractices.length > 0) {
-        addSection('Best Practices');
-        bestPractices.forEach((practice, idx) => {
-          addText(`${idx + 1}. ${practice}`, 5);
-        });
-      }
-
-      // Footer
-      pdf.setFontSize(8);
-      pdf.setTextColor(150, 150, 150);
-      pdf.text('Generated by Kim Is Back - AI Performance Analysis', pageWidth / 2, pageHeight - 10, { align: 'center' });
-
-      // Download
-      pdf.save(`${stats.groupName || 'performance'}_analysis_report.pdf`);
     } catch (error) {
       console.error('PDF generation error:', error);
       alert('PDF 생성 중 오류가 발생했습니다.');
@@ -1172,7 +1089,7 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
               <h2 className="text-3xl font-black uppercase gold-gradient">AI 종합 성과 분석</h2>
               <div className="flex gap-2">
                 {analysisResult && (
-                  <BrutalistButton variant="gold" onClick={handleDownloadAnalysisPDF} className="text-sm">
+                  <BrutalistButton variant="gold" onClick={handleDownloadAnalysisPDF} className="text-sm" data-pdf-button>
                     📥 PDF 다운로드
                   </BrutalistButton>
                 )}
@@ -1200,7 +1117,7 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
             )}
 
             {analysisResult && analysisStats && (
-              <div className="space-y-6">
+              <div id="analysis-pdf-content" className="space-y-6">
                 {/* Statistics Cards */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <BrutalistCard className="text-center bg-gradient-to-br from-green-900/50 to-green-700/30">

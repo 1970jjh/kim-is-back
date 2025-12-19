@@ -197,10 +197,6 @@ const R5_SAMPLE_IMAGE = 'https://i.imgur.com/TlJe72B.jpeg';
 const R5_STORY = "삭막했던 공장 주변에도 어느덧 5월의 신록이 우거졌다. '자연과 하나 된 조직만이 살아남는다!'는 공장장의 뜬금없는 지령, 이것도 본사 복귀 고과에 반영되는 건가? 지금 당장 밖으로 나가 푸른 나무나 식물을 배경으로, 팀원들과 함께 '완벽한 원팀' 인증샷을 찍어오라!";
 
 // R6 사진 퀴즈 (6월)
-const R6_IMAGES = [
-  { id: 1, url: 'https://images.unsplash.com/photo-1605833556294-ea5c7a74f57d?w=600', title: '힌트 1' },
-  { id: 2, url: 'https://images.unsplash.com/photo-1581351721010-8cf859cb14a4?w=600', title: '힌트 2' }
-];
 const R6_CORRECT_ANSWER = 'BERLIN';
 const R6_STORY = "무더위가 시작되는 6월, 당신의 인사권을 쥔 본사 임원이 극비리에 출장을 떠났다는 첩보가 입수됐다. 그가 머무는 곳을 알아내 줄을 댈 수 있는 천재일우의 기회, 이 동아줄을 반드시 잡아야 한다! 남겨진 단서들을 조합해, 상무님이 머물고 있는 출장지를 정확히 추적하라.";
 const R6_MISSION_IMAGE = 'https://i.ibb.co/dsrs3Pzm/image.jpg';
@@ -211,7 +207,6 @@ const R7_CORRECT_ANSWER = '환불';
 const R7_STORY = "무더운 7월, 본사 복귀를 위해선 임원 라인뿐 아니라 '현장의 위기 관리 능력'까지 완벽하게 증명해야 한다. 단순한 민원 접수가 아니다. \"그냥 좀 불편하네\"라는 주민들의 말 뒤에 숨겨진, 등골 서늘한 진짜 속내를 읽어내야 한다. 겉과 속이 다른 VOC의 진의(眞意)를 정확히 파악해, 당신이 역시 본사로 복귀해야만 하는 뛰어난 '해결사'임을 입증하라!";
 
 // R8 문신 퀴즈 (8월)
-const R8_IMAGE = 'https://images.unsplash.com/photo-1611501275019-9b5cda994e8d?w=600';
 const R8_CORRECT_ANSWER = 'STAR';
 const R8_STORY = "앞선 현장 위기 관리 미션을 완벽하게 수행해낸 당신, 그 능력이 본사까지 전해진 걸까? 그룹의 핵심 실세인 전무님이 극비리에 공장을 방문했다는 첩보가 들어왔다. 그를 식별할 유일한 단서는 전무님 팔뚝의 문신 뿐!! 당신의 유려한 화술로 그가 스스로 소매를 걷게 만들어 문신의 문양을 확인하라!";
 const R8_MISSION_IMAGE = 'https://i.ibb.co/WpPXDVch/image.jpg';
@@ -302,7 +297,6 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
   const [r6Answer, setR6Answer] = useState('');
   const [r6Cleared, setR6Cleared] = useState(false);
   const [r6Error, setR6Error] = useState('');
-  const [r6SelectedImage, setR6SelectedImage] = useState<number | null>(null);
 
   // 지령 이미지 팝업 상태 (R6, R8, R10용)
   const [missionImagePopup, setMissionImagePopup] = useState<string | null>(null);
@@ -2218,16 +2212,6 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
             <p className="text-center text-sm text-gray-400 mt-2">👆 클릭하여 크게 보기</p>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            {R6_IMAGES.map((img) => (
-              <div key={img.id} className="cursor-pointer brutal-border overflow-hidden hover:scale-105 transition-transform" onClick={() => setR6SelectedImage(img.id)}>
-                <img src={img.url} alt={img.title} className="w-full h-48 object-cover" />
-                <p className="text-center font-black py-2 bg-white text-black">{img.title}</p>
-              </div>
-            ))}
-          </div>
-          <p className="text-center text-sm text-gray-400">👆 이미지를 클릭하여 크게 보기</p>
-
           {r6Cleared ? (
             <div className="space-y-6 animate-fadeIn">
               <div className="bg-green-600 text-white p-8 brutal-border brutalist-shadow text-center">
@@ -2254,18 +2238,6 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
             </BrutalistCard>
           )}
         </div>
-
-        {r6SelectedImage && (
-          <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setR6SelectedImage(null)}>
-            <div className="max-w-3xl w-full bg-white brutal-border brutalist-shadow" onClick={(e) => e.stopPropagation()}>
-              <div className="flex justify-between items-center p-3 bg-yellow-400 border-b-4 border-black">
-                <span className="font-black text-black">{R6_IMAGES.find(p => p.id === r6SelectedImage)?.title}</span>
-                <button onClick={() => setR6SelectedImage(null)} className="bg-black text-white px-4 py-2 font-black brutal-border">닫기 ✕</button>
-              </div>
-              <img src={R6_IMAGES.find(p => p.id === r6SelectedImage)?.url} alt="이미지" className="w-full" />
-            </div>
-          </div>
-        )}
 
         {/* 지령 이미지 팝업 */}
         {missionImagePopup && (
@@ -2396,8 +2368,6 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
             <img src={R8_MISSION_IMAGE} alt="R8 지령" className="w-full max-w-md mx-auto brutal-border brutalist-shadow hover:scale-105 transition-transform" />
             <p className="text-center text-sm text-gray-400 mt-2">👆 클릭하여 크게 보기</p>
           </div>
-
-          <img src={R8_IMAGE} alt="전무님 문신 힌트" className="w-full max-w-md mx-auto brutal-border brutalist-shadow" />
 
           {r8Cleared ? (
             <div className="space-y-6 animate-fadeIn">
