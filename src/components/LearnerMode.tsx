@@ -12,6 +12,93 @@ const formatTime = (seconds: number): string => {
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 };
 
+// ==========================================
+// R4 AUDIO ENGINE (Web Audio API)
+// ==========================================
+let audioCtx: AudioContext | null = null;
+
+const getAudioContext = () => {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+  }
+  return audioCtx;
+};
+
+const R4Sounds = {
+  playTick: (rate: number) => {
+    const ctx = getAudioContext();
+    if (ctx.state === 'suspended') ctx.resume();
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'square';
+    // Pitch increases as time runs out (rate 0 to 1)
+    // Base 400Hz -> Max 800Hz
+    osc.frequency.setValueAtTime(400 + (rate * 400), ctx.currentTime);
+
+    gain.gain.setValueAtTime(0.1, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start();
+    osc.stop(ctx.currentTime + 0.1);
+  },
+  playError: () => {
+    const ctx = getAudioContext();
+    if (ctx.state === 'suspended') ctx.resume();
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(100, ctx.currentTime);
+    osc.frequency.linearRampToValueAtTime(50, ctx.currentTime + 0.5);
+    gain.gain.setValueAtTime(0.5, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.5);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.5);
+  },
+  playCorrect: () => {
+    const ctx = getAudioContext();
+    if (ctx.state === 'suspended') ctx.resume();
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(600, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1);
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.2);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.2);
+  },
+  playAlarm: () => {
+    const ctx = getAudioContext();
+    if (ctx.state === 'suspended') ctx.resume();
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(800, ctx.currentTime);
+    gain.gain.setValueAtTime(0.2, ctx.currentTime);
+
+    // Siren effect
+    osc.frequency.linearRampToValueAtTime(400, ctx.currentTime + 0.5);
+    osc.frequency.linearRampToValueAtTime(800, ctx.currentTime + 1.0);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 1.0);
+  }
+};
+
 const formatTimeWithHours = (seconds: number): string => {
   const hours = Math.floor(seconds / 3600);
   const mins = Math.floor((seconds % 3600) / 60);
@@ -180,10 +267,16 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
   const [r4CurrentSet, setR4CurrentSet] = useState(0);
   const [r4FoundDifferences, setR4FoundDifferences] = useState<{[setIndex: number]: number[]}>({});
   const [r4Failed, setR4Failed] = useState(false);
+  const [r4FailReason, setR4FailReason] = useState<string>('');
   const [r4RetryCountdown, setR4RetryCountdown] = useState(0);
   const [r4Cleared, setR4Cleared] = useState(false);
   const [r4CompletionTime, setR4CompletionTime] = useState('');
   const [r4StartTime, setR4StartTime] = useState<number | null>(null);
+  const [r4Mistakes, setR4Mistakes] = useState(0);
+  const [r4ScreenShake, setR4ScreenShake] = useState(false);
+  const [r4WrongMarkers, setR4WrongMarkers] = useState<{x: number, y: number, id: number}[]>([]);
+  const r4SoundIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const r4WrongMarkerIdRef = useRef(0);
 
   // R5 팀 단체사진 상태 (5월)
   const [r5ImagePreview, setR5ImagePreview] = useState<string | null>(null);
@@ -396,35 +489,67 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
     setViewState('factory');
   };
 
-  // R4 게임 타이머 (4월 틀린그림찾기)
+  // R4 게임 타이머 (4월 틀린그림찾기) - 0.1초 단위로 업데이트
   useEffect(() => {
     if (!r4GameStarted || r4Failed || r4Cleared) return;
 
     if (r4TimeLeft <= 0) {
       setR4Failed(true);
-      setR4RetryCountdown(10);
+      setR4FailReason('시간 초과');
+      setR4RetryCountdown(5);
+      R4Sounds.playAlarm();
       return;
     }
 
     const timer = setInterval(() => {
-      setR4TimeLeft(prev => prev - 1);
-    }, 1000);
+      setR4TimeLeft(prev => Math.max(0, prev - 0.1));
+    }, 100);
 
     return () => clearInterval(timer);
   }, [r4GameStarted, r4TimeLeft, r4Failed, r4Cleared]);
 
-  // R4 재도전 카운트다운
+  // R4 긴장감 효과음 (시간이 갈수록 빨라짐)
+  useEffect(() => {
+    if (!r4GameStarted || r4Failed || r4Cleared) return;
+
+    const scheduleTick = () => {
+      const progress = 1 - (r4TimeLeft / 60); // 0 to 1
+      const delay = Math.max(100, 1000 - (progress * 900)); // 1000ms -> 100ms
+
+      R4Sounds.playTick(progress);
+
+      r4SoundIntervalRef.current = setTimeout(scheduleTick, delay);
+    };
+
+    scheduleTick();
+
+    return () => {
+      if (r4SoundIntervalRef.current) {
+        clearTimeout(r4SoundIntervalRef.current);
+      }
+    };
+  }, [r4GameStarted, r4Failed, r4Cleared]);
+
+  // R4 재도전 카운트다운 (5초)
   useEffect(() => {
     if (!r4Failed || r4RetryCountdown <= 0) return;
+
+    // 알람 사운드 반복
+    const alarmInterval = setInterval(() => {
+      R4Sounds.playAlarm();
+    }, 1000);
 
     const timer = setInterval(() => {
       setR4RetryCountdown(prev => {
         if (prev <= 1) {
           // 리셋 및 재시작
           setR4Failed(false);
+          setR4FailReason('');
           setR4TimeLeft(60);
           setR4CurrentSet(0);
           setR4FoundDifferences({});
+          setR4Mistakes(0);
+          setR4WrongMarkers([]);
           setR4StartTime(Date.now());
           return 0;
         }
@@ -432,19 +557,30 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
       });
     }, 1000);
 
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      clearInterval(alarmInterval);
+    };
   }, [r4Failed, r4RetryCountdown]);
 
   // R4 게임 시작
   const startR4Game = () => {
+    // Audio context permission
+    const ctx = getAudioContext();
+    if (ctx.state === 'suspended') ctx.resume();
+
     setR4GameStarted(true);
     setR4TimeLeft(60);
     setR4CurrentSet(0);
     setR4FoundDifferences({});
     setR4Failed(false);
+    setR4FailReason('');
     setR4Cleared(false);
     setR4CompletionTime('');
     setR4StartTime(Date.now());
+    setR4Mistakes(0);
+    setR4WrongMarkers([]);
+    setR4ScreenShake(false);
   };
 
   // R4 이미지 클릭 처리 (좌표 기반 정답 판정)
@@ -458,6 +594,8 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
     const currentStage = R4_GAME_DATA[r4CurrentSet];
     const currentFound = r4FoundDifferences[r4CurrentSet] || [];
 
+    let hit = false;
+
     // 클릭 위치가 어떤 정답에 해당하는지 확인
     for (let i = 0; i < currentStage.answers.length; i++) {
       if (currentFound.includes(i)) continue; // 이미 찾은 것
@@ -467,6 +605,9 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
 
       if (distance <= answer.r) {
         // 정답 발견!
+        hit = true;
+        R4Sounds.playCorrect();
+
         const newFound = {
           ...r4FoundDifferences,
           [r4CurrentSet]: [...currentFound, i]
@@ -492,6 +633,32 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
           }
         }
         break;
+      }
+    }
+
+    // 오답 처리
+    if (!hit) {
+      R4Sounds.playError();
+      const newMistakes = r4Mistakes + 1;
+      setR4Mistakes(newMistakes);
+
+      // 오답 마커 추가 (1초 후 자동 삭제)
+      const markerId = r4WrongMarkerIdRef.current++;
+      setR4WrongMarkers(prev => [...prev, { x: clickX, y: clickY, id: markerId }]);
+      setTimeout(() => {
+        setR4WrongMarkers(prev => prev.filter(m => m.id !== markerId));
+      }, 1000);
+
+      // 화면 흔들림 효과
+      setR4ScreenShake(true);
+      setTimeout(() => setR4ScreenShake(false), 300);
+
+      // 2번 실수 시 FAIL
+      if (newMistakes >= 2) {
+        setR4Failed(true);
+        setR4FailReason('오답 과다 발생');
+        setR4RetryCountdown(5);
+        R4Sounds.playAlarm();
       }
     }
   };
@@ -1556,110 +1723,179 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
           )}
         </div>
 
-        {/* 인앱 팝업: 틀린 그림 찾기 게임 */}
+        {/* 인앱 팝업: 틀린 그림 찾기 게임 - 브루탈리즘 디자인 */}
         {r4GameStarted && !r4Cleared && (
-          <div className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-2 overflow-auto">
-            <div className="max-w-4xl w-full space-y-3 relative">
-              {/* 닫기(X) 버튼 */}
-              <button
-                onClick={() => {
-                  setR4GameStarted(false);
-                  setR4TimeLeft(60);
-                  setR4CurrentSet(0);
-                  setR4FoundDifferences({});
-                  setR4Failed(false);
-                }}
-                className="absolute -top-2 -right-2 z-10 bg-red-600 text-white w-10 h-10 rounded-full brutal-border font-black text-xl hover:bg-red-500 transition-colors flex items-center justify-center"
-              >
-                ✕
-              </button>
-              {r4Failed ? (
-                <div className="bg-red-600 text-white p-8 brutal-border brutalist-shadow text-center animate-fadeIn">
-                  <h2 className="text-4xl font-black mb-4">시간 초과!</h2>
-                  <p className="text-xl">1분 안에 모든 차이점을 찾지 못했습니다.</p>
-                  <p className="text-6xl font-mono font-black mt-6">{r4RetryCountdown}초</p>
-                  <p className="text-lg mt-2">후 자동으로 재도전합니다...</p>
+          <div
+            className="fixed inset-0 z-[100] flex flex-col items-center justify-center p-2 md:p-4 overflow-hidden"
+            style={{
+              backgroundColor: '#3333ff',
+              backgroundImage: 'radial-gradient(#000 10%, transparent 10%)',
+              backgroundPosition: '0 0',
+              backgroundSize: '20px 20px',
+            }}
+          >
+            {/* Header Stats - 브루탈리즘 */}
+            <header className="w-full max-w-5xl flex justify-between items-stretch mb-2 md:mb-4 bg-white border-4 border-black" style={{ boxShadow: '8px 8px 0px 0px #000' }}>
+              <div className="p-2 md:p-4 border-r-4 border-black bg-yellow-300 flex-1">
+                <h1 className="text-lg md:text-2xl font-black tracking-tighter italic font-mono">틀린_그림_찾기_v2.0</h1>
+                <p className="text-[10px] md:text-xs font-mono font-bold mt-1">© 김부장님_에디션</p>
+              </div>
+
+              <div className="flex">
+                <div className="p-2 md:p-4 border-r-4 border-black text-center min-w-[60px] md:min-w-[100px] flex flex-col justify-center bg-white">
+                  <p className="text-[10px] md:text-xs font-bold bg-black text-white inline-block px-1 mb-1">스테이지</p>
+                  <p className="text-xl md:text-3xl font-black"><span>{r4CurrentSet + 1}</span><span className="text-sm md:text-base text-gray-500">/3</span></p>
                 </div>
-              ) : (
-                <>
-                  {/* 게임 상태 바 */}
-                  <div className="flex justify-between items-center bg-black p-3 brutal-border">
-                    <div className={`px-4 py-2 brutal-border ${r4TimeLeft <= 10 ? 'bg-red-600 animate-pulse' : 'bg-yellow-400'}`}>
-                      <span className={`text-3xl font-mono font-black ${r4TimeLeft <= 10 ? 'text-white' : 'text-black'}`}>
-                        {formatTime(r4TimeLeft)}
-                      </span>
-                    </div>
-                    <div className="text-center">
-                      <span className="bg-white text-black px-4 py-2 font-black inline-block brutal-border">
-                        STAGE {r4CurrentSet + 1}/3
-                      </span>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-2xl font-black text-yellow-400">{getR4TotalFoundDifferences()}/9</span>
-                    </div>
-                  </div>
-
-                  {/* 스테이지 진행 바 */}
-                  <div className="flex gap-2">
-                    {R4_GAME_DATA.map((_, idx) => {
-                      const foundCount = (r4FoundDifferences[idx] || []).length;
-                      return (
-                        <div
-                          key={idx}
-                          className={`flex-1 p-2 brutal-border text-center ${
-                            idx === r4CurrentSet
-                              ? 'bg-yellow-400 text-black'
-                              : foundCount === 3
-                              ? 'bg-green-600 text-white'
-                              : 'bg-white/10'
-                          }`}
-                        >
-                          <p className="text-xs font-bold">STAGE {idx + 1}</p>
-                          <p className="font-black">{foundCount}/3</p>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* 단일 이미지 - 클릭으로 정답 찾기 */}
-                  <div className="relative">
-                    <p className="text-sm text-center text-gray-400 mb-2">그림에서 틀린 부분 3개를 클릭하세요!</p>
-                    <div
-                      className="relative brutal-border overflow-hidden bg-black cursor-crosshair mx-auto"
-                      style={{ maxWidth: '600px' }}
-                      onClick={handleR4ImageClick}
-                    >
-                      <img
-                        src={r4CurrentStage?.img}
-                        alt={`Stage ${r4CurrentSet + 1}`}
-                        className="w-full h-auto"
-                        draggable={false}
+                <div className="p-2 md:p-4 border-r-4 border-black text-center min-w-[60px] md:min-w-[100px] flex flex-col justify-center bg-white">
+                  <p className="text-[10px] md:text-xs font-bold bg-black text-white inline-block px-1 mb-1">찾음</p>
+                  <p className="text-xl md:text-3xl font-black text-green-600"><span>{r4FoundInCurrentSet.length}</span><span className="text-sm md:text-base text-gray-500">/3</span></p>
+                </div>
+                <div className="p-2 md:p-4 text-center min-w-[60px] md:min-w-[100px] flex flex-col justify-center bg-red-100">
+                  <p className="text-[10px] md:text-xs font-bold bg-red-600 text-white inline-block px-1 mb-1">목숨</p>
+                  <div className="flex gap-1 justify-center mt-1">
+                    {[0, 1].map((i) => (
+                      <div
+                        key={i}
+                        className="w-3 h-3 md:w-4 md:h-4 border-2 border-black"
+                        style={{
+                          backgroundColor: i < (2 - r4Mistakes) ? '#cc0000' : 'transparent',
+                          opacity: i < (2 - r4Mistakes) ? 1 : 0.2
+                        }}
                       />
-                      {/* 찾은 정답 표시 */}
-                      {r4CurrentStage?.answers.map((answer, idx) => (
-                        r4FoundInCurrentSet.includes(idx) && (
-                          <div
-                            key={idx}
-                            className="absolute border-4 border-green-400 rounded-full animate-pulse bg-green-400/30"
-                            style={{
-                              left: `${answer.x}%`,
-                              top: `${answer.y}%`,
-                              width: `${answer.r * 2}%`,
-                              height: `${answer.r * 2}%`,
-                              transform: 'translate(-50%, -50%)'
-                            }}
-                          />
-                        )
-                      ))}
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </header>
+
+            {/* Main Game Area - 브루탈리즘 */}
+            <main
+              className={`w-full max-w-5xl flex-grow relative flex bg-white border-4 border-black overflow-hidden ${r4ScreenShake ? 'animate-pulse' : ''}`}
+              style={{
+                boxShadow: '8px 8px 0px 0px #000',
+                maxHeight: 'calc(100vh - 180px)',
+                animation: r4ScreenShake ? 'glitch-skew 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) both' : 'none'
+              }}
+            >
+              {/* Image Area */}
+              <div className="relative flex-grow h-full overflow-hidden border-r-4 border-black">
+                <div
+                  className="w-full h-full bg-gray-200 relative cursor-crosshair"
+                  onClick={handleR4ImageClick}
+                >
+                  <img
+                    src={r4CurrentStage?.img}
+                    alt={`Stage ${r4CurrentSet + 1}`}
+                    className="w-full h-full object-contain block select-none"
+                    draggable={false}
+                  />
+
+                  {/* 찾은 정답 마커 (녹색 사각형) */}
+                  {r4CurrentStage?.answers.map((answer, idx) => (
+                    r4FoundInCurrentSet.includes(idx) && (
+                      <div
+                        key={idx}
+                        className="absolute border-4 border-green-500 bg-green-500/30 pointer-events-none"
+                        style={{
+                          left: `${answer.x}%`,
+                          top: `${answer.y}%`,
+                          width: '40px',
+                          height: '40px',
+                          transform: 'translate(-50%, -50%)',
+                          zIndex: 10
+                        }}
+                      />
+                    )
+                  ))}
+
+                  {/* 오답 마커 (빨간 사각형) */}
+                  {r4WrongMarkers.map((marker) => (
+                    <div
+                      key={marker.id}
+                      className="absolute border-4 border-red-500 bg-red-500/50 pointer-events-none"
+                      style={{
+                        left: `${marker.x}%`,
+                        top: `${marker.y}%`,
+                        width: '40px',
+                        height: '40px',
+                        transform: 'translate(-50%, -50%)',
+                        zIndex: 10
+                      }}
+                    />
+                  ))}
+                </div>
+
+                {/* Warning Overlay (Fail) */}
+                {r4Failed && (
+                  <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-red-600">
+                    <h2 className="text-4xl md:text-8xl font-black text-white mb-4 text-center leading-none animate-pulse">
+                      시스템<br/>오류
+                    </h2>
+                    <div className="bg-black text-yellow-300 p-4 border-4 border-white">
+                      <p className="text-sm md:text-xl font-mono font-bold text-center">치명적 오류: {r4FailReason}</p>
+                      <p className="text-2xl md:text-4xl font-mono font-bold text-center mt-2">시스템 재부팅 <span>{r4RetryCountdown}</span>초 전</p>
                     </div>
                   </div>
+                )}
+              </div>
 
-                  <p className="text-center text-lg text-yellow-400 font-bold">
-                    현재 스테이지: {r4FoundInCurrentSet.length}/3 발견
-                  </p>
-                </>
-              )}
-            </div>
+              {/* Vertical Timer Bar (Right Side) */}
+              <div className="w-8 md:w-12 bg-black border-l-4 border-black relative flex flex-col justify-end">
+                <div
+                  className="w-full absolute top-0 left-0 transition-all duration-100 ease-linear"
+                  style={{
+                    height: `${((60 - r4TimeLeft) / 60) * 100}%`,
+                    backgroundColor: r4TimeLeft <= 18 ? '#ff0000' : r4TimeLeft <= 36 ? '#ffff00' : '#00cc66'
+                  }}
+                />
+                <div
+                  className="z-10 absolute bottom-2 w-full text-center text-white font-mono font-bold text-xs"
+                  style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
+                >
+                  시간
+                </div>
+              </div>
+            </main>
+
+            {/* Footer */}
+            <footer className="w-full text-center mt-2 md:mt-4">
+              <p className="text-[10px] md:text-xs font-mono font-bold bg-white inline-block px-2 border-2 border-black">
+                © 2026 JJ CREATIVE Edu with AI. All Rights Reserved.
+              </p>
+            </footer>
+
+            {/* 닫기(X) 버튼 */}
+            <button
+              onClick={() => {
+                setR4GameStarted(false);
+                setR4TimeLeft(60);
+                setR4CurrentSet(0);
+                setR4FoundDifferences({});
+                setR4Failed(false);
+                setR4FailReason('');
+                setR4Mistakes(0);
+                setR4WrongMarkers([]);
+                if (r4SoundIntervalRef.current) {
+                  clearTimeout(r4SoundIntervalRef.current);
+                }
+              }}
+              className="absolute top-4 right-4 z-[101] bg-white text-black w-10 h-10 md:w-12 md:h-12 border-4 border-black font-black text-xl hover:bg-yellow-300 transition-colors flex items-center justify-center"
+              style={{ boxShadow: '4px 4px 0px 0px #000' }}
+            >
+              ✕
+            </button>
+
+            {/* CSS for glitch animation */}
+            <style>{`
+              @keyframes glitch-skew {
+                0% { transform: translate(0) }
+                20% { transform: translate(-5px, 5px) }
+                40% { transform: translate(-5px, -5px) }
+                60% { transform: translate(5px, 5px) }
+                80% { transform: translate(5px, -5px) }
+                100% { transform: translate(0) }
+              }
+            `}</style>
           </div>
         )}
 
