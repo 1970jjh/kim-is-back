@@ -10,8 +10,8 @@ const GEMINI_TEXT_URL = 'https://generativelanguage.googleapis.com/v1beta/models
 const GEMINI_IMAGE_GEN_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent';
 // Gemini 3 Pro Image Preview - 이미지 심층 분석 & 텍스트 렌더링 강화, 디자인 이미지 생성 (메인 이미지 생성 모델)
 const GEMINI_3_PRO_IMAGE_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent';
-// Gemini 2.5 Pro Preview - 텍스트 분석 및 종합 리포트 생성
-const GEMINI_3_PRO_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro-preview-06-05:generateContent';
+// Gemini 3 Flash Preview - 텍스트 분석 및 종합 리포트 생성 (최신 모델)
+const GEMINI_PRO_TEXT_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // CORS headers
@@ -700,9 +700,9 @@ ${bestMissions || '수집된 소감 없음'}
 반드시 JSON 형식으로만 응답해주세요.`;
 
   try {
-    console.log('Calling Gemini Pro for total performance analysis...');
+    console.log('Calling Gemini 3 Flash Preview for total performance analysis...');
 
-    const response = await fetch(`${GEMINI_3_PRO_URL}?key=${GEMINI_API_KEY}`, {
+    const response = await fetch(`${GEMINI_PRO_TEXT_URL}?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

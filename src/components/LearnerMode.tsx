@@ -203,6 +203,7 @@ const R6_IMAGES = [
 ];
 const R6_CORRECT_ANSWER = 'BERLIN';
 const R6_STORY = "무더위가 시작되는 6월, 당신의 인사권을 쥔 본사 임원이 극비리에 출장을 떠났다는 첩보가 입수됐다. 그가 머무는 곳을 알아내 줄을 댈 수 있는 천재일우의 기회, 이 동아줄을 반드시 잡아야 한다! 남겨진 단서들을 조합해, 상무님이 머물고 있는 출장지를 정확히 추적하라.";
+const R6_MISSION_IMAGE = 'https://i.ibb.co/dsrs3Pzm/image.jpg';
 
 // R7 음성 퀴즈 (7월)
 const R7_AUDIO_URL = 'https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3'; // 샘플 음성
@@ -213,12 +214,14 @@ const R7_STORY = "무더운 7월, 본사 복귀를 위해선 임원 라인뿐 �
 const R8_IMAGE = 'https://images.unsplash.com/photo-1611501275019-9b5cda994e8d?w=600';
 const R8_CORRECT_ANSWER = 'STAR';
 const R8_STORY = "앞선 현장 위기 관리 미션을 완벽하게 수행해낸 당신, 그 능력이 본사까지 전해진 걸까? 그룹의 핵심 실세인 전무님이 극비리에 공장을 방문했다는 첩보가 들어왔다. 그를 식별할 유일한 단서는 전무님 팔뚝의 문신 뿐!! 당신의 유려한 화술로 그가 스스로 소매를 걷게 만들어 문신의 문양을 확인하라!";
+const R8_MISSION_IMAGE = 'https://i.ibb.co/WpPXDVch/image.jpg';
 
 // R9 심폐소생술 게임 (9월)
 const R9_STORY = "전무에게 확실한 눈도장을 찍으며 승승장구하던 찰나, 현장에서 \"쿵!\" 하는 소리와 함께 다급한 비명이 들려온다. \"사람이 쓰러졌습니다!\" 골든타임은 단 4분, 안전관리팀장으로서 동료의 생명을 구할 절체절명의 순간이다. 당신의 두 손에 모든 것이 달렸다. 흐트러짐 없는 박자와 정확한 속도로 심폐소생술을 실시해, 멈춰버린 심장을 다시 뛰게 하라!";
 
 // R10 팀워크 미션 (10월)
 const R10_STORY = "김부장의 눈부신 CPR 실력으로 쓰러졌던 직원은 다행히 의식을 찾았지만, 그 과정에서 공장 내부는 태풍이 휩쓸고 간 듯 자재들이 뒤엉켜 아수라장이 되었다. \"이 상태로 10월 정기 감사가 나오면 끝장이다!\" 흩어진 자재들을 제자리에 완벽하게 끼워 맞추는 대대적인 '현장 정상화(5S)'가 시급하다. 팀원 모두가 앞으로 나와서 제한 시간 내에 어수선한 공장의 질서를 바로잡고, 칼 같은 정리 정돈 능력을 보여줘라!";
+const R10_MISSION_IMAGE = 'https://i.ibb.co/Xxh8xWrp/image.jpg';
 
 // R11 공감대화 (11월)
 const R11_STORY = "완벽하게 정돈된 공장, 하드웨어는 준비됐다. 이제 본사 복귀의 마지막 관문은 당신의 '소프트웨어', 즉 달라진 리더십을 증명하는 것이다. \"보고는 짧게, 성과는 숫자로!\"만 외치던 과거의 꼰대 김부장은 잊어라. 전무님과의 대화에서 필요한 건 화려한 언변이 아닌 '진심 어린 경청'과 '공감'뿐. AI가 당신의 대화 온도를 분석한다. 콧대 높은 전무님의 마음을 녹여 공감 점수 90점을 돌파하고, 진정한 리더의 자격을 완성하라!";
@@ -300,6 +303,9 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
   const [r6Cleared, setR6Cleared] = useState(false);
   const [r6Error, setR6Error] = useState('');
   const [r6SelectedImage, setR6SelectedImage] = useState<number | null>(null);
+
+  // 지령 이미지 팝업 상태 (R6, R8, R10용)
+  const [missionImagePopup, setMissionImagePopup] = useState<string | null>(null);
 
   // R7 음성 퀴즈 상태 (7월)
   const [r7Answer, setR7Answer] = useState('');
@@ -2206,6 +2212,12 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
             <p className="text-xl font-bold italic text-center">"{R6_STORY}"</p>
           </BrutalistCard>
 
+          {/* 지령 이미지 */}
+          <div className="cursor-pointer" onClick={() => setMissionImagePopup(R6_MISSION_IMAGE)}>
+            <img src={R6_MISSION_IMAGE} alt="R6 지령" className="w-full max-w-md mx-auto brutal-border brutalist-shadow hover:scale-105 transition-transform" />
+            <p className="text-center text-sm text-gray-400 mt-2">👆 클릭하여 크게 보기</p>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             {R6_IMAGES.map((img) => (
               <div key={img.id} className="cursor-pointer brutal-border overflow-hidden hover:scale-105 transition-transform" onClick={() => setR6SelectedImage(img.id)}>
@@ -2251,6 +2263,19 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
                 <button onClick={() => setR6SelectedImage(null)} className="bg-black text-white px-4 py-2 font-black brutal-border">닫기 ✕</button>
               </div>
               <img src={R6_IMAGES.find(p => p.id === r6SelectedImage)?.url} alt="이미지" className="w-full" />
+            </div>
+          </div>
+        )}
+
+        {/* 지령 이미지 팝업 */}
+        {missionImagePopup && (
+          <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setMissionImagePopup(null)}>
+            <div className="max-w-4xl w-full bg-white brutal-border brutalist-shadow" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between items-center p-3 bg-yellow-400 border-b-4 border-black">
+                <span className="font-black text-black text-lg">📋 지령서</span>
+                <button onClick={() => setMissionImagePopup(null)} className="bg-black text-white px-4 py-2 font-black brutal-border hover:bg-red-600 transition-colors">✕</button>
+              </div>
+              <img src={missionImagePopup} alt="지령 이미지" className="w-full" />
             </div>
           </div>
         )}
@@ -2366,6 +2391,12 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
             <p className="text-xl font-bold italic text-center">"{R8_STORY}"</p>
           </BrutalistCard>
 
+          {/* 지령 이미지 */}
+          <div className="cursor-pointer" onClick={() => setMissionImagePopup(R8_MISSION_IMAGE)}>
+            <img src={R8_MISSION_IMAGE} alt="R8 지령" className="w-full max-w-md mx-auto brutal-border brutalist-shadow hover:scale-105 transition-transform" />
+            <p className="text-center text-sm text-gray-400 mt-2">👆 클릭하여 크게 보기</p>
+          </div>
+
           <img src={R8_IMAGE} alt="전무님 문신 힌트" className="w-full max-w-md mx-auto brutal-border brutalist-shadow" />
 
           {r8Cleared ? (
@@ -2394,6 +2425,19 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
             </BrutalistCard>
           )}
         </div>
+
+        {/* 지령 이미지 팝업 */}
+        {missionImagePopup && (
+          <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setMissionImagePopup(null)}>
+            <div className="max-w-4xl w-full bg-white brutal-border brutalist-shadow" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between items-center p-3 bg-yellow-400 border-b-4 border-black">
+                <span className="font-black text-black text-lg">📋 지령서</span>
+                <button onClick={() => setMissionImagePopup(null)} className="bg-black text-white px-4 py-2 font-black brutal-border hover:bg-red-600 transition-colors">✕</button>
+              </div>
+              <img src={missionImagePopup} alt="지령 이미지" className="w-full" />
+            </div>
+          </div>
+        )}
 
         <div className="fixed bottom-4 right-4 z-40">
           <button onClick={() => setViewState('factory')} className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow">
@@ -2510,6 +2554,12 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
             <p className="text-xl font-bold italic text-center">"{R10_STORY}"</p>
           </BrutalistCard>
 
+          {/* 지령 이미지 */}
+          <div className="cursor-pointer" onClick={() => setMissionImagePopup(R10_MISSION_IMAGE)}>
+            <img src={R10_MISSION_IMAGE} alt="R10 지령" className="w-full max-w-md mx-auto brutal-border brutalist-shadow hover:scale-105 transition-transform" />
+            <p className="text-center text-sm text-gray-400 mt-2">👆 클릭하여 크게 보기</p>
+          </div>
+
           <BrutalistCard className="space-y-4 text-center">
             <p className="text-xl font-bold">팀원들과 함께 완벽한 3개의 정사각형을 완성하세요!</p>
             <p className="text-lg text-yellow-400">모두 앞으로 나오세요.</p>
@@ -2543,6 +2593,19 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
             </BrutalistCard>
           )}
         </div>
+
+        {/* 지령 이미지 팝업 */}
+        {missionImagePopup && (
+          <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setMissionImagePopup(null)}>
+            <div className="max-w-4xl w-full bg-white brutal-border brutalist-shadow" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between items-center p-3 bg-yellow-400 border-b-4 border-black">
+                <span className="font-black text-black text-lg">📋 지령서</span>
+                <button onClick={() => setMissionImagePopup(null)} className="bg-black text-white px-4 py-2 font-black brutal-border hover:bg-red-600 transition-colors">✕</button>
+              </div>
+              <img src={missionImagePopup} alt="지령 이미지" className="w-full" />
+            </div>
+          </div>
+        )}
 
         <div className="fixed bottom-4 right-4 z-40">
           <button onClick={() => setViewState('factory')} className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow">
