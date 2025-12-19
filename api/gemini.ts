@@ -41,6 +41,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.json(await validateReport(payload));
       case 'generateReportInfographic':
         return res.json(await generateReportInfographic(payload));
+      case 'generateWinnerPoster':
+        return res.json(await generateWinnerPoster(payload));
       default:
         return res.status(400).json({ error: 'Invalid action' });
     }
@@ -568,4 +570,101 @@ Create a 3:4 portrait poster with:
   }
 
   return { success: false, error: '보고서 이미지 생성에 실패했습니다. 잠시 후 다시 시도해주세요.' };
+}
+
+// Admin: Generate winner team poster with team photo (Gemini 3 Pro Image Preview)
+async function generateWinnerPoster(payload: {
+  imageBase64: string;
+  mimeType: string;
+  teamId: number;
+  teamName?: string;
+  rank?: number;
+  groupName?: string;
+}) {
+  const { imageBase64, mimeType, teamId, teamName, rank, groupName } = payload;
+
+  // 오늘 날짜
+  const today = new Date();
+  const dateStr = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, '0')}.${String(today.getDate()).padStart(2, '0')}`;
+
+  // 프롬프트 - 우승팀 포스터 생성 (원본 사진의 팀원들 얼굴 반영)
+  const prompt = `이 단체 사진을 기반으로 우승팀 축하 포스터를 생성해주세요.
+
+## 중요 요구사항
+- **원본 사진에 있는 사람들의 얼굴과 모습을 그대로 유지**해주세요
+- 사진 속 팀원들의 실제 얼굴이 포스터에 잘 보여야 합니다
+
+## 디자인 요구사항
+
+### 스타일
+- 3:4 세로 비율 포스터 (포트레이트)
+- 화려하고 축하하는 분위기
+- 골드, 블랙, 레드 컬러 스킴
+- 럭셔리하고 프로페셔널한 스타일
+
+### 레이아웃
+1. **상단**: 큰 타이틀 "CONGRATULATIONS!" 또는 "축하합니다!" (골드색)
+2. **중앙**: 원본 사진의 팀원들을 멋지게 배치 (얼굴이 선명하게)
+3. **팀 정보**:
+   - 팀 이름: "${teamName || `TEAM ${teamId}`}"
+   - 순위: ${rank ? `#${rank}` : '우승'}
+   ${groupName ? `- 교육그룹: "${groupName}"` : ''}
+4. **하단**: "김부장의 복귀 프로젝트 | ${dateStr}"
+5. **장식**: 금색 트로피, 별, 리본, 불꽃놀이 등 축하 요소
+
+### 스타일 효과
+- 영화 포스터 같은 드라마틱한 조명
+- 팀원들이 영웅처럼 보이도록 연출
+- 화려한 프레임과 장식 요소
+- 승리와 성취를 강조하는 시각적 요소`;
+
+  try {
+    console.log('Calling Gemini 3 Pro Image Preview for winner poster generation...');
+
+    const response = await fetch(`${GEMINI_3_PRO_IMAGE_URL}?key=${GEMINI_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: prompt },
+            {
+              inlineData: {
+                mimeType: mimeType,
+                data: imageBase64.replace(/^data:[^;]+;base64,/, '')
+              }
+            }
+          ]
+        }],
+        generationConfig: {
+          responseModalities: ["image", "text"],
+          temperature: 0.9
+        }
+      })
+    });
+
+    const data = await response.json();
+    console.log('Gemini 3 Pro winner poster response:', JSON.stringify(data).slice(0, 500));
+
+    if (data.error) {
+      console.error('Gemini 3 Pro winner poster error:', data.error);
+      return { success: false, error: data.error.message || '포스터 생성에 실패했습니다.' };
+    }
+
+    const parts = data.candidates?.[0]?.content?.parts || [];
+    for (const part of parts) {
+      if (part.inlineData) {
+        console.log('Successfully generated winner poster with Gemini 3 Pro Image Preview');
+        return {
+          success: true,
+          imageData: `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`
+        };
+      }
+    }
+
+    return { success: false, error: '포스터 이미지가 생성되지 않았습니다. 다시 시도해주세요.' };
+  } catch (error) {
+    console.error('Gemini 3 Pro winner poster API error:', error);
+    return { success: false, error: '포스터 생성 중 오류가 발생했습니다.' };
+  }
 }
