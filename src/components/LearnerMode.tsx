@@ -5,6 +5,7 @@ import { RoomState, TeamState, TeamPerformance } from '../types';
 import { BrutalistButton, BrutalistCard, BrutalistInput, BrutalistTextarea } from './BrutalistUI';
 import { ROUNDS } from '../constants';
 import CPRGame from './CPRGame';
+import { generateReportInfographic, generateResultPDF } from '../utils/canvasInfographic';
 
 // 시간 포맷팅 유틸
 const formatTime = (seconds: number): string => {
@@ -1006,27 +1007,19 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
       // AI 검증 스킵하고 바로 PASS 처리
       setR12ValidationResult({ pass: true, message: 'PASS! 보고서가 승인되었습니다. 인포그래픽을 생성합니다...' });
 
-      // 인포그래픽 생성 (최대 2회 시도)
+      // Canvas 기반 인포그래픽 생성
       setR12Generating(true);
-      let imgResult = await geminiService.generateReportInfographic(r12Report, auth.teamId);
-
-      // 첫 번째 시도 실패 시 재시도
-      if (!imgResult.success || !imgResult.imageData) {
-        console.log('First attempt failed, retrying...');
-        await new Promise(resolve => setTimeout(resolve, 1000)); // 1초 대기
-        imgResult = await geminiService.generateReportInfographic(r12Report, auth.teamId);
-      }
-
-      if (imgResult.success && imgResult.imageData) {
-        setR12InfographicUrl(imgResult.imageData);
-        setR12ValidationResult({ pass: true, message: '🎉 인포그래픽이 생성되었습니다! 다운로드 후 미션을 완료하세요.' });
+      try {
+        const imageData = await generateReportInfographic(r12Report, auth.teamId);
+        setR12InfographicUrl(imageData);
+        setR12ValidationResult({ pass: true, message: '인포그래픽이 생성되었습니다! 다운로드 후 미션을 완료하세요.' });
         // Firebase에 보고서 저장
-        await firebaseService.saveTeamReport(room.id, auth.teamId, r12Report, imgResult.imageData);
-      } else {
-        console.error('Image generation failed:', imgResult.error);
+        await firebaseService.saveTeamReport(room.id, auth.teamId, r12Report, imageData);
+      } catch (imgError) {
+        console.error('Image generation failed:', imgError);
         setR12ValidationResult({
           pass: true,
-          message: `PASS! 보고서가 승인되었습니다. (이미지 생성 실패: ${imgResult.error || '알 수 없는 오류'})`
+          message: 'PASS! 보고서가 승인되었습니다. (이미지 생성 중 오류 발생)'
         });
       }
       setR12Generating(false);
@@ -1145,18 +1138,6 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
             </BrutalistCard>
             <BrutalistCard className="text-center">
               <p className="text-sm text-gray-400 uppercase">총 소요시간</p>
-              <p className="text-4xl font-mono font-black">{formatTimeWithHours(myPerformanceWithRank.totalTimeWithBonus)}</p>
-              <p className="text-sm text-gray-400">헬프 포함</p>
-            </BrutalistCard>
-            <BrutalistCard className="text-center">
-              <p className="text-sm text-gray-400 uppercase">헬프 사용</p>
-              <p className="text-4xl font-black text-orange-400">
-                {myPerformanceWithRank.helpCount}회
-              </p>
-              <p className="text-sm text-orange-400">+{formatTime(myPerformanceWithRank.helpBonusTime)}</p>
-            </BrutalistCard>
-            <BrutalistCard className="text-center">
-              <p className="text-sm text-gray-400 uppercase">순수 미션 시간</p>
               <p className="text-4xl font-mono font-black">{formatTimeWithHours(myPerformanceWithRank.totalTime)}</p>
             </BrutalistCard>
           </div>
@@ -1188,6 +1169,57 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
               ))}
            </div>
         </section>
+
+        {/* R12 팀활동 보고서 인포그래픽 */}
+        {team?.teamReport?.imageData && (
+          <section className="mt-8">
+            <h4 className="text-xl font-black mb-4">팀활동 결과보고서</h4>
+            <div className="flex justify-center">
+              <img
+                src={team.teamReport.imageData}
+                alt="팀활동 결과보고서"
+                className="max-w-full brutal-border brutalist-shadow"
+                style={{ maxHeight: '600px' }}
+              />
+            </div>
+          </section>
+        )}
+
+        {/* PDF 다운로드 버튼 */}
+        <div className="mt-8">
+          <BrutalistButton
+            variant="gold"
+            fullWidth
+            className="text-xl"
+            onClick={async () => {
+              try {
+                const pdfBlob = await generateResultPDF(
+                  auth.teamId,
+                  {
+                    rank: myPerformanceWithRank.rank || 1,
+                    totalRanks: allPerformances.length,
+                    totalTime: myPerformanceWithRank.totalTime,
+                    totalTimeWithBonus: myPerformanceWithRank.totalTimeWithBonus,
+                    roundTimes: myPerformanceWithRank.roundTimes || {}
+                  },
+                  team?.members || [],
+                  team?.teamReport?.imageData
+                );
+                const url = URL.createObjectURL(pdfBlob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `TEAM${auth.teamId}_결과보고서.pdf`;
+                link.click();
+                URL.revokeObjectURL(url);
+              } catch (error) {
+                console.error('PDF 생성 실패:', error);
+                alert('PDF 생성 중 오류가 발생했습니다.');
+              }
+            }}
+          >
+            PDF 다운로드
+          </BrutalistButton>
+        </div>
       </div>
     );
   }
