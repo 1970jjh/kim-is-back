@@ -208,6 +208,8 @@ const App: React.FC = () => {
   const EventOverlay = () => {
     const [timeLeft, setTimeLeft] = useState<string>("");
     const [shouldHide, setShouldHide] = useState(false);
+    const [showCloseMessage, setShowCloseMessage] = useState(false);
+    const [isTimeUp, setIsTimeUp] = useState(false);
     const hasTriggeredClose = React.useRef(false);
     const currentEventRef = React.useRef<string | null>(null);
 
@@ -216,6 +218,8 @@ const App: React.FC = () => {
       if (currentRoom?.activeEvent !== currentEventRef.current) {
         hasTriggeredClose.current = false;
         setShouldHide(false);
+        setShowCloseMessage(false);
+        setIsTimeUp(false);
         currentEventRef.current = currentRoom?.activeEvent || null;
       }
     }, [currentRoom?.activeEvent]);
@@ -223,17 +227,15 @@ const App: React.FC = () => {
     useEffect(() => {
       if (!currentRoom?.eventEndTime) {
         setTimeLeft("");
+        setIsTimeUp(false);
         return;
       }
 
       // 즉시 체크 - 이미 만료되었는지 확인
       const initialDiff = currentRoom.eventEndTime - Date.now();
-      if (initialDiff <= 0 && !hasTriggeredClose.current) {
-        hasTriggeredClose.current = true;
+      if (initialDiff <= 0) {
         setTimeLeft("00:00");
-        setShouldHide(true);
-        // 강제 이벤트 종료 (더 강력한 방식)
-        firebaseService.forceEndAllEvents(currentRoom.id);
+        setIsTimeUp(true);
         return;
       }
 
@@ -242,14 +244,8 @@ const App: React.FC = () => {
         const diff = currentRoom.eventEndTime! - now;
         if (diff <= 0) {
           setTimeLeft("00:00");
+          setIsTimeUp(true);
           clearInterval(timer);
-          // 시간이 완료되면 자동으로 이벤트 강제 종료
-          if (!hasTriggeredClose.current) {
-            hasTriggeredClose.current = true;
-            setShouldHide(true);
-            // 강력한 강제 종료 사용
-            firebaseService.forceEndAllEvents(currentRoom.id);
-          }
         } else {
           const minutes = Math.floor(diff / 60000);
           const seconds = Math.floor((diff % 60000) / 1000);
@@ -259,6 +255,26 @@ const App: React.FC = () => {
 
       return () => clearInterval(timer);
     }, [currentRoom?.eventEndTime, currentRoom?.activeEvent, currentRoom?.id]);
+
+    // 닫기 버튼 클릭 핸들러
+    const handleCloseClick = () => {
+      // 타이머가 없는 이벤트는 닫을 수 없음
+      if (!currentRoom?.eventEndTime) {
+        setShowCloseMessage(true);
+        setTimeout(() => setShowCloseMessage(false), 3000);
+        return;
+      }
+
+      // 시간이 종료되었으면 닫기
+      if (isTimeUp) {
+        setShouldHide(true);
+        firebaseService.forceEndAllEvents(currentRoom.id);
+      } else {
+        // 시간 종료 전이면 메시지 표시
+        setShowCloseMessage(true);
+        setTimeout(() => setShowCloseMessage(false), 3000);
+      }
+    };
 
     // 강제 숨김 상태면 즉시 닫기
     if (shouldHide) {
@@ -301,30 +317,58 @@ const App: React.FC = () => {
 
     return (
       <div className="fixed inset-0 z-[9999] bg-black/70 flex items-center justify-center p-4 animate-fadeIn">
-        <BrutalistCard className="max-w-2xl w-full text-center space-y-4 bg-white text-black p-6 md:p-8 max-h-[90vh] overflow-y-auto">
-           <h2 className="text-4xl md:text-5xl font-black uppercase tracking-tighter">{eventInfo.label}</h2>
+        <div className="relative max-w-2xl w-full">
+          {/* 닫기(X) 버튼 */}
+          <button
+            onClick={handleCloseClick}
+            className={`absolute -top-3 -right-3 z-10 w-10 h-10 md:w-12 md:h-12 border-4 border-black font-black text-xl flex items-center justify-center transition-all ${
+              isTimeUp
+                ? 'bg-red-500 text-white hover:bg-red-400 cursor-pointer'
+                : 'bg-gray-300 text-gray-600 cursor-not-allowed'
+            }`}
+            style={{ boxShadow: '4px 4px 0px 0px #000' }}
+          >
+            ✕
+          </button>
 
-           {timeLeft && (
-             <div className="bg-yellow-400 p-3 brutal-border brutalist-shadow inline-block mx-auto">
-                <span className="text-4xl md:text-5xl font-mono font-black">{timeLeft}</span>
-             </div>
-           )}
+          <BrutalistCard className="w-full text-center space-y-4 bg-white text-black p-6 md:p-8 max-h-[90vh] overflow-y-auto">
+             <h2 className="text-4xl md:text-5xl font-black uppercase tracking-tighter">{eventInfo.label}</h2>
 
-           <img src={eventInfo.image} alt={eventInfo.label} className="w-full h-32 md:h-48 object-cover brutal-border brutalist-shadow" />
+             {timeLeft && (
+               <div className={`p-3 brutal-border brutalist-shadow inline-block mx-auto ${isTimeUp ? 'bg-red-500' : 'bg-yellow-400'}`}>
+                  <span className={`text-4xl md:text-5xl font-mono font-black ${isTimeUp ? 'text-white' : 'text-black'}`}>{timeLeft}</span>
+               </div>
+             )}
 
-           {/* 이벤트 지령 */}
-           {eventInfo.instruction && (
-             <div className="bg-yellow-100 border-4 border-yellow-400 p-3 md:p-4 brutal-border">
-               <p className="text-base md:text-lg font-bold text-black leading-relaxed">
-                 {eventInfo.instruction}
-               </p>
-             </div>
-           )}
+             {/* 닫기 불가 메시지 */}
+             {showCloseMessage && (
+               <div className="bg-red-100 border-4 border-red-500 p-3 animate-pulse">
+                 <p className="text-base md:text-lg font-bold text-red-600">
+                   {hasTimer ? '이벤트 시간 종료 후에 이벤트 닫기가 가능합니다.' : '본 이벤트는 강사님이 대시보드에서 해제할 때까지 닫을 수 없습니다.'}
+                 </p>
+               </div>
+             )}
 
-           <p className="text-sm md:text-base font-bold italic text-gray-600">
-             {hasTimer ? '타이머 종료 시 자동으로 닫힙니다.' : '본 팝업은 강사님이 대시보드에서 해제할 때까지 닫을 수 없습니다.'}
-           </p>
-        </BrutalistCard>
+             <img src={eventInfo.image} alt={eventInfo.label} className="w-full h-32 md:h-48 object-cover brutal-border brutalist-shadow" />
+
+             {/* 이벤트 지령 */}
+             {eventInfo.instruction && (
+               <div className="bg-yellow-100 border-4 border-yellow-400 p-3 md:p-4 brutal-border">
+                 <p className="text-base md:text-lg font-bold text-black leading-relaxed">
+                   {eventInfo.instruction}
+                 </p>
+               </div>
+             )}
+
+             <p className="text-sm md:text-base font-bold italic text-gray-600">
+               {isTimeUp
+                 ? '⬆️ 시간이 종료되었습니다. X 버튼을 눌러 닫으세요.'
+                 : hasTimer
+                   ? '타이머 종료 후 X 버튼으로 닫을 수 있습니다.'
+                   : '본 팝업은 강사님이 대시보드에서 해제할 때까지 닫을 수 없습니다.'}
+             </p>
+          </BrutalistCard>
+        </div>
       </div>
     );
   };
