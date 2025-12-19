@@ -127,11 +127,14 @@ export const geminiService = {
     }
   },
 
-  // R12: 팀활동 결과보고서 인포그래픽 생성
+  // R12: 팀활동 결과보고서 인포그래픽 생성 (Gemini 3 Pro Image Preview - 90초 대기)
   generateReportInfographic: async (
     report: { oneLine: string; bestMission: string; regret: string; futureHelp: string },
     teamId: number
   ): Promise<{ success: boolean; imageData?: string; error?: string }> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 90000); // 90초 타임아웃
+
     try {
       const response = await fetch(API_ENDPOINT, {
         method: 'POST',
@@ -139,8 +142,11 @@ export const geminiService = {
         body: JSON.stringify({
           action: 'generateReportInfographic',
           payload: { report, teamId }
-        })
+        }),
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const error = await response.json();
@@ -149,6 +155,11 @@ export const geminiService = {
 
       return await response.json();
     } catch (error) {
+      clearTimeout(timeoutId);
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.error('Gemini report infographic timeout (90s)');
+        return { success: false, error: '이미지 생성 시간이 초과되었습니다. 다시 시도해주세요.' };
+      }
       console.error('Gemini report infographic error:', error);
       return { success: false, error: '보고서 생성 중 오류가 발생했습니다.' };
     }

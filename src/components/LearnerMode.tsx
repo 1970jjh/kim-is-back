@@ -5,7 +5,7 @@ import { RoomState, TeamState, TeamPerformance } from '../types';
 import { BrutalistButton, BrutalistCard, BrutalistInput, BrutalistTextarea } from './BrutalistUI';
 import { ROUNDS } from '../constants';
 import CPRGame from './CPRGame';
-import { generateReportInfographic, generateResultPDF } from '../utils/canvasInfographic';
+import { generateResultPDF } from '../utils/canvasInfographic';
 
 // 시간 포맷팅 유틸
 const formatTime = (seconds: number): string => {
@@ -1005,21 +1005,31 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
 
     try {
       // AI 검증 스킵하고 바로 PASS 처리
-      setR12ValidationResult({ pass: true, message: 'PASS! 보고서가 승인되었습니다. 인포그래픽을 생성합니다...' });
+      setR12ValidationResult({ pass: true, message: 'PASS! 보고서가 승인되었습니다. AI 인포그래픽을 생성 중입니다... (최대 90초 소요)' });
 
-      // Canvas 기반 인포그래픽 생성
+      // Gemini 3 Pro Image Preview API로 인포그래픽 생성 (Canvas 폴백 없음)
       setR12Generating(true);
       try {
-        const imageData = await generateReportInfographic(r12Report, auth.teamId);
-        setR12InfographicUrl(imageData);
-        setR12ValidationResult({ pass: true, message: '인포그래픽이 생성되었습니다! 다운로드 후 미션을 완료하세요.' });
-        // Firebase에 보고서 저장
-        await firebaseService.saveTeamReport(room.id, auth.teamId, r12Report, imageData);
+        const result = await geminiService.generateReportInfographic(r12Report, auth.teamId);
+
+        if (result.success && result.imageData) {
+          setR12InfographicUrl(result.imageData);
+          setR12ValidationResult({ pass: true, message: '✨ AI 인포그래픽이 생성되었습니다! 다운로드 후 미션을 완료하세요.' });
+          // Firebase에 보고서 저장
+          await firebaseService.saveTeamReport(room.id, auth.teamId, r12Report, result.imageData);
+        } else {
+          // Gemini API 실패 시 에러 표시 (폴백 없음)
+          console.error('Gemini image generation failed:', result.error);
+          setR12ValidationResult({
+            pass: true,
+            message: `PASS! 보고서가 승인되었습니다. (이미지 생성 실패: ${result.error || '다시 시도해주세요'})`
+          });
+        }
       } catch (imgError) {
         console.error('Image generation failed:', imgError);
         setR12ValidationResult({
           pass: true,
-          message: 'PASS! 보고서가 승인되었습니다. (이미지 생성 중 오류 발생)'
+          message: 'PASS! 보고서가 승인되었습니다. (이미지 생성 중 오류 발생 - 다시 시도해주세요)'
         });
       }
       setR12Generating(false);
