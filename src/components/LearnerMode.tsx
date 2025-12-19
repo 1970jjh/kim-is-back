@@ -396,9 +396,9 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
           );
 
           if (allComplete && r4StartTime) {
-            // 게임 완료! - 초 단위로 기록
-            const elapsed = Math.floor((Date.now() - r4StartTime) / 1000);
-            setR4CompletionTime(String(elapsed)); // 초 단위 숫자 문자열
+            // 게임 완료! - 소수점 2자리까지 초 단위로 기록 (예: 17.54)
+            const elapsed = ((Date.now() - r4StartTime) / 1000).toFixed(2);
+            setR4CompletionTime(elapsed); // 소수점 포함 초 단위
             setR4Cleared(true);
             setR4GameStarted(false); // 팝업 자동 닫힘
           } else if (r4CurrentSet < R4_GAME_DATA.length - 1) {
@@ -777,7 +777,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
               <p className="text-xl">축하합니다! 신입사원 채용 미션을 완료했습니다.</p>
             </div>
             <BrutalistButton variant="gold" fullWidth className="text-2xl" onClick={handleR1Clear}>
-              공장으로 돌아가기
+              월 업무 마감하기(클릭)
             </BrutalistButton>
           </div>
         ) : isR1Completed ? (
@@ -834,7 +834,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
               </BrutalistButton>
             </BrutalistCard>
 
-            <BrutalistButton variant="ghost" onClick={() => setViewState('factory')}>← 공장으로 돌아가기</BrutalistButton>
+            <BrutalistButton variant="ghost" onClick={() => setViewState('factory')}>월 업무 마감하기(클릭)</BrutalistButton>
           </div>
         )}
 
@@ -894,7 +894,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
               <p className="text-xl">축하합니다! 매너리즘 미션을 완료했습니다.</p>
             </div>
             <BrutalistButton variant="gold" fullWidth className="text-2xl" onClick={handleR2Clear}>
-              공장으로 돌아가기
+              월 업무 마감하기(클릭)
             </BrutalistButton>
           </div>
         ) : isR2Completed ? (
@@ -960,7 +960,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
               </BrutalistButton>
             </BrutalistCard>
 
-            <BrutalistButton variant="ghost" onClick={() => setViewState('factory')}>← 공장으로 돌아가기</BrutalistButton>
+            <BrutalistButton variant="ghost" onClick={() => setViewState('factory')}>월 업무 마감하기(클릭)</BrutalistButton>
           </div>
         )}
 
@@ -1020,7 +1020,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
               <p className="text-xl">축하합니다! 공장 위치 미션을 완료했습니다.</p>
             </div>
             <BrutalistButton variant="gold" fullWidth className="text-2xl" onClick={handleR3Clear}>
-              공장으로 돌아가기
+              월 업무 마감하기(클릭)
             </BrutalistButton>
           </div>
         ) : isR3Completed ? (
@@ -1073,7 +1073,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
               </BrutalistButton>
             </BrutalistCard>
 
-            <BrutalistButton variant="ghost" onClick={() => setViewState('factory')}>← 공장으로 돌아가기</BrutalistButton>
+            <BrutalistButton variant="ghost" onClick={() => setViewState('factory')}>월 업무 마감하기(클릭)</BrutalistButton>
           </div>
         )}
 
@@ -1193,15 +1193,28 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
               <BrutalistButton variant="gold" fullWidth className="text-2xl" onClick={startR4Game}>
                 게임 시작!
               </BrutalistButton>
-              <BrutalistButton variant="ghost" onClick={() => setViewState('factory')}>← 공장으로 돌아가기</BrutalistButton>
+              <BrutalistButton variant="ghost" onClick={() => setViewState('factory')}>월 업무 마감하기(클릭)</BrutalistButton>
             </div>
           )}
         </div>
 
         {/* 인앱 팝업: 틀린 그림 찾기 게임 */}
         {r4GameStarted && !r4Cleared && (
-          <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-2 overflow-auto">
-            <div className="max-w-4xl w-full space-y-3">
+          <div className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-2 overflow-auto">
+            <div className="max-w-4xl w-full space-y-3 relative">
+              {/* 닫기(X) 버튼 */}
+              <button
+                onClick={() => {
+                  setR4GameStarted(false);
+                  setR4TimeLeft(60);
+                  setR4CurrentSet(0);
+                  setR4FoundDifferences({});
+                  setR4Failed(false);
+                }}
+                className="absolute -top-2 -right-2 z-10 bg-red-600 text-white w-10 h-10 rounded-full brutal-border font-black text-xl hover:bg-red-500 transition-colors flex items-center justify-center"
+              >
+                ✕
+              </button>
               {r4Failed ? (
                 <div className="bg-red-600 text-white p-8 brutal-border brutalist-shadow text-center animate-fadeIn">
                   <h2 className="text-4xl font-black mb-4">시간 초과!</h2>
@@ -1356,7 +1369,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
 
         {/* 네비게이션 버튼들 */}
         <div className="flex gap-4">
-          {/* 공장으로 돌아가기 */}
+          {/* 월 업무 마감하기 */}
           <BrutalistButton
             variant="ghost"
             onClick={() => setViewState('factory')}
