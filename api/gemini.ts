@@ -4,6 +4,8 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 const GEMINI_TEXT_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 const GEMINI_IMAGE_GEN_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent';
 const IMAGEN_URL = 'https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict';
+// Gemini 3 Pro Image Preview - 이미지 심층 분석 & 텍스트 렌더링 강화, 디자인 이미지 생성
+const GEMINI_3_PRO_IMAGE_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // CORS headers
@@ -348,12 +350,112 @@ JSON 형식으로 응답:
   return { pass: false, message: '보고서 검증 중 오류가 발생했습니다.' };
 }
 
-// R12: Generate team activity report infographic (Imagen 3 - 3:4 aspect ratio)
+// R12: Generate team activity report infographic (Gemini 3 Pro Image Preview - 텍스트 렌더링 강화)
 async function generateReportInfographic(payload: { report: { oneLine: string; bestMission: string; regret: string; futureHelp: string }; teamId: number }) {
   const { oneLine, bestMission, regret, futureHelp } = payload.report;
   const teamId = payload.teamId;
 
-  // 한글 내용을 짧게 요약
+  // 오늘 날짜
+  const today = new Date();
+  const dateStr = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, '0')}.${String(today.getDate()).padStart(2, '0')}`;
+
+  // 프롬프트 - Gemini 3 Pro Image Preview 모델용 (한글 텍스트 렌더링 최적화)
+  const prompt = `고급 인포그래픽 포스터 이미지를 생성해주세요.
+
+## 디자인 요구사항
+
+### 스타일
+- 3:4 세로 비율 포스터 (포트레이트)
+- 다크 그라데이션 배경 (진한 네이비 #1a1a2e에서 #0f3460)
+- 메탈릭 골드(#FFD700) 테두리와 장식 요소
+- 고급스럽고 프로페셔널한 기업 스타일
+
+### 레이아웃 (위에서 아래로)
+
+1. **헤더 영역**
+   - 상단 가운데: "TEAM ${teamId}" (큰 골드색 텍스트)
+   - 바로 아래: "팀활동 결과보고서" (흰색 텍스트)
+   - 골드색 구분선
+
+2. **4개의 컨텐츠 카드** (각각 반투명 배경, 왼쪽에 색상 바)
+
+   카드 1 - 빨간색(#ff6b6b) 강조:
+   제목: "💬 오늘의 한줄 소감"
+   내용: "${oneLine}"
+
+   카드 2 - 골드색(#ffd700) 강조:
+   제목: "⭐ 가장 빛났던 미션"
+   내용: "${bestMission}"
+
+   카드 3 - 청록색(#4ecdc4) 강조:
+   제목: "💭 아쉬웠던 점과 다짐"
+   내용: "${regret}"
+
+   카드 4 - 보라색(#a855f7) 강조:
+   제목: "🚀 현업에 도움이 될 점"
+   내용: "${futureHelp}"
+
+3. **푸터**
+   - 하단 가운데: "김부장의 복귀 프로젝트 | ${dateStr}"
+   - 연한 흰색 텍스트
+
+### 중요 사항
+- 모든 한글 텍스트를 명확하고 읽기 쉽게 렌더링
+- 각 카드의 내용은 깔끔하게 줄바꿈하여 표시
+- 전체적으로 세련되고 공유하고 싶은 디자인으로 제작`;
+
+  // Gemini 3 Pro Image Preview API 호출
+  try {
+    console.log('Calling Gemini 3 Pro Image Preview for report generation...');
+
+    const response = await fetch(`${GEMINI_3_PRO_IMAGE_URL}?key=${GEMINI_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{ text: prompt }]
+        }],
+        generationConfig: {
+          responseModalities: ["image", "text"],
+          temperature: 0.8
+        }
+      })
+    });
+
+    const data = await response.json();
+    console.log('Gemini 3 Pro response:', JSON.stringify(data).slice(0, 500));
+
+    if (data.error) {
+      console.error('Gemini 3 Pro error:', data.error);
+      // Fallback to Imagen 3
+      return await generateReportInfographicImagen(payload);
+    }
+
+    const parts = data.candidates?.[0]?.content?.parts || [];
+    for (const part of parts) {
+      if (part.inlineData) {
+        console.log('Successfully generated image with Gemini 3 Pro Image Preview');
+        return {
+          success: true,
+          imageData: `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`
+        };
+      }
+    }
+
+    // Fallback if no image in response
+    console.log('No image in Gemini 3 Pro response, falling back to Imagen 3...');
+    return await generateReportInfographicImagen(payload);
+  } catch (error) {
+    console.error('Gemini 3 Pro API error:', error);
+    return await generateReportInfographicImagen(payload);
+  }
+}
+
+// Fallback 1: Imagen 3 API (3:4 aspect ratio)
+async function generateReportInfographicImagen(payload: { report: { oneLine: string; bestMission: string; regret: string; futureHelp: string }; teamId: number }) {
+  const { oneLine, bestMission, regret, futureHelp } = payload.report;
+  const teamId = payload.teamId;
+
   const shortOneLine = oneLine.slice(0, 50);
   const shortBestMission = bestMission.slice(0, 80);
   const shortRegret = regret.slice(0, 80);
@@ -361,21 +463,22 @@ async function generateReportInfographic(payload: { report: { oneLine: string; b
 
   const prompt = `Create a beautiful modern infographic poster for Team ${teamId}'s activity report.
 
-Style: Modern corporate infographic with vibrant gradient background (purple to blue or pink to orange). Clean minimalist design with white text. 3:4 portrait aspect ratio.
+Style: Modern corporate infographic with vibrant gradient background (purple to blue). Clean minimalist design with white text. 3:4 portrait aspect ratio.
 
 Layout:
-- Top: Large title "TEAM ${teamId} 팀활동 결과보고서" with decorative elements
+- Top: Large title "TEAM ${teamId} 팀활동 결과보고서" with gold decorative elements
 - 4 content sections in card/box style with icons:
   1. 💬 한줄소감: "${shortOneLine}"
   2. ⭐ 베스트미션: "${shortBestMission}"
   3. 💭 아쉬운점: "${shortRegret}"
-  4. 🤖 AI활용: "${shortFutureHelp}"
-- Bottom: "KIM IS BACK 2025" branding
+  4. 🚀 현업도움: "${shortFutureHelp}"
+- Bottom: "김부장의 복귀 프로젝트 | 2025" branding
 
-Design: Professional Korean corporate style, glass morphism effects, rounded corners, subtle shadows. Make it visually stunning and shareable on social media.`;
+Design: Professional Korean corporate style, glass morphism effects, rounded corners, subtle shadows.`;
 
-  // Imagen 3 API 호출
   try {
+    console.log('Calling Imagen 3 for report generation...');
+
     const response = await fetch(`${IMAGEN_URL}?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -391,26 +494,25 @@ Design: Professional Korean corporate style, glass morphism effects, rounded cor
     });
 
     const data = await response.json();
-    console.log('Imagen response:', JSON.stringify(data).slice(0, 500));
+    console.log('Imagen 3 response:', JSON.stringify(data).slice(0, 500));
 
     if (data.error) {
-      console.error('Imagen error:', data.error);
-      // Fallback to Gemini 2.0 Flash
+      console.error('Imagen 3 error:', data.error);
       return await generateReportInfographicFallback(payload);
     }
 
     const predictions = data.predictions || [];
     if (predictions.length > 0 && predictions[0].bytesBase64Encoded) {
+      console.log('Successfully generated image with Imagen 3');
       return {
         success: true,
         imageData: `data:image/png;base64,${predictions[0].bytesBase64Encoded}`
       };
     }
 
-    // Fallback if Imagen fails
     return await generateReportInfographicFallback(payload);
   } catch (error) {
-    console.error('Imagen API error:', error);
+    console.error('Imagen 3 API error:', error);
     return await generateReportInfographicFallback(payload);
   }
 }
