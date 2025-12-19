@@ -144,10 +144,13 @@ const R1_CORRECT_ANSWER = '박낙하';
 const R2_STORY = `1월 신입 채용을 마친 2월의 영업팀, 강화된 보안 규정 탓에 급하게 바꾼 노트북 비밀번호가 도무지 떠오르지 않는다.
 짜증을 내며 책상 위를 보니, 급하게 휘갈긴 메모와 찢겨진 다이어리 조각만이 덩그러니 놓여 있다.
 모두 함께 단서들을 조합해 김부장의 노트북 비밀번호를 알아내야 한다!`;
-const R2_IMAGE = 'https://i.imgur.com/placeholder.png'; // TODO: 이미지 링크 교체 필요
+const R2_IMAGE = 'https://i.ibb.co/yBcTW4dg/image.jpg';
 const R2_CORRECT_ANSWER = '4035';
 
 // R3 공장 위치 퀴즈 이미지 및 정답 (3월) - 기존 R1
+const R3_STORY = `간신히 로그인에 성공하자 화면을 가득 채운 건 승진 명단이 아닌, [충청남도 아산 공장 발령] 통지서였다.
+"내가... 지방 공장으로 좌천이라고?" 현실을 부정할 새도 없이, 당장 오늘까지 그곳으로 출근해야만 한다.
+이제 서울 생활은 끝났다. 아래 이미지를 터치하여, 지도에서 유배지나 다름없는 그 공장의 정확한 위치를 찾아라!`;
 const R3_QUIZ_IMAGE = 'https://i.imgur.com/nswRxmd.jpeg';
 const R3_PADLET_LINK = 'https://padlet.com/ksajhjeon/padlet-idnyc8suzfsy502s';
 const R3_CORRECT_ANSWERS = [
@@ -186,11 +189,11 @@ const R4_GAME_DATA = [
   }
 ];
 
-const R4_STORY = "본사 복귀를 꿈꾼다면, 먼저 이 낯선 현장의 공기부터 완벽하게 파악해야 한다. 일상처럼 보이는 이 풍경 속에 숨겨진 진실을 찾아라!";
+const R4_STORY = "본사 복귀를 꿈꾼다면, 먼저 이 낯선 현장의 공기부터 완벽하게 파악해야 한다. 공장 내외부와 그곳을 지키는 강아지 한 마리의 그림 속에 복귀의 실마리가 숨겨져 있다. 당신의 '서울 본사급' 엘리트 눈썰미를 증명할 시간, 두 그림 사이의 미묘한 틀린 부분을 모두 찾아내라!";
 
 // R5 팀 단체사진 (5월)
 const R5_SAMPLE_IMAGE = 'https://i.imgur.com/TlJe72B.jpeg';
-const R5_STORY = "김부장은 팀원들과 함께 공장 주변을 탐방하게 되었다. 이곳의 자연과 함께하는 팀의 모습을 기록으로 남겨라!";
+const R5_STORY = "삭막했던 공장 주변에도 어느덧 5월의 신록이 우거졌다. '자연과 하나 된 조직만이 살아남는다!'는 공장장의 뜬금없는 지령, 이것도 본사 복귀 고과에 반영되는 건가? 지금 당장 밖으로 나가 푸른 나무나 식물을 배경으로, 팀원들과 함께 '완벽한 원팀' 인증샷을 찍어오라!";
 
 // R6 사진 퀴즈 (6월)
 const R6_IMAGES = [
@@ -1598,12 +1601,23 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
               ROUND 3: 3월 미션 - 공장 위치 찾기
             </h3>
 
-            <BrutalistCard className="bg-yellow-400/10 border-yellow-400">
-              <p className="text-xl font-bold text-center">
-                "좌천된 김부장은 발령된 공장으로 떠나야 한다.<br/>
-                공장의 위치를 찾아라!"
-              </p>
-            </BrutalistCard>
+            {/* 브루탈리즘 스타일 시나리오 */}
+            <div className="bg-black border-4 border-white p-4 md:p-6" style={{ boxShadow: '8px 8px 0px 0px #fbbf24' }}>
+              <div className="space-y-4 font-mono">
+                <p className="text-gray-300 leading-relaxed text-sm md:text-base">
+                  간신히 로그인에 성공하자 화면을 가득 채운 건 승진 명단이 아닌, <span className="text-red-400 font-bold">[충청남도 아산 공장 발령]</span> 통지서였다.
+                </p>
+                <p className="text-yellow-400 font-bold text-sm md:text-base italic">
+                  "내가... 지방 공장으로 좌천이라고?"
+                </p>
+                <p className="text-gray-300 leading-relaxed text-sm md:text-base">
+                  현실을 부정할 새도 없이, 당장 오늘까지 그곳으로 출근해야만 한다. 이제 서울 생활은 끝났다.
+                </p>
+                <p className="text-red-400 font-bold text-sm md:text-base">
+                  아래 이미지를 터치하여, 지도에서 유배지나 다름없는 그 공장의 정확한 위치를 찾아라!
+                </p>
+              </div>
+            </div>
 
             <div className="space-y-4">
               <img
