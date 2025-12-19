@@ -588,8 +588,6 @@ async function analyzeTotalPerformance(payload: {
     rank: number;
     totalTime: number;
     totalTimeWithBonus: number;
-    helpCount: number;
-    helpBonusTime: number;
     roundTimes: Record<number, number>;
     members?: Array<{ role: string; name: string }>;
   }>;
@@ -611,7 +609,6 @@ async function analyzeTotalPerformance(payload: {
   const avgTime = performances.reduce((sum, p) => sum + p.totalTimeWithBonus, 0) / performances.length;
   const minTime = Math.min(...performances.map(p => p.totalTimeWithBonus));
   const maxTime = Math.max(...performances.map(p => p.totalTimeWithBonus));
-  const totalHelps = performances.reduce((sum, p) => sum + p.helpCount, 0);
 
   // 라운드별 평균 시간 계산
   const roundAvgTimes: Record<number, number> = {};
@@ -647,7 +644,6 @@ async function analyzeTotalPerformance(payload: {
 - 평균 소요시간: ${formatTimeStr(avgTime)}
 - 최단 소요시간: ${formatTimeStr(minTime)} (1위 팀)
 - 최장 소요시간: ${formatTimeStr(maxTime)}
-- 총 HELP 사용 횟수: ${totalHelps}회
 
 ## 라운드별 평균 소요시간
 ${Object.entries(roundAvgTimes).map(([r, t]) => `- R${r}: ${formatTimeStr(t)}`).join('\n')}
@@ -663,7 +659,6 @@ ${performances.map(p => `
 ### Team ${p.teamId} (${p.teamName})
 - 순위: #${p.rank}
 - 총 소요시간: ${formatTimeStr(p.totalTimeWithBonus)}
-- HELP 사용: ${p.helpCount}회 (+${formatTimeStr(p.helpBonusTime)} 패널티)
 `).join('')}
 
 ## 팀 활동 소감 (베스트 미션 선정 의견)
@@ -683,7 +678,6 @@ ${bestMissions || '수집된 소감 없음'}
     "keyInsights": "라운드별 분석에서 발견된 주요 인사이트"
   },
   "teamworkInsights": "팀워크 및 협업에 대한 분석",
-  "helpUsageAnalysis": "HELP 사용 패턴 분석 및 의미",
   "recommendations": [
     "향후 교육 프로그램 개선을 위한 구체적 제안 5가지"
   ],
@@ -692,8 +686,7 @@ ${bestMissions || '수집된 소감 없음'}
   ],
   "chartData": {
     "teamTimeComparison": [{"teamId": 1, "time": 초, "rank": 순위}, ...],
-    "roundDifficulty": [{"round": 1, "avgTime": 초}, ...],
-    "helpUsageByTeam": [{"teamId": 1, "helpCount": 횟수}, ...]
+    "roundDifficulty": [{"round": 1, "avgTime": 초}, ...]
   }
 }
 
@@ -738,7 +731,6 @@ ${bestMissions || '수집된 소감 없음'}
             avgTime,
             minTime,
             maxTime,
-            totalHelps,
             roundAvgTimes,
             hardestRound,
             easiestRound,
@@ -760,7 +752,6 @@ ${bestMissions || '수집된 소감 없음'}
         avgTime,
         minTime,
         maxTime,
-        totalHelps,
         roundAvgTimes,
         hardestRound,
         easiestRound,
