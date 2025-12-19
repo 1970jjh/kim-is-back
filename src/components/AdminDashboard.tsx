@@ -815,9 +815,6 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
                       {team?.isJoined && !isMissionClear && (
                         <div className="px-2 py-0.5 text-[10px] bg-green-500 font-bold">ONLINE</div>
                       )}
-                      {team && team.helpCount > 0 && (
-                        <div className="px-2 py-0.5 text-[10px] bg-orange-500 font-bold">HELP x{team.helpCount}</div>
-                      )}
                     </div>
                   </div>
 
@@ -1002,7 +999,6 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
                     <th className="p-2 font-black">순위</th>
                     <th className="p-2 font-black">팀</th>
                     <th className="p-2 font-black">총 소요시간</th>
-                    <th className="p-2 font-black">헬프(+시간)</th>
                     <th className="p-2 font-black">최종 시간</th>
                   </tr>
                 </thead>
@@ -1016,13 +1012,6 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
                       </td>
                       <td className="p-2 font-bold">Team {perf.teamId}</td>
                       <td className="p-2 font-mono">{formatTimeWithHours(perf.totalTime)}</td>
-                      <td className="p-2">
-                        {perf.helpCount > 0 ? (
-                          <span className="text-orange-400">x{perf.helpCount} (+{formatTime(perf.helpBonusTime)})</span>
-                        ) : (
-                          <span className="text-gray-500">-</span>
-                        )}
-                      </td>
                       <td className="p-2 font-mono font-bold text-yellow-400">{formatTimeWithHours(perf.totalTimeWithBonus)}</td>
                     </tr>
                   ))}
@@ -1050,12 +1039,6 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
               <BrutalistCard className="text-center">
                 <p className="text-sm text-gray-400 uppercase">총 소요시간</p>
                 <p className="text-3xl font-mono font-black">{formatTimeWithHours(selectedPerformance.totalTimeWithBonus)}</p>
-              </BrutalistCard>
-              <BrutalistCard className="text-center">
-                <p className="text-sm text-gray-400 uppercase">헬프 사용</p>
-                <p className="text-3xl font-black text-orange-400">
-                  {selectedPerformance.helpCount}회 (+{formatTime(selectedPerformance.helpBonusTime)})
-                </p>
               </BrutalistCard>
               <BrutalistCard className="text-center">
                 <p className="text-sm text-gray-400 uppercase">순수 미션 시간</p>
@@ -1136,12 +1119,6 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
                     <p className="text-xs text-gray-400 uppercase">최장 기록</p>
                     <p className="text-2xl font-mono font-black text-red-400">
                       {formatTimeWithHours(Number((analysisStats as Record<string, unknown>).maxTime) || 0)}
-                    </p>
-                  </BrutalistCard>
-                  <BrutalistCard className="text-center bg-gradient-to-br from-orange-900/50 to-orange-700/30">
-                    <p className="text-xs text-gray-400 uppercase">총 HELP 사용</p>
-                    <p className="text-2xl font-black text-orange-400">
-                      {(analysisStats as Record<string, unknown>).totalHelps || 0}회
                     </p>
                   </BrutalistCard>
                 </div>
