@@ -2,7 +2,8 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 const GEMINI_TEXT_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
-const GEMINI_IMAGE_GEN_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent';
+const GEMINI_IMAGE_GEN_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent';
+const IMAGEN_URL = 'https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // CORS headers
@@ -347,32 +348,91 @@ JSON 형식으로 응답:
   return { pass: false, message: '보고서 검증 중 오류가 발생했습니다.' };
 }
 
-// R12: Generate team activity report infographic (Bento Grid style)
+// R12: Generate team activity report infographic (Imagen 3 - 3:4 aspect ratio)
 async function generateReportInfographic(payload: { report: { oneLine: string; bestMission: string; regret: string; futureHelp: string }; teamId: number }) {
   const { oneLine, bestMission, regret, futureHelp } = payload.report;
   const teamId = payload.teamId;
 
-  const prompt = `Create a modern Bento Grid style infographic poster for a Korean team's activity report. The design should look like a professional team summary card.
+  // 한글 내용을 짧게 요약
+  const shortOneLine = oneLine.slice(0, 50);
+  const shortBestMission = bestMission.slice(0, 80);
+  const shortRegret = regret.slice(0, 80);
+  const shortFutureHelp = futureHelp.slice(0, 80);
 
-Design requirements:
-- Bento Grid layout (asymmetric grid boxes)
-- Modern, clean glassmorphism style
-- Gradient backgrounds (purple to pink or blue to cyan)
-- White text with subtle shadows
-- Rounded corners on all elements
-- Professional corporate aesthetic
-- 9:16 aspect ratio (portrait mode for mobile)
+  const prompt = `Create a beautiful modern infographic poster for Team ${teamId}'s activity report.
 
-Content (in Korean):
-Team Number: ${teamId}조
-Title: 팀활동 결과보고서
+Style: Modern corporate infographic with vibrant gradient background (purple to blue or pink to orange). Clean minimalist design with white text. 3:4 portrait aspect ratio.
 
-Section 1 (한 줄 정리 - largest box): ${oneLine}
-Section 2 (가장 기억에 남는 미션): ${bestMission}
-Section 3 (아쉬운 점): ${regret}
-Section 4 (AI에게 바라는 것): ${futureHelp}
+Layout:
+- Top: Large title "TEAM ${teamId} 팀활동 결과보고서" with decorative elements
+- 4 content sections in card/box style with icons:
+  1. 💬 한줄소감: "${shortOneLine}"
+  2. ⭐ 베스트미션: "${shortBestMission}"
+  3. 💭 아쉬운점: "${shortRegret}"
+  4. 🤖 AI활용: "${shortFutureHelp}"
+- Bottom: "KIM IS BACK 2025" branding
 
-Make it look like a stylish team achievement card with modern UI design elements. Include icons or emojis appropriate for each section.`;
+Design: Professional Korean corporate style, glass morphism effects, rounded corners, subtle shadows. Make it visually stunning and shareable on social media.`;
+
+  // Imagen 3 API 호출
+  try {
+    const response = await fetch(`${IMAGEN_URL}?key=${GEMINI_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        instances: [{ prompt }],
+        parameters: {
+          sampleCount: 1,
+          aspectRatio: "3:4",
+          safetyFilterLevel: "block_few",
+          personGeneration: "allow_all"
+        }
+      })
+    });
+
+    const data = await response.json();
+    console.log('Imagen response:', JSON.stringify(data).slice(0, 500));
+
+    if (data.error) {
+      console.error('Imagen error:', data.error);
+      // Fallback to Gemini 2.0 Flash
+      return await generateReportInfographicFallback(payload);
+    }
+
+    const predictions = data.predictions || [];
+    if (predictions.length > 0 && predictions[0].bytesBase64Encoded) {
+      return {
+        success: true,
+        imageData: `data:image/png;base64,${predictions[0].bytesBase64Encoded}`
+      };
+    }
+
+    // Fallback if Imagen fails
+    return await generateReportInfographicFallback(payload);
+  } catch (error) {
+    console.error('Imagen API error:', error);
+    return await generateReportInfographicFallback(payload);
+  }
+}
+
+// Fallback: Gemini 2.0 Flash image generation
+async function generateReportInfographicFallback(payload: { report: { oneLine: string; bestMission: string; regret: string; futureHelp: string }; teamId: number }) {
+  const { oneLine, bestMission, regret, futureHelp } = payload.report;
+  const teamId = payload.teamId;
+
+  const prompt = `Generate a beautiful infographic image for Team ${teamId}'s activity report.
+
+Create a 3:4 portrait poster with:
+- Gradient background (purple/blue/pink)
+- Title: "TEAM ${teamId} 결과보고서"
+- 4 sections with Korean text:
+  1. 한줄소감: ${oneLine.slice(0, 40)}
+  2. 베스트미션: ${bestMission.slice(0, 60)}
+  3. 아쉬운점: ${regret.slice(0, 60)}
+  4. AI활용: ${futureHelp.slice(0, 60)}
+- Modern glassmorphism style
+- Professional corporate design
+- "KIM IS BACK 2025" at bottom`;
 
   const response = await fetch(`${GEMINI_IMAGE_GEN_URL}?key=${GEMINI_API_KEY}`, {
     method: 'POST',
@@ -382,15 +442,16 @@ Make it look like a stylish team achievement card with modern UI design elements
         parts: [{ text: prompt }]
       }],
       generationConfig: {
-        responseModalities: ["image", "text"],
-        imageSafetySetting: "block_none"
+        responseModalities: ["image", "text"]
       }
     })
   });
 
   const data = await response.json();
+  console.log('Gemini Flash response:', JSON.stringify(data).slice(0, 500));
 
   if (data.error) {
+    console.error('Gemini Flash error:', data.error);
     return { success: false, error: data.error.message };
   }
 
@@ -404,5 +465,5 @@ Make it look like a stylish team achievement card with modern UI design elements
     }
   }
 
-  return { success: false, error: '보고서 이미지 생성에 실패했습니다.' };
+  return { success: false, error: '보고서 이미지 생성에 실패했습니다. 잠시 후 다시 시도해주세요.' };
 }
