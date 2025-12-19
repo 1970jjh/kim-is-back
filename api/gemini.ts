@@ -523,13 +523,13 @@ async function generateWinnerPoster(payload: {
 - 승리와 성취를 강조하는 시각적 요소`;
 
   try {
-    console.log('Calling Gemini 2.0 Flash Exp for winner poster generation...');
+    console.log('Calling Gemini 3 Pro Image Preview for winner poster generation...');
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 110000); // 110초 타임아웃
 
-    // gemini-2.0-flash-exp 사용 (이미지 입력 + 이미지 생성 지원)
-    const response = await fetch(`${GEMINI_IMAGE_GEN_URL}?key=${GEMINI_API_KEY}`, {
+    // gemini-3-pro-image-preview 사용 (텍스트-이미지, 이미지-이미지 생성 지원)
+    const response = await fetch(`${GEMINI_3_PRO_IMAGE_URL}?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
