@@ -191,14 +191,26 @@ export async function generateReportInfographic(
   });
 }
 
-// 역할명 영문 변환 맵
+// 역할명 영문 변환 맵 (실제 앱에서 사용하는 모든 역할명 포함)
 const roleNameMap: Record<string, string> = {
+  // 메인 역할
   '팀장': 'Team Leader',
   '서기': 'Secretary',
   '타임키퍼': 'Timekeeper',
   '발표자': 'Presenter',
   '아이디어뱅크': 'Idea Bank',
-  '응원단장': 'Cheerleader'
+  '응원단장': 'Cheerleader',
+  // constants.ts의 ROLES
+  '리더 (김부장)': 'Leader',
+  '전략가': 'Strategist',
+  '시간관리자': 'Timekeeper',
+  '협상가': 'Negotiator',
+  '기록자': 'Recorder',
+  '지지자': 'Supporter',
+  // 기타 가능한 역할명
+  '리더': 'Leader',
+  '부리더': 'Sub-Leader',
+  '팀원': 'Member'
 };
 
 // PDF 생성을 위한 유틸리티 (jsPDF 기본 폰트는 한글 미지원 - 영문으로 출력)
@@ -277,9 +289,9 @@ export async function generateResultPDF(
   }
   y += 30;
 
-  // 팀 역할 (역할명 영문 변환, 이름은 Member 1, 2... 로 표시)
+  // 팀 역할 (완전 영문으로 - 한글 역할명을 영문으로 변환, 매칭 안되면 Role N으로 표시)
   pdf.setFontSize(14);
-  pdf.text('Team Roles', margin, y);
+  pdf.text('Team Members', margin, y);
   y += 8;
 
   pdf.setFontSize(10);
@@ -288,7 +300,8 @@ export async function generateResultPDF(
     const row = Math.floor(idx / 3);
     const x = margin + col * 55;
     const rowY = y + row * 8;
-    const englishRole = roleNameMap[member.role] || member.role;
+    // 한글 역할명을 영문으로 변환, 매칭 안되면 Role N으로 표시
+    const englishRole = roleNameMap[member.role] || `Role ${idx + 1}`;
     pdf.text(`${englishRole}: Member ${idx + 1}`, x, rowY);
   });
   y += Math.ceil(members.length / 3) * 8 + 15;
