@@ -11,14 +11,14 @@ const APP_URL = 'https://kim-is-back.vercel.app';
 // 시간 포맷팅 유틸
 const formatTime = (seconds: number): string => {
   const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
+  const secs = Math.floor(seconds % 60);
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 };
 
 const formatTimeWithHours = (seconds: number): string => {
   const hours = Math.floor(seconds / 3600);
   const mins = Math.floor((seconds % 3600) / 60);
-  const secs = seconds % 60;
+  const secs = Math.floor(seconds % 60);
   if (hours > 0) {
     return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   }
@@ -372,69 +372,157 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
       const html2canvas = (await import('html2canvas')).default;
       const { jsPDF } = await import('jspdf');
 
-      // 분석 콘텐츠 요소 찾기
-      const contentElement = document.getElementById('analysis-pdf-content');
-      if (!contentElement) {
-        alert('PDF 생성 대상을 찾을 수 없습니다.');
-        return;
-      }
-
       // 로딩 표시
-      const originalButtonText = document.querySelector('[data-pdf-button]')?.textContent;
       const pdfButton = document.querySelector('[data-pdf-button]');
+      const originalButtonText = pdfButton?.textContent;
       if (pdfButton) pdfButton.textContent = 'PDF 생성 중...';
 
-      // html2canvas로 콘텐츠 캡처 (고해상도)
-      const canvas = await html2canvas(contentElement, {
-        scale: 2, // 고해상도
+      const stats = analysisStats as Record<string, unknown>;
+      const result = analysisResult as Record<string, unknown>;
+
+      // 시간 포맷팅 (초 단위까지만)
+      const fmtTime = (seconds: number): string => {
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      };
+
+      // 라운드별 난이도 HTML
+      const roundAvgTimes = (stats.roundAvgTimes as Record<number, number>) || {};
+      const maxRoundTime = Math.max(...Object.values(roundAvgTimes), 1);
+      const roundDifficultyHTML = Object.entries(roundAvgTimes)
+        .map(([round, time]) => {
+          const pct = (Number(time) / maxRoundTime) * 100;
+          return `<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+            <span style="width: 30px; font-weight: bold;">R${round}</span>
+            <div style="flex: 1; height: 20px; background: #e5e5e5; border: 1px solid #ccc;">
+              <div style="width: ${pct}%; height: 100%; background: linear-gradient(to right, #f59e0b, #ea580c);"></div>
+            </div>
+            <span style="width: 50px; text-align: right; font-family: monospace;">${fmtTime(Number(time))}</span>
+          </div>`;
+        }).join('');
+
+      // 개선 제안 HTML
+      const recommendations = (result.recommendations as string[]) || [];
+      const recsHTML = recommendations.length > 0
+        ? recommendations.map((rec, i) => `<li style="margin-bottom: 8px;"><span style="color: #d97706; font-weight: bold;">${i + 1}.</span> ${rec}</li>`).join('')
+        : '';
+
+      // 베스트 프랙티스 HTML
+      const bestPractices = (result.bestPractices as string[]) || [];
+      const practicesHTML = bestPractices.length > 0
+        ? bestPractices.map(p => `<li style="margin-bottom: 8px;"><span style="color: #16a34a;">✓</span> ${p}</li>`).join('')
+        : '';
+
+      // PDF용 깔끔한 HTML 생성
+      const container = document.createElement('div');
+      container.style.cssText = `position: fixed; left: -9999px; top: 0; width: 794px; background: white; padding: 30px; font-family: 'Noto Sans KR', 'Malgun Gothic', sans-serif; color: #333;`;
+
+      container.innerHTML = `
+        <div style="text-align: center; margin-bottom: 25px; border-bottom: 3px solid #f59e0b; padding-bottom: 15px;">
+          <h1 style="font-size: 28px; margin: 0; color: #1a1a1a;">AI 종합 성과 분석 리포트</h1>
+          <p style="color: #666; margin-top: 5px;">${stats.groupName || ''}</p>
+        </div>
+
+        <div style="display: flex; gap: 15px; margin-bottom: 25px;">
+          <div style="flex: 1; background: #f0fdf4; padding: 15px; border-left: 4px solid #16a34a; text-align: center;">
+            <p style="font-size: 12px; color: #666; margin: 0;">평균 소요시간</p>
+            <p style="font-size: 22px; font-weight: bold; color: #16a34a; margin: 5px 0; font-family: monospace;">${fmtTime(Number(stats.avgTime) || 0)}</p>
+          </div>
+          <div style="flex: 1; background: #fefce8; padding: 15px; border-left: 4px solid #eab308; text-align: center;">
+            <p style="font-size: 12px; color: #666; margin: 0;">최단 기록</p>
+            <p style="font-size: 22px; font-weight: bold; color: #ca8a04; margin: 5px 0; font-family: monospace;">${fmtTime(Number(stats.minTime) || 0)}</p>
+          </div>
+          <div style="flex: 1; background: #fef2f2; padding: 15px; border-left: 4px solid #dc2626; text-align: center;">
+            <p style="font-size: 12px; color: #666; margin: 0;">최장 기록</p>
+            <p style="font-size: 22px; font-weight: bold; color: #dc2626; margin: 5px 0; font-family: monospace;">${fmtTime(Number(stats.maxTime) || 0)}</p>
+          </div>
+        </div>
+
+        <div style="background: #fafafa; padding: 20px; margin-bottom: 20px; border: 1px solid #e5e5e5;">
+          <h3 style="font-size: 16px; color: #f59e0b; margin: 0 0 15px 0;">📊 라운드별 난이도 (평균 소요시간)</h3>
+          ${roundDifficultyHTML}
+        </div>
+
+        ${result.executiveSummary ? `
+        <div style="background: #fffbeb; padding: 15px; margin-bottom: 15px; border-left: 4px solid #f59e0b;">
+          <h3 style="font-size: 14px; color: #b45309; margin: 0 0 8px 0;">📋 핵심 요약</h3>
+          <p style="font-size: 13px; line-height: 1.6; margin: 0; color: #444;">${result.executiveSummary}</p>
+        </div>` : ''}
+
+        ${result.overallAssessment ? `
+        <div style="background: #eff6ff; padding: 15px; margin-bottom: 15px; border-left: 4px solid #3b82f6;">
+          <h3 style="font-size: 14px; color: #1d4ed8; margin: 0 0 8px 0;">📈 종합 평가</h3>
+          <p style="font-size: 13px; line-height: 1.6; margin: 0; color: #444;">${result.overallAssessment}</p>
+        </div>` : ''}
+
+        ${result.teamRankingAnalysis ? `
+        <div style="background: #f0fdf4; padding: 15px; margin-bottom: 15px; border-left: 4px solid #16a34a;">
+          <h3 style="font-size: 14px; color: #15803d; margin: 0 0 8px 0;">🏆 팀 순위 분석</h3>
+          <p style="font-size: 13px; line-height: 1.6; margin: 0; color: #444;">${result.teamRankingAnalysis}</p>
+        </div>` : ''}
+
+        ${result.teamworkInsights ? `
+        <div style="background: #faf5ff; padding: 15px; margin-bottom: 15px; border-left: 4px solid #a855f7;">
+          <h3 style="font-size: 14px; color: #7c3aed; margin: 0 0 8px 0;">🤝 팀워크 인사이트</h3>
+          <p style="font-size: 13px; line-height: 1.6; margin: 0; color: #444;">${result.teamworkInsights}</p>
+        </div>` : ''}
+
+        ${recsHTML ? `
+        <div style="background: #fefce8; padding: 15px; margin-bottom: 15px; border-left: 4px solid #eab308;">
+          <h3 style="font-size: 14px; color: #a16207; margin: 0 0 10px 0;">💡 개선 제안</h3>
+          <ul style="margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.6; color: #444;">${recsHTML}</ul>
+        </div>` : ''}
+
+        ${practicesHTML ? `
+        <div style="background: #f0fdf4; padding: 15px; margin-bottom: 15px; border-left: 4px solid #22c55e;">
+          <h3 style="font-size: 14px; color: #15803d; margin: 0 0 10px 0;">⭐ 베스트 프랙티스</h3>
+          <ul style="margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.6; color: #444;">${practicesHTML}</ul>
+        </div>` : ''}
+      `;
+
+      document.body.appendChild(container);
+
+      // html2canvas로 렌더링
+      const canvas = await html2canvas(container, {
+        scale: 2,
         useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#1a1a1a', // 배경색
+        backgroundColor: '#ffffff',
         logging: false
       });
 
-      // PDF 생성
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
-      });
+      document.body.removeChild(container);
 
+      // PDF 생성
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
       const margin = 10;
       const contentWidth = pageWidth - margin * 2;
 
-      // 이미지 비율 계산
       const imgWidth = canvas.width;
       const imgHeight = canvas.height;
       const ratio = contentWidth / imgWidth;
       const scaledHeight = imgHeight * ratio;
 
-      // 여러 페이지로 분할
       let remainingHeight = scaledHeight;
       let srcY = 0;
       let pageNum = 0;
 
       while (remainingHeight > 0) {
-        if (pageNum > 0) {
-          pdf.addPage();
-        }
+        if (pageNum > 0) pdf.addPage();
 
         const availableHeight = pageHeight - margin * 2;
         const drawHeight = Math.min(availableHeight, remainingHeight);
         const srcHeight = drawHeight / ratio;
 
-        // 캔버스에서 해당 부분만 추출
         const pageCanvas = document.createElement('canvas');
         pageCanvas.width = imgWidth;
         pageCanvas.height = srcHeight;
         const ctx = pageCanvas.getContext('2d');
         if (ctx) {
           ctx.drawImage(canvas, 0, srcY, imgWidth, srcHeight, 0, 0, imgWidth, srcHeight);
-          const pageImgData = pageCanvas.toDataURL('image/png');
-          pdf.addImage(pageImgData, 'PNG', margin, margin, contentWidth, drawHeight);
+          pdf.addImage(pageCanvas.toDataURL('image/png'), 'PNG', margin, margin, contentWidth, drawHeight);
         }
 
         srcY += srcHeight;
@@ -442,12 +530,7 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
         pageNum++;
       }
 
-      // 파일명 생성
-      const stats = analysisStats as Record<string, unknown>;
-      const fileName = `${stats.groupName || '성과분석'}_analysis_report.pdf`;
-      pdf.save(fileName);
-
-      // 버튼 텍스트 복원
+      pdf.save(`${stats.groupName || '성과분석'}_analysis_report.pdf`);
       if (pdfButton && originalButtonText) pdfButton.textContent = originalButtonText;
 
     } catch (error) {

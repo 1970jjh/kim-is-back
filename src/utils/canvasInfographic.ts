@@ -191,29 +191,7 @@ export async function generateReportInfographic(
   });
 }
 
-// 역할명 영문 변환 맵 (실제 앱에서 사용하는 모든 역할명 포함)
-const roleNameMap: Record<string, string> = {
-  // 메인 역할
-  '팀장': 'Team Leader',
-  '서기': 'Secretary',
-  '타임키퍼': 'Timekeeper',
-  '발표자': 'Presenter',
-  '아이디어뱅크': 'Idea Bank',
-  '응원단장': 'Cheerleader',
-  // constants.ts의 ROLES
-  '리더 (김부장)': 'Leader',
-  '전략가': 'Strategist',
-  '시간관리자': 'Timekeeper',
-  '협상가': 'Negotiator',
-  '기록자': 'Recorder',
-  '지지자': 'Supporter',
-  // 기타 가능한 역할명
-  '리더': 'Leader',
-  '부리더': 'Sub-Leader',
-  '팀원': 'Member'
-};
-
-// PDF 생성을 위한 유틸리티 (jsPDF 기본 폰트는 한글 미지원 - 영문으로 출력)
+// PDF 생성을 위한 유틸리티 (html2canvas로 한글 완벽 지원)
 export async function generateResultPDF(
   teamId: number,
   performance: {
@@ -226,104 +204,121 @@ export async function generateResultPDF(
   members: Array<{ role: string; name: string }>,
   reportImageData?: string
 ): Promise<Blob> {
-  const pdf = new jsPDF({
-    orientation: 'portrait',
-    unit: 'mm',
-    format: 'a4'
-  });
-
-  const pageWidth = pdf.internal.pageSize.getWidth();
-  const margin = 20;
-  let y = 20;
-
-  pdf.setFont('helvetica');
-
-  // 제목 (영문)
-  pdf.setFontSize(24);
-  pdf.setTextColor(40, 40, 40);
-  pdf.text(`TEAM ${teamId} - Result Report`, pageWidth / 2, y, { align: 'center' });
-  y += 20;
-
-  // 구분선
-  pdf.setDrawColor(255, 215, 0);
-  pdf.setLineWidth(1);
-  pdf.line(margin, y, pageWidth - margin, y);
-  y += 15;
-
-  // 팀 성과 분석
-  pdf.setFontSize(16);
-  pdf.setTextColor(60, 60, 60);
-  pdf.text('Team Performance Analysis', margin, y);
-  y += 10;
-
-  pdf.setFontSize(12);
-  pdf.setTextColor(80, 80, 80);
+  const html2canvas = (await import('html2canvas')).default;
 
   const formatTimeForPDF = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
+    const secs = Math.floor(seconds % 60);
     return `${mins}:${String(secs).padStart(2, '0')}`;
   };
 
-  pdf.text(`Rank: #${performance.rank} / ${performance.totalRanks} teams`, margin, y);
-  y += 8;
-  pdf.text(`Total Time: ${formatTimeForPDF(performance.totalTimeWithBonus)}`, margin, y);
-  y += 8;
-  pdf.text(`Pure Mission Time: ${formatTimeForPDF(performance.totalTime)}`, margin, y);
-  y += 15;
+  // HTML 컨텐츠 생성
+  const container = document.createElement('div');
+  container.style.cssText = `
+    position: fixed;
+    left: -9999px;
+    top: 0;
+    width: 794px;
+    background: white;
+    padding: 40px;
+    font-family: 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+  `;
 
-  // 라운드별 소요시간
-  pdf.setFontSize(14);
-  pdf.text('Round Times', margin, y);
-  y += 8;
+  // 라운드 시간 HTML 생성
+  const roundTimesHTML = Array.from({ length: 12 }, (_, i) => {
+    const roundNum = i + 1;
+    const time = performance.roundTimes[roundNum];
+    return `<div style="width: 80px; text-align: center; padding: 4px;">
+      <span style="font-weight: bold;">R${roundNum}:</span> ${time ? formatTimeForPDF(time) : '-'}
+    </div>`;
+  }).join('');
 
-  pdf.setFontSize(10);
-  const roundsPerRow = 6;
-  for (let i = 1; i <= 12; i++) {
-    const time = performance.roundTimes[i];
-    const col = ((i - 1) % roundsPerRow);
-    const row = Math.floor((i - 1) / roundsPerRow);
-    const x = margin + col * 28;
-    const rowY = y + row * 12;
-    pdf.text(`R${i}: ${time ? formatTimeForPDF(time) : '-'}`, x, rowY);
+  // 멤버 HTML 생성 (한글 역할과 이름 사용)
+  const membersHTML = members.map(member => `
+    <div style="width: 180px; padding: 8px 0;">
+      <span style="color: #d4a600; font-weight: bold;">${member.role}:</span> ${member.name || '미지정'}
+    </div>
+  `).join('');
+
+  container.innerHTML = `
+    <div style="text-align: center; margin-bottom: 30px;">
+      <h1 style="font-size: 32px; margin: 0; color: #333;">TEAM ${teamId} - 결과 보고서</h1>
+      <div style="height: 4px; background: linear-gradient(to right, #ffd700, #ffaa00); margin: 20px auto; width: 80%;"></div>
+    </div>
+
+    <div style="margin-bottom: 30px;">
+      <h2 style="font-size: 20px; color: #444; border-bottom: 2px solid #eee; padding-bottom: 8px;">📊 팀 성과 분석</h2>
+      <div style="display: flex; gap: 30px; margin-top: 15px; font-size: 16px; color: #555;">
+        <div><strong>순위:</strong> #${performance.rank} / ${performance.totalRanks}팀</div>
+        <div><strong>총 소요시간:</strong> ${formatTimeForPDF(performance.totalTimeWithBonus)}</div>
+        <div><strong>순수 미션시간:</strong> ${formatTimeForPDF(performance.totalTime)}</div>
+      </div>
+    </div>
+
+    <div style="margin-bottom: 30px;">
+      <h2 style="font-size: 20px; color: #444; border-bottom: 2px solid #eee; padding-bottom: 8px;">⏱️ 라운드별 소요시간</h2>
+      <div style="display: flex; flex-wrap: wrap; margin-top: 15px; font-size: 14px; color: #555;">
+        ${roundTimesHTML}
+      </div>
+    </div>
+
+    <div style="margin-bottom: 30px;">
+      <h2 style="font-size: 20px; color: #444; border-bottom: 2px solid #eee; padding-bottom: 8px;">👥 팀 구성원</h2>
+      <div style="display: flex; flex-wrap: wrap; margin-top: 15px; font-size: 14px; color: #555;">
+        ${membersHTML}
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(container);
+
+  try {
+    // html2canvas로 첫 페이지 렌더링
+    const canvas = await html2canvas(container, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#ffffff',
+      logging: false
+    });
+
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    });
+
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+
+    // 첫 페이지 이미지 추가
+    const imgData = canvas.toDataURL('image/png');
+    const imgWidth = pageWidth - 20;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    pdf.addImage(imgData, 'PNG', 10, 10, imgWidth, Math.min(imgHeight, pageHeight - 20));
+
+    // 인포그래픽 이미지 추가 (2페이지)
+    if (reportImageData) {
+      pdf.addPage();
+
+      // 이미지 크기 계산 (3:4 비율 유지)
+      const maxWidth = pageWidth - 40;
+      const maxHeight = pageHeight - 40;
+      let imgW = maxWidth;
+      let imgH = imgW / 0.75;
+
+      if (imgH > maxHeight) {
+        imgH = maxHeight;
+        imgW = imgH * 0.75;
+      }
+
+      const imgX = (pageWidth - imgW) / 2;
+      const imgY = (pageHeight - imgH) / 2;
+      pdf.addImage(reportImageData, 'PNG', imgX, imgY, imgW, imgH);
+    }
+
+    return pdf.output('blob');
+  } finally {
+    document.body.removeChild(container);
   }
-  y += 30;
-
-  // 팀 역할 (완전 영문으로 - 한글 역할명을 영문으로 변환, 매칭 안되면 Role N으로 표시)
-  pdf.setFontSize(14);
-  pdf.text('Team Members', margin, y);
-  y += 8;
-
-  pdf.setFontSize(10);
-  members.forEach((member, idx) => {
-    const col = idx % 3;
-    const row = Math.floor(idx / 3);
-    const x = margin + col * 55;
-    const rowY = y + row * 8;
-    // 한글 역할명을 영문으로 변환, 매칭 안되면 Role N으로 표시
-    const englishRole = roleNameMap[member.role] || `Role ${idx + 1}`;
-    pdf.text(`${englishRole}: Member ${idx + 1}`, x, rowY);
-  });
-  y += Math.ceil(members.length / 3) * 8 + 15;
-
-  // 인포그래픽 이미지 추가
-  if (reportImageData) {
-    // 새 페이지 추가
-    pdf.addPage();
-
-    pdf.setFontSize(14);
-    pdf.text('Team Activity Report (AI Generated)', margin, 20);
-
-    // 이미지 크기 계산 (3:4 비율 유지, 페이지에 맞게)
-    const maxWidth = pageWidth - margin * 2;
-    const maxHeight = 250;
-    const imgWidth = Math.min(maxWidth, maxHeight * 0.75);
-    const imgHeight = imgWidth / 0.75;
-
-    const imgX = (pageWidth - imgWidth) / 2;
-    pdf.addImage(reportImageData, 'PNG', imgX, 30, imgWidth, imgHeight);
-  }
-
-  // PDF Blob 반환
-  return pdf.output('blob');
 }
