@@ -203,6 +203,7 @@ const R6_IMAGES = [
 ];
 const R6_CORRECT_ANSWER = 'BERLIN';
 const R6_STORY = "김부장은 본사 복귀 전 마지막 해외 출장을 다녀왔다. 두 장의 사진 속에 숨겨진 도시의 이름을 찾아라!";
+const R6_MISSION_IMAGE = 'https://i.ibb.co/dsrs3Pzm/image.jpg';
 
 // R7 음성 퀴즈 (7월)
 const R7_AUDIO_URL = 'https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3'; // 샘플 음성
@@ -213,12 +214,14 @@ const R7_STORY = "고객센터에서 급히 전화가 왔다. 음성 메시지�
 const R8_IMAGE = 'https://images.unsplash.com/photo-1611501275019-9b5cda994e8d?w=600';
 const R8_CORRECT_ANSWER = 'STAR';
 const R8_STORY = "전무님과의 회식 자리에서 우연히 전무님 팔에 새겨진 문신을 보게 되었다. 문신에 새겨진 단어는?";
+const R8_MISSION_IMAGE = 'https://i.ibb.co/WpPXDVch/image.jpg';
 
 // R9 심폐소생술 게임 (9월) - 플레이스홀더
 const R9_STORY = "안전관리팀에서 긴급 호출이 왔다! 심폐소생술 자격증을 갱신해야 한다. 게임을 통해 실력을 증명하라!";
 
 // R10 팀워크 미션 (10월)
 const R10_STORY = "팀워크가 필요한 순간! 팀원들과 함께 완벽한 3개의 정사각형을 완성하라. 모두 앞으로 나오세요!";
+const R10_MISSION_IMAGE = 'https://i.ibb.co/Xxh8xWrp/image.jpg';
 
 // R11 공감대화 (11월)
 const R11_STORY = "전무님이 평소와 다르게 침울해 보인다. 공감지능(EQ)을 발휘하여 전무님의 마음을 열어보자.";
@@ -300,6 +303,9 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
   const [r6Cleared, setR6Cleared] = useState(false);
   const [r6Error, setR6Error] = useState('');
   const [r6SelectedImage, setR6SelectedImage] = useState<number | null>(null);
+
+  // 지령 이미지 팝업 상태 (R6, R8, R10용)
+  const [missionImagePopup, setMissionImagePopup] = useState<string | null>(null);
 
   // R7 음성 퀴즈 상태 (7월)
   const [r7Answer, setR7Answer] = useState('');
@@ -2206,6 +2212,12 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
             <p className="text-xl font-bold italic text-center">"{R6_STORY}"</p>
           </BrutalistCard>
 
+          {/* 지령 이미지 */}
+          <div className="cursor-pointer" onClick={() => setMissionImagePopup(R6_MISSION_IMAGE)}>
+            <img src={R6_MISSION_IMAGE} alt="R6 지령" className="w-full max-w-md mx-auto brutal-border brutalist-shadow hover:scale-105 transition-transform" />
+            <p className="text-center text-sm text-gray-400 mt-2">👆 클릭하여 크게 보기</p>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             {R6_IMAGES.map((img) => (
               <div key={img.id} className="cursor-pointer brutal-border overflow-hidden hover:scale-105 transition-transform" onClick={() => setR6SelectedImage(img.id)}>
@@ -2251,6 +2263,19 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
                 <button onClick={() => setR6SelectedImage(null)} className="bg-black text-white px-4 py-2 font-black brutal-border">닫기 ✕</button>
               </div>
               <img src={R6_IMAGES.find(p => p.id === r6SelectedImage)?.url} alt="이미지" className="w-full" />
+            </div>
+          </div>
+        )}
+
+        {/* 지령 이미지 팝업 */}
+        {missionImagePopup && (
+          <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setMissionImagePopup(null)}>
+            <div className="max-w-4xl w-full bg-white brutal-border brutalist-shadow" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between items-center p-3 bg-yellow-400 border-b-4 border-black">
+                <span className="font-black text-black text-lg">📋 지령서</span>
+                <button onClick={() => setMissionImagePopup(null)} className="bg-black text-white px-4 py-2 font-black brutal-border hover:bg-red-600 transition-colors">✕</button>
+              </div>
+              <img src={missionImagePopup} alt="지령 이미지" className="w-full" />
             </div>
           </div>
         )}
@@ -2366,6 +2391,12 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
             <p className="text-xl font-bold italic text-center">"{R8_STORY}"</p>
           </BrutalistCard>
 
+          {/* 지령 이미지 */}
+          <div className="cursor-pointer" onClick={() => setMissionImagePopup(R8_MISSION_IMAGE)}>
+            <img src={R8_MISSION_IMAGE} alt="R8 지령" className="w-full max-w-md mx-auto brutal-border brutalist-shadow hover:scale-105 transition-transform" />
+            <p className="text-center text-sm text-gray-400 mt-2">👆 클릭하여 크게 보기</p>
+          </div>
+
           <img src={R8_IMAGE} alt="전무님 문신 힌트" className="w-full max-w-md mx-auto brutal-border brutalist-shadow" />
 
           {r8Cleared ? (
@@ -2394,6 +2425,19 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
             </BrutalistCard>
           )}
         </div>
+
+        {/* 지령 이미지 팝업 */}
+        {missionImagePopup && (
+          <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setMissionImagePopup(null)}>
+            <div className="max-w-4xl w-full bg-white brutal-border brutalist-shadow" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between items-center p-3 bg-yellow-400 border-b-4 border-black">
+                <span className="font-black text-black text-lg">📋 지령서</span>
+                <button onClick={() => setMissionImagePopup(null)} className="bg-black text-white px-4 py-2 font-black brutal-border hover:bg-red-600 transition-colors">✕</button>
+              </div>
+              <img src={missionImagePopup} alt="지령 이미지" className="w-full" />
+            </div>
+          </div>
+        )}
 
         <div className="fixed bottom-4 right-4 z-40">
           <button onClick={() => setViewState('factory')} className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow">
@@ -2510,6 +2554,12 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
             <p className="text-xl font-bold italic text-center">"{R10_STORY}"</p>
           </BrutalistCard>
 
+          {/* 지령 이미지 */}
+          <div className="cursor-pointer" onClick={() => setMissionImagePopup(R10_MISSION_IMAGE)}>
+            <img src={R10_MISSION_IMAGE} alt="R10 지령" className="w-full max-w-md mx-auto brutal-border brutalist-shadow hover:scale-105 transition-transform" />
+            <p className="text-center text-sm text-gray-400 mt-2">👆 클릭하여 크게 보기</p>
+          </div>
+
           <BrutalistCard className="space-y-4 text-center">
             <p className="text-xl font-bold">팀원들과 함께 완벽한 3개의 정사각형을 완성하세요!</p>
             <p className="text-lg text-yellow-400">모두 앞으로 나오세요.</p>
@@ -2543,6 +2593,19 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
             </BrutalistCard>
           )}
         </div>
+
+        {/* 지령 이미지 팝업 */}
+        {missionImagePopup && (
+          <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setMissionImagePopup(null)}>
+            <div className="max-w-4xl w-full bg-white brutal-border brutalist-shadow" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between items-center p-3 bg-yellow-400 border-b-4 border-black">
+                <span className="font-black text-black text-lg">📋 지령서</span>
+                <button onClick={() => setMissionImagePopup(null)} className="bg-black text-white px-4 py-2 font-black brutal-border hover:bg-red-600 transition-colors">✕</button>
+              </div>
+              <img src={missionImagePopup} alt="지령 이미지" className="w-full" />
+            </div>
+          </div>
+        )}
 
         <div className="fixed bottom-4 right-4 z-40">
           <button onClick={() => setViewState('factory')} className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow">
