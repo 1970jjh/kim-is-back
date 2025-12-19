@@ -6,6 +6,8 @@ const GEMINI_IMAGE_GEN_URL = 'https://generativelanguage.googleapis.com/v1beta/m
 const IMAGEN_URL = 'https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict';
 // Gemini 3 Pro Image Preview - 이미지 심층 분석 & 텍스트 렌더링 강화, 디자인 이미지 생성
 const GEMINI_3_PRO_IMAGE_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent';
+// Gemini 3 Pro Preview - 텍스트 분석 및 종합 리포트 생성
+const GEMINI_3_PRO_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro-preview-06-05:generateContent';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // CORS headers
@@ -43,6 +45,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.json(await generateReportInfographic(payload));
       case 'generateWinnerPoster':
         return res.json(await generateWinnerPoster(payload));
+      case 'analyzeTotalPerformance':
+        return res.json(await analyzeTotalPerformance(payload));
       default:
         return res.status(400).json({ error: 'Invalid action' });
     }
@@ -666,5 +670,202 @@ async function generateWinnerPoster(payload: {
   } catch (error) {
     console.error('Gemini 3 Pro winner poster API error:', error);
     return { success: false, error: '포스터 생성 중 오류가 발생했습니다.' };
+  }
+}
+
+// Admin: Analyze total performance of all teams (Gemini Pro)
+async function analyzeTotalPerformance(payload: {
+  groupName: string;
+  totalTeams: number;
+  performances: Array<{
+    teamId: number;
+    teamName: string;
+    rank: number;
+    totalTime: number;
+    totalTimeWithBonus: number;
+    helpCount: number;
+    helpBonusTime: number;
+    roundTimes: Record<number, number>;
+    members?: Array<{ role: string; name: string }>;
+  }>;
+  teamReports?: Array<{
+    teamId: number;
+    oneLine: string;
+    bestMission: string;
+    regret: string;
+    futureHelp: string;
+  }>;
+}) {
+  const { groupName, totalTeams, performances, teamReports } = payload;
+
+  // 오늘 날짜
+  const today = new Date();
+  const dateStr = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, '0')}.${String(today.getDate()).padStart(2, '0')}`;
+
+  // 통계 데이터 계산
+  const avgTime = performances.reduce((sum, p) => sum + p.totalTimeWithBonus, 0) / performances.length;
+  const minTime = Math.min(...performances.map(p => p.totalTimeWithBonus));
+  const maxTime = Math.max(...performances.map(p => p.totalTimeWithBonus));
+  const totalHelps = performances.reduce((sum, p) => sum + p.helpCount, 0);
+
+  // 라운드별 평균 시간 계산
+  const roundAvgTimes: Record<number, number> = {};
+  for (let r = 1; r <= 12; r++) {
+    const times = performances.map(p => p.roundTimes[r] || 0).filter(t => t > 0);
+    if (times.length > 0) {
+      roundAvgTimes[r] = times.reduce((a, b) => a + b, 0) / times.length;
+    }
+  }
+
+  // 가장 어려웠던/쉬웠던 라운드 찾기
+  const roundEntries = Object.entries(roundAvgTimes).map(([r, t]) => ({ round: parseInt(r), time: t }));
+  const hardestRound = roundEntries.sort((a, b) => b.time - a.time)[0];
+  const easiestRound = roundEntries.sort((a, b) => a.time - b.time)[0];
+
+  // 팀 리포트에서 가장 많이 언급된 미션 분석
+  const bestMissions = teamReports?.map(r => r.bestMission).join('\n') || '';
+
+  const formatTimeStr = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}분 ${secs}초`;
+  };
+
+  const prompt = `당신은 기업 교육 프로그램 분석 전문가입니다. 다음 팀 빌딩 미션 데이터를 종합적으로 분석하고 상세한 리포트를 작성해주세요.
+
+## 교육 프로그램 정보
+- 교육그룹명: ${groupName}
+- 참여 팀 수: ${totalTeams}팀
+- 분석 일자: ${dateStr}
+
+## 전체 성과 통계
+- 평균 소요시간: ${formatTimeStr(avgTime)}
+- 최단 소요시간: ${formatTimeStr(minTime)} (1위 팀)
+- 최장 소요시간: ${formatTimeStr(maxTime)}
+- 총 HELP 사용 횟수: ${totalHelps}회
+
+## 라운드별 평균 소요시간
+${Object.entries(roundAvgTimes).map(([r, t]) => `- R${r}: ${formatTimeStr(t)}`).join('\n')}
+
+## 가장 어려웠던 라운드
+- ${hardestRound ? `R${hardestRound.round} (평균 ${formatTimeStr(hardestRound.time)})` : '데이터 없음'}
+
+## 가장 쉬웠던 라운드
+- ${easiestRound ? `R${easiestRound.round} (평균 ${formatTimeStr(easiestRound.time)})` : '데이터 없음'}
+
+## 팀별 성과 데이터
+${performances.map(p => `
+### Team ${p.teamId} (${p.teamName})
+- 순위: #${p.rank}
+- 총 소요시간: ${formatTimeStr(p.totalTimeWithBonus)}
+- HELP 사용: ${p.helpCount}회 (+${formatTimeStr(p.helpBonusTime)} 패널티)
+`).join('')}
+
+## 팀 활동 소감 (베스트 미션 선정 의견)
+${bestMissions || '수집된 소감 없음'}
+
+---
+
+위 데이터를 바탕으로 다음 형식의 JSON 분석 리포트를 작성해주세요:
+
+{
+  "executiveSummary": "3-5문장의 핵심 요약",
+  "overallAssessment": "전체 교육 프로그램에 대한 종합 평가 (5-7문장)",
+  "teamRankingAnalysis": "순위별 팀 분석 및 특징 (상위팀/중위팀/하위팀 그룹별 특성)",
+  "roundAnalysis": {
+    "hardestRounds": ["가장 어려웠던 라운드 3개와 그 이유"],
+    "easiestRounds": ["가장 쉬웠던 라운드 3개와 그 이유"],
+    "keyInsights": "라운드별 분석에서 발견된 주요 인사이트"
+  },
+  "teamworkInsights": "팀워크 및 협업에 대한 분석",
+  "helpUsageAnalysis": "HELP 사용 패턴 분석 및 의미",
+  "recommendations": [
+    "향후 교육 프로그램 개선을 위한 구체적 제안 5가지"
+  ],
+  "bestPractices": [
+    "이번 교육에서 발견된 베스트 프랙티스 3가지"
+  ],
+  "chartData": {
+    "teamTimeComparison": [{"teamId": 1, "time": 초, "rank": 순위}, ...],
+    "roundDifficulty": [{"round": 1, "avgTime": 초}, ...],
+    "helpUsageByTeam": [{"teamId": 1, "helpCount": 횟수}, ...]
+  }
+}
+
+반드시 JSON 형식으로만 응답해주세요.`;
+
+  try {
+    console.log('Calling Gemini Pro for total performance analysis...');
+
+    const response = await fetch(`${GEMINI_3_PRO_URL}?key=${GEMINI_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{ text: prompt }]
+        }],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 4096
+        }
+      })
+    });
+
+    const data = await response.json();
+    console.log('Gemini Pro analysis response:', JSON.stringify(data).slice(0, 500));
+
+    if (data.error) {
+      console.error('Gemini Pro analysis error:', data.error);
+      return { success: false, error: data.error.message || '분석에 실패했습니다.' };
+    }
+
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+    try {
+      // JSON 추출
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const analysisResult = JSON.parse(jsonMatch[0]);
+        return {
+          success: true,
+          analysis: analysisResult,
+          rawStats: {
+            avgTime,
+            minTime,
+            maxTime,
+            totalHelps,
+            roundAvgTimes,
+            hardestRound,
+            easiestRound,
+            dateStr,
+            groupName,
+            totalTeams
+          }
+        };
+      }
+    } catch (parseError) {
+      console.error('JSON parse error:', parseError);
+    }
+
+    // JSON 파싱 실패시 텍스트 그대로 반환
+    return {
+      success: true,
+      analysis: { rawText: text },
+      rawStats: {
+        avgTime,
+        minTime,
+        maxTime,
+        totalHelps,
+        roundAvgTimes,
+        hardestRound,
+        easiestRound,
+        dateStr,
+        groupName,
+        totalTeams
+      }
+    };
+  } catch (error) {
+    console.error('Gemini Pro analysis API error:', error);
+    return { success: false, error: '성과 분석 중 오류가 발생했습니다.' };
   }
 }
