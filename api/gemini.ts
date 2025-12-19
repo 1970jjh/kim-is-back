@@ -8,10 +8,9 @@ export const config = {
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 const GEMINI_TEXT_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 const GEMINI_IMAGE_GEN_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent';
-const IMAGEN_URL = 'https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict';
-// Gemini 3 Pro Image Preview - 이미지 심층 분석 & 텍스트 렌더링 강화, 디자인 이미지 생성
+// Gemini 3 Pro Image Preview - 이미지 심층 분석 & 텍스트 렌더링 강화, 디자인 이미지 생성 (메인 이미지 생성 모델)
 const GEMINI_3_PRO_IMAGE_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent';
-// Gemini 3 Pro Preview - 텍스트 분석 및 종합 리포트 생성
+// Gemini 2.5 Pro Preview - 텍스트 분석 및 종합 리포트 생성
 const GEMINI_3_PRO_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro-preview-06-05:generateContent';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -454,8 +453,7 @@ async function generateReportInfographic(payload: { report: { oneLine: string; b
 
     if (data.error) {
       console.error('Gemini 3 Pro error:', data.error);
-      // Fallback to Imagen 3
-      return await generateReportInfographicImagen(payload);
+      return { success: false, error: data.error.message || 'Gemini API 오류가 발생했습니다.' };
     }
 
     const parts = data.candidates?.[0]?.content?.parts || [];
@@ -469,143 +467,12 @@ async function generateReportInfographic(payload: { report: { oneLine: string; b
       }
     }
 
-    // Fallback if no image in response
-    console.log('No image in Gemini 3 Pro response, falling back to Imagen 3...');
-    return await generateReportInfographicImagen(payload);
+    // No image in response
+    console.log('No image in Gemini 3 Pro response');
+    return { success: false, error: '이미지가 생성되지 않았습니다. 다시 시도해주세요.' };
   } catch (error) {
     console.error('Gemini 3 Pro API error:', error);
-    return await generateReportInfographicImagen(payload);
-  }
-}
-
-// Fallback 1: Imagen 3 API (3:4 aspect ratio)
-async function generateReportInfographicImagen(payload: { report: { oneLine: string; bestMission: string; regret: string; futureHelp: string }; teamId: number }) {
-  const { oneLine, bestMission, regret, futureHelp } = payload.report;
-  const teamId = payload.teamId;
-
-  const shortOneLine = oneLine.slice(0, 50);
-  const shortBestMission = bestMission.slice(0, 80);
-  const shortRegret = regret.slice(0, 80);
-  const shortFutureHelp = futureHelp.slice(0, 80);
-
-  const prompt = `Create a beautiful modern infographic poster for Team ${teamId}'s activity report.
-
-Style: Modern corporate infographic with vibrant gradient background (purple to blue). Clean minimalist design with white text. 3:4 portrait aspect ratio.
-
-Layout:
-- Top: Large title "TEAM ${teamId} 팀활동 결과보고서" with gold decorative elements
-- 4 content sections in card/box style with icons:
-  1. 💬 한줄소감: "${shortOneLine}"
-  2. ⭐ 베스트미션: "${shortBestMission}"
-  3. 💭 아쉬운점: "${shortRegret}"
-  4. 🚀 현업도움: "${shortFutureHelp}"
-- Bottom: "김부장의 복귀 프로젝트 | 2025" branding
-
-Design: Professional Korean corporate style, glass morphism effects, rounded corners, subtle shadows.`;
-
-  try {
-    console.log('Calling Imagen 3 for report generation...');
-
-    const response = await fetch(`${IMAGEN_URL}?key=${GEMINI_API_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        instances: [{ prompt }],
-        parameters: {
-          sampleCount: 1,
-          aspectRatio: "3:4",
-          safetyFilterLevel: "block_few",
-          personGeneration: "allow_all"
-        }
-      })
-    });
-
-    const data = await response.json();
-    console.log('Imagen 3 response:', JSON.stringify(data).slice(0, 500));
-
-    if (data.error) {
-      console.error('Imagen 3 error:', data.error);
-      return await generateReportInfographicFallback(payload);
-    }
-
-    const predictions = data.predictions || [];
-    if (predictions.length > 0 && predictions[0].bytesBase64Encoded) {
-      console.log('Successfully generated image with Imagen 3');
-      return {
-        success: true,
-        imageData: `data:image/png;base64,${predictions[0].bytesBase64Encoded}`
-      };
-    }
-
-    return await generateReportInfographicFallback(payload);
-  } catch (error) {
-    console.error('Imagen 3 API error:', error);
-    return await generateReportInfographicFallback(payload);
-  }
-}
-
-// Fallback: Gemini 2.0 Flash image generation
-async function generateReportInfographicFallback(payload: { report: { oneLine: string; bestMission: string; regret: string; futureHelp: string }; teamId: number }) {
-  const { oneLine, bestMission, regret, futureHelp } = payload.report;
-  const teamId = payload.teamId;
-
-  const prompt = `Generate a beautiful infographic image for Team ${teamId}'s activity report.
-
-Create a 3:4 portrait poster with:
-- Gradient background (purple/blue/pink)
-- Title: "TEAM ${teamId} 결과보고서"
-- 4 sections with Korean text:
-  1. 한줄소감: ${oneLine.slice(0, 40)}
-  2. 베스트미션: ${bestMission.slice(0, 60)}
-  3. 아쉬운점: ${regret.slice(0, 60)}
-  4. AI활용: ${futureHelp.slice(0, 60)}
-- Modern glassmorphism style
-- Professional corporate design
-- "KIM IS BACK 2025" at bottom`;
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 110000); // 110초 타임아웃
-
-  try {
-    const response = await fetch(`${GEMINI_IMAGE_GEN_URL}?key=${GEMINI_API_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{ text: prompt }]
-        }],
-        generationConfig: {
-          responseModalities: ['TEXT', 'IMAGE'],
-        }
-      }),
-      signal: controller.signal
-    });
-
-    clearTimeout(timeoutId);
-
-    const data = await response.json();
-    console.log('Gemini Flash response:', JSON.stringify(data).slice(0, 500));
-
-    if (data.error) {
-      console.error('Gemini Flash error:', data.error);
-      return { success: false, error: data.error.message };
-    }
-
-    const parts = data.candidates?.[0]?.content?.parts || [];
-    for (const part of parts) {
-      if (part.inlineData) {
-        return {
-          success: true,
-          imageData: `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`
-        };
-      }
-    }
-
-    return { success: false, error: '보고서 이미지 생성에 실패했습니다. 잠시 후 다시 시도해주세요.' };
-  } catch (error) {
-    clearTimeout(timeoutId);
-    console.error('Gemini Flash fallback error:', error);
-    return { success: false, error: '보고서 이미지 생성 중 타임아웃이 발생했습니다.' };
+    return { success: false, error: '이미지 생성 중 오류가 발생했습니다. 다시 시도해주세요.' };
   }
 }
 

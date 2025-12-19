@@ -191,7 +191,17 @@ export async function generateReportInfographic(
   });
 }
 
-// PDF 생성을 위한 유틸리티
+// 역할명 영문 변환 맵
+const roleNameMap: Record<string, string> = {
+  '팀장': 'Team Leader',
+  '서기': 'Secretary',
+  '타임키퍼': 'Timekeeper',
+  '발표자': 'Presenter',
+  '아이디어뱅크': 'Idea Bank',
+  '응원단장': 'Cheerleader'
+};
+
+// PDF 생성을 위한 유틸리티 (jsPDF 기본 폰트는 한글 미지원 - 영문으로 출력)
 export async function generateResultPDF(
   teamId: number,
   performance: {
@@ -214,13 +224,12 @@ export async function generateResultPDF(
   const margin = 20;
   let y = 20;
 
-  // 한글 폰트 설정을 위해 기본 폰트 사용
   pdf.setFont('helvetica');
 
-  // 제목
+  // 제목 (영문)
   pdf.setFontSize(24);
   pdf.setTextColor(40, 40, 40);
-  pdf.text(`TEAM ${teamId} - 결과보고서`, pageWidth / 2, y, { align: 'center' });
+  pdf.text(`TEAM ${teamId} - Result Report`, pageWidth / 2, y, { align: 'center' });
   y += 20;
 
   // 구분선
@@ -268,7 +277,7 @@ export async function generateResultPDF(
   }
   y += 30;
 
-  // 팀 역할
+  // 팀 역할 (역할명 영문 변환, 이름은 Member 1, 2... 로 표시)
   pdf.setFontSize(14);
   pdf.text('Team Roles', margin, y);
   y += 8;
@@ -279,7 +288,8 @@ export async function generateResultPDF(
     const row = Math.floor(idx / 3);
     const x = margin + col * 55;
     const rowY = y + row * 8;
-    pdf.text(`${member.role}: ${member.name}`, x, rowY);
+    const englishRole = roleNameMap[member.role] || member.role;
+    pdf.text(`${englishRole}: Member ${idx + 1}`, x, rowY);
   });
   y += Math.ceil(members.length / 3) * 8 + 15;
 
@@ -289,7 +299,7 @@ export async function generateResultPDF(
     pdf.addPage();
 
     pdf.setFontSize(14);
-    pdf.text('Team Activity Report', margin, 20);
+    pdf.text('Team Activity Report (AI Generated)', margin, 20);
 
     // 이미지 크기 계산 (3:4 비율 유지, 페이지에 맞게)
     const maxWidth = pageWidth - margin * 2;
