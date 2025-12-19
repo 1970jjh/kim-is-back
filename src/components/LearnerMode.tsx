@@ -1101,13 +1101,15 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
         </div>
 
         <BrutalistCard className="aspect-video relative overflow-hidden bg-black p-0">
-          <iframe
-            src="https://drive.google.com/file/d/1aBzRxcHVYTRS0grk4QbmNEAiLGkZa7a1/preview"
+          <video
             className="w-full h-full"
-            allow="autoplay; encrypted-media"
-            allowFullScreen
-            title="김부장의 본사 복귀 미션 오프닝 영상"
-          />
+            controls
+            playsInline
+            poster=""
+          >
+            <source src="/videos/opening.mp4" type="video/mp4" />
+            브라우저가 영상 재생을 지원하지 않습니다.
+          </video>
         </BrutalistCard>
 
         <div className="space-y-4">
