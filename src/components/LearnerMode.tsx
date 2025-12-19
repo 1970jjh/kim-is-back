@@ -1006,24 +1006,35 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
       // AI 검증 스킵하고 바로 PASS 처리
       setR12ValidationResult({ pass: true, message: 'PASS! 보고서가 승인되었습니다. 인포그래픽을 생성합니다...' });
 
-      // 인포그래픽 생성
+      // 인포그래픽 생성 (최대 2회 시도)
       setR12Generating(true);
-      const imgResult = await geminiService.generateReportInfographic(r12Report, auth.teamId);
+      let imgResult = await geminiService.generateReportInfographic(r12Report, auth.teamId);
+
+      // 첫 번째 시도 실패 시 재시도
+      if (!imgResult.success || !imgResult.imageData) {
+        console.log('First attempt failed, retrying...');
+        await new Promise(resolve => setTimeout(resolve, 1000)); // 1초 대기
+        imgResult = await geminiService.generateReportInfographic(r12Report, auth.teamId);
+      }
 
       if (imgResult.success && imgResult.imageData) {
         setR12InfographicUrl(imgResult.imageData);
+        setR12ValidationResult({ pass: true, message: '🎉 인포그래픽이 생성되었습니다! 다운로드 후 미션을 완료하세요.' });
         // Firebase에 보고서 저장
         await firebaseService.saveTeamReport(room.id, auth.teamId, r12Report, imgResult.imageData);
       } else {
+        console.error('Image generation failed:', imgResult.error);
         setR12ValidationResult({
           pass: true,
-          message: 'PASS! 보고서가 승인되었습니다. (이미지 생성은 나중에 시도해주세요)'
+          message: `PASS! 보고서가 승인되었습니다. (이미지 생성 실패: ${imgResult.error || '알 수 없는 오류'})`
         });
       }
       setR12Generating(false);
     } catch (error) {
+      console.error('R12 validation error:', error);
       // 에러가 발생해도 보고서 자체는 통과 처리
       setR12ValidationResult({ pass: true, message: 'PASS! 보고서가 승인되었습니다. (이미지 생성 중 오류 발생)' });
+      setR12Generating(false);
     } finally {
       setR12Validating(false);
     }
