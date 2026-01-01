@@ -211,6 +211,8 @@ const App: React.FC = () => {
     const [shouldHide, setShouldHide] = useState(false);
     const [showCloseMessage, setShowCloseMessage] = useState(false);
     const [isTimeUp, setIsTimeUp] = useState(false);
+    const [imageLoaded, setImageLoaded] = useState(false);
+    const [imageError, setImageError] = useState(false);
     const hasTriggeredClose = React.useRef(false);
     const currentEventRef = React.useRef<string | null>(null);
 
@@ -221,6 +223,8 @@ const App: React.FC = () => {
         setShouldHide(false);
         setShowCloseMessage(false);
         setIsTimeUp(false);
+        setImageLoaded(false);
+        setImageError(false);
         currentEventRef.current = currentRoom?.activeEvent || null;
       }
     }, [currentRoom?.activeEvent]);
@@ -350,7 +354,33 @@ const App: React.FC = () => {
                </div>
              )}
 
-             <img src={eventInfo.image} alt={eventInfo.label} className="w-full aspect-video object-contain brutal-border brutalist-shadow bg-black" />
+             {/* 이미지 로딩 상태 */}
+             <div className="relative w-full aspect-video brutal-border brutalist-shadow bg-black overflow-hidden">
+               {!imageLoaded && !imageError && (
+                 <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
+                   <div className="text-center">
+                     <div className="text-4xl animate-pulse mb-2">🖼️</div>
+                     <p className="text-gray-400 text-sm">이미지 로딩 중...</p>
+                   </div>
+                 </div>
+               )}
+               {imageError && (
+                 <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
+                   <div className="text-center">
+                     <div className="text-6xl mb-2">🎉</div>
+                     <p className="text-white text-xl font-black">{eventInfo.label}</p>
+                   </div>
+                 </div>
+               )}
+               <img
+                 src={eventInfo.image}
+                 alt={eventInfo.label}
+                 className={`w-full h-full object-contain transition-opacity duration-300 ${imageLoaded && !imageError ? 'opacity-100' : 'opacity-0'}`}
+                 loading="eager"
+                 onLoad={() => setImageLoaded(true)}
+                 onError={() => setImageError(true)}
+               />
+             </div>
 
              {/* 이벤트 지령 */}
              {eventInfo.instruction && (
