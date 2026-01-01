@@ -390,6 +390,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
   const [r11Cleared, setR11Cleared] = useState(false);
   const [r11StartTime, setR11StartTime] = useState<number | null>(null);
   const [r11CompletionTime, setR11CompletionTime] = useState('');
+  const [r11ShowManual, setR11ShowManual] = useState(false);
 
   // R12 팀활동 결과보고서 상태 (12월)
   const [r12Report, setR12Report] = useState({
@@ -2838,11 +2839,78 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
                   }}
                   disabled={r11Sending}
                 />
+                <button
+                  onClick={() => setR11ShowManual(true)}
+                  className="h-fit px-3 py-2 bg-blue-600 text-white text-xs font-bold brutal-border hover:bg-blue-500 transition-colors whitespace-nowrap"
+                  title="응대 팁 보기"
+                >
+                  📖 매뉴얼
+                </button>
                 <BrutalistButton variant="gold" onClick={handleR11SendMessage} disabled={r11Sending || !r11UserInput.trim()} className="h-fit">전송</BrutalistButton>
               </div>
             </div>
           )}
         </div>
+
+        {/* 고객 대화 매뉴얼 팝업 */}
+        {r11ShowManual && (
+          <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+            <div className="bg-white text-black max-w-lg w-full max-h-[80vh] overflow-y-auto brutal-border brutalist-shadow">
+              <div className="bg-blue-600 text-white p-4 flex justify-between items-center">
+                <h3 className="text-xl font-black">📖 고객 대화 매뉴얼</h3>
+                <button onClick={() => setR11ShowManual(false)} className="text-2xl font-black hover:text-yellow-400">✕</button>
+              </div>
+              <div className="p-4 space-y-4">
+                <div className="bg-yellow-100 p-3 border-l-4 border-yellow-500">
+                  <p className="font-bold text-yellow-800">💡 높은 점수를 받는 핵심 포인트</p>
+                </div>
+
+                <div className="space-y-3 text-sm">
+                  <div className="bg-gray-100 p-3 rounded">
+                    <p className="font-black text-blue-600">1. 인사 & 공감</p>
+                    <p className="text-gray-600">• "안녕하세요", "불편을 드려 죄송합니다"</p>
+                    <p className="text-gray-600">• 고객의 감정을 먼저 인정하기</p>
+                  </div>
+
+                  <div className="bg-gray-100 p-3 rounded">
+                    <p className="font-black text-blue-600">2. 경청 표현</p>
+                    <p className="text-gray-600">• "말씀하신 내용 잘 들었습니다"</p>
+                    <p className="text-gray-600">• 고객이 말한 내용을 다시 요약해주기</p>
+                  </div>
+
+                  <div className="bg-gray-100 p-3 rounded">
+                    <p className="font-black text-blue-600">3. 해결책 제시</p>
+                    <p className="text-gray-600">• 구체적인 해결 방안 제안</p>
+                    <p className="text-gray-600">• "~해드리겠습니다", "~으로 보상해드리겠습니다"</p>
+                  </div>
+
+                  <div className="bg-gray-100 p-3 rounded">
+                    <p className="font-black text-blue-600">4. 책임감 있는 태도</p>
+                    <p className="text-gray-600">• 변명하지 않고 책임 인정</p>
+                    <p className="text-gray-600">• "저희 잘못입니다", "책임지고 처리하겠습니다"</p>
+                  </div>
+
+                  <div className="bg-gray-100 p-3 rounded">
+                    <p className="font-black text-blue-600">5. 긍정적 마무리</p>
+                    <p className="text-gray-600">• "다시 한번 죄송합니다"</p>
+                    <p className="text-gray-600">• "더 좋은 서비스로 보답하겠습니다"</p>
+                  </div>
+                </div>
+
+                <div className="bg-green-100 p-3 border-l-4 border-green-500">
+                  <p className="font-bold text-green-800 mb-2">✅ 예시 응대</p>
+                  <p className="text-sm text-green-700 italic">
+                    "안녕하세요, 고객님. 불편을 드려 정말 죄송합니다. 말씀하신 문제에 대해 저희가 책임지고 즉시 확인하여 처리해드리겠습니다. 보상 방안도 함께 안내드리겠습니다."
+                  </p>
+                </div>
+
+                <BrutalistButton variant="primary" fullWidth onClick={() => setR11ShowManual(false)}>
+                  닫기
+                </BrutalistButton>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="fixed bottom-4 right-4 z-40">
           <button onClick={() => setViewState('factory')} className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow">
