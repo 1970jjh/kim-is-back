@@ -128,8 +128,73 @@ JSON 형식으로만 답변하세요:
   };
 }
 
-// R11: Chat with executive
-async function chat(payload: { conversationHistory: Array<{ role: string; content: string }>; userMessage: string }) {
+// 산업군별 고객 시나리오
+const CUSTOMER_SCENARIOS: Record<number, { role: string; situation: string; personality: string }> = {
+  1: { // IT/솔루션
+    role: '시스템 장애로 화난 IT 담당자',
+    situation: '우리 회사 ERP 시스템이 갑자기 멈춰서 업무가 완전히 마비됐어요. 어제 오후부터 지금까지 아무것도 못하고 있습니다. 계약서에는 24시간 내 복구라고 되어 있는데, 벌써 15시간째예요!',
+    personality: '논리적이고 데이터를 중시하며, 명확한 해결 일정과 원인 분석을 요구함'
+  },
+  2: { // 제조/원자재
+    role: '납품 지연에 화난 구매 담당자',
+    situation: '이번 달 원자재 납품이 또 3일이나 늦어졌어요. 이게 벌써 세 번째예요! 우리 생산라인이 멈추면 그 손해가 얼마인지 아세요?',
+    personality: '실용적이고 결과 중심적이며, 구체적인 보상과 재발 방지 대책을 요구함'
+  },
+  3: { // 유통/리테일
+    role: '재고 오류로 화난 매장 점주',
+    situation: '발주한 물건이 절반밖에 안 왔는데, 시스템에는 전량 입고로 떠요. 이번 주말 세일 행사 앞두고 이게 무슨 일이에요? 매출 손실 누가 책임지나요?',
+    personality: '매출과 고객에 민감하며, 신속한 처리와 추가 지원을 기대함'
+  },
+  4: { // 건설/인프라
+    role: '공사 지연으로 화난 현장 소장',
+    situation: '장비 대여 일정이 갑자기 변경됐다는 게 말이 됩니까? 현장에서 20명이 기다리고 있는데. 지체보상금 어떻게 할 건지 당장 답변 주세요!',
+    personality: '일정과 비용에 예민하며, 책임 소재를 명확히 하려 함'
+  },
+  5: { // 금융/보험
+    role: '보험금 처리 지연에 화난 고객',
+    situation: '사고 접수한 지 한 달이 넘었는데 아직도 심사 중이라고요? 서류는 진작에 다 냈고, 매번 전화하면 담당자가 다르고. 도대체 언제 처리되는 겁니까?',
+    personality: '절차와 투명성을 중시하며, 정확한 진행 상황과 일정을 알고 싶어함'
+  },
+  6: { // 광고/마케팅
+    role: '캠페인 성과 불만인 마케팅 담당자',
+    situation: '지난 달 캠페인 비용 3천만원 썼는데 전환율이 0.5%밖에 안 나왔어요. 경쟁사 대행사는 2% 이상 뽑아주던데, 이래서 계약 연장하라고요?',
+    personality: 'ROI와 수치에 민감하며, 구체적인 개선안과 추가 서비스를 원함'
+  },
+  7: { // 화학/에너지
+    role: '품질 이슈로 화난 품질관리 담당자',
+    situation: '최근 납품된 원료 성분 분석 결과가 스펙과 다릅니다. 이 원료로 만든 제품 전량 리콜해야 할 수도 있어요. 인증서에는 문제없다고 나와있는데 어떻게 된 겁니까?',
+    personality: '안전과 규정 준수를 최우선시하며, 문서화된 증빙과 공식 대응을 요구함'
+  },
+  8: { // 의료/제약
+    role: '의료기기 오류로 화난 병원 담당자',
+    situation: 'MRI 장비가 또 에러가 났어요. 오늘 검사 예약 환자가 15명인데 다 취소해야 합니다. 환자들한테 뭐라고 설명하라고요? 엔지니어 언제 옵니까?',
+    personality: '환자 안전과 병원 평판에 민감하며, 즉각적인 기술 지원을 원함'
+  },
+  9: { // 물류/운송
+    role: '배송 사고로 화난 물류 담당자',
+    situation: '화물이 파손된 채로 도착했어요. 보험 처리한다고 하는데, 당장 오늘 납품해야 하는 건 어떻게 하라고요? 고객사에서 계약 해지 얘기까지 나오고 있습니다!',
+    personality: '시간에 쫓기며, 대안 솔루션과 책임 있는 후속 조치를 원함'
+  },
+  10: { // 식음료(F&B)
+    role: '식자재 품질 문제로 화난 레스토랑 오너',
+    situation: '오늘 배송 온 해산물 상태가 엉망이에요. 냄새도 나고, 이걸 손님한테 내놓으라고요? 토요일 저녁 예약 다 잡혀있는데 메뉴를 어떻게 하라는 겁니까?',
+    personality: '신선도와 고객 경험에 민감하며, 즉시 대체품과 보상을 원함'
+  }
+};
+
+// R11: Chat with executive (레거시) / 고객 응대 시뮬레이션
+async function chat(payload: {
+  conversationHistory: Array<{ role: string; content: string }>;
+  userMessage: string;
+  mode?: 'customerService';
+  industryType?: number;
+}) {
+  // 고객 응대 모드인 경우 별도 프롬프트 사용
+  if (payload.mode === 'customerService' && payload.industryType) {
+    return await chatWithCustomer(payload);
+  }
+
+  // 기존 전무님 대화 (레거시)
   const systemPrompt = `당신은 "전무님" 역할을 수행하는 AI입니다.
 당신은 회사의 전무이사로, 자녀 교육 문제로 고민이 있습니다.
 
@@ -201,6 +266,93 @@ async function chat(payload: { conversationHistory: Array<{ role: string; conten
   }
 
   return { response: text.slice(0, 200), empathyScore: 50, scoreChange: 0 };
+}
+
+// R11: 고객 응대 시뮬레이션 - 산업군별 화난 고객 역할
+async function chatWithCustomer(payload: {
+  conversationHistory: Array<{ role: string; content: string }>;
+  userMessage: string;
+  industryType?: number;
+}) {
+  const industryType = payload.industryType || 1;
+  const scenario = CUSTOMER_SCENARIOS[industryType] || CUSTOMER_SCENARIOS[1];
+
+  const systemPrompt = `당신은 "${scenario.role}" 역할을 수행하는 AI입니다.
+당신은 서비스/제품에 불만이 있는 B2B 고객입니다.
+
+## 상황
+${scenario.situation}
+
+## 성격 특성
+${scenario.personality}
+
+## 대화 규칙
+1. 당신은 화가 난 고객입니다. 처음에는 짜증과 불만을 표현하세요
+2. 상대방(직원)이 진심으로 사과하고 공감하면 조금씩 누그러지세요
+3. 구체적인 해결책과 보상을 제시받으면 만족도가 올라갑니다
+4. 형식적인 사과나 책임 회피는 더 화나게 합니다
+5. 업무적인 내용으로만 대화하세요 (개인적인 이야기 X)
+6. 고객 관점에서 문제 해결을 원합니다
+
+## 만족도 평가 기준
+- 진심 어린 사과와 공감: +15~20점
+- 구체적인 해결책 제시: +10~15점
+- 보상/대안 제안: +10~15점
+- 책임 인정: +8~12점
+- 경청하고 요약해주기: +5~10점
+- 형식적 사과만: -5~0점
+- 변명/책임 회피: -10~15점
+- 무시/무관심: -15~20점
+
+## 응답 형식 (반드시 JSON으로)
+{
+  "response": "고객의 대답 (자연스러운 대화체로, 업무 관련 내용만, 150자 내외)",
+  "empathyScore": 현재까지의 누적 고객 만족도(0-100, 초기값 10),
+  "scoreChange": 이번 대화로 인한 점수 변화(-20 ~ +20),
+  "mood": "현재 감정 상태 (매우화남/화남/불만/누그러짐/만족)"
+}
+
+중요: 절대로 개인적인 이야기(가족, 자녀, 건강 등)를 하지 마세요. 오직 비즈니스 상황에 대해서만 대화하세요.`;
+
+  const messages = [
+    { role: 'user', parts: [{ text: systemPrompt }] },
+    ...payload.conversationHistory.map(msg => ({
+      role: msg.role === 'user' ? 'user' : 'model',
+      parts: [{ text: msg.content }]
+    })),
+    { role: 'user', parts: [{ text: payload.userMessage }] }
+  ];
+
+  const response = await fetch(`${GEMINI_TEXT_URL}?key=${GEMINI_API_KEY}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: messages,
+      generationConfig: {
+        temperature: 0.8,
+        maxOutputTokens: 500
+      }
+    })
+  });
+
+  const data = await response.json();
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+  try {
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const result = JSON.parse(jsonMatch[0]);
+      return {
+        response: result.response || '...',
+        empathyScore: Math.min(100, Math.max(0, result.empathyScore || 10)),
+        scoreChange: result.scoreChange || 0
+      };
+    }
+  } catch {
+    // JSON parsing failed
+  }
+
+  return { response: text.slice(0, 200), empathyScore: 10, scoreChange: 0 };
 }
 
 // R12: Validate resolutions
