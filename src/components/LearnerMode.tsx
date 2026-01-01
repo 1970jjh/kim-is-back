@@ -114,8 +114,9 @@ const formatTimeWithHours = (seconds: number): string => {
 // 화면 상태
 type ViewState = 'waiting' | 'intro' | 'factory' | 'mission' | 'result';
 
-const FACTORY_BG = 'https://i.imgur.com/G66myVZ.jpeg';
-const DIARY_IMAGE = 'https://i.imgur.com/vvbLGIm.jpeg';
+// 이미지 최적화: imgur에서 'l' suffix 사용 (large thumbnail, 640px)
+const FACTORY_BG = 'https://i.imgur.com/G66myVZl.jpeg';
+const DIARY_IMAGE = 'https://i.imgur.com/vvbLGIml.jpeg';
 
 // R1 신입사원 채용 서류전형 미션 (1월)
 const R1_STORY = `여느 때처럼 나른한 오후를 즐기며 결재 서류를 뒤적이는 당신.
@@ -152,8 +153,8 @@ const R2_CORRECT_ANSWER = '4035';
 const R3_STORY = `간신히 로그인에 성공하자 화면을 가득 채운 건 승진 명단이 아닌, [충청남도 아산 공장 발령] 통지서였다.
 "내가... 지방 공장으로 좌천이라고?" 현실을 부정할 새도 없이, 당장 오늘까지 그곳으로 출근해야만 한다.
 이제 서울 생활은 끝났다. 아래 이미지를 터치하여, 지도에서 유배지나 다름없는 그 공장의 정확한 위치를 찾아라!`;
-const R3_QUIZ_IMAGE = 'https://i.imgur.com/nswRxmd.jpeg';
-const R3_PADLET_LINK = 'https://padlet.com/ksajhjeon/padlet-idnyc8suzfsy502s';
+const R3_QUIZ_IMAGE = 'https://i.imgur.com/nswRxmdl.jpeg';
+const R3_PADLET_LINK = 'https://padlet.com/ksajhjeon/kim-s-back-idnyc8suzfsy502s';
 const R3_CORRECT_ANSWERS = [
   '010-4454-2252',
   '010-2319-4323',
@@ -163,9 +164,10 @@ const R3_CORRECT_ANSWERS = [
 ];
 
 // R4 틀린 그림 찾기 이미지 세트 (4월) - 새로운 형식: 단일 이미지, 클릭으로 정답 찾기
+// 이미지 최적화: imgur 'l' suffix 사용
 const R4_GAME_DATA = [
   {
-    img: 'https://i.imgur.com/suTemUX.png',
+    img: 'https://i.imgur.com/suTemUXl.png',
     answers: [
       { x: 55.1, y: 16.7, r: 7 },
       { x: 71.3, y: 50.3, r: 7 },
@@ -173,7 +175,7 @@ const R4_GAME_DATA = [
     ]
   },
   {
-    img: 'https://i.imgur.com/o5HD18z.png',
+    img: 'https://i.imgur.com/o5HD18zl.png',
     answers: [
       { x: 82.5, y: 10.1, r: 7 },
       { x: 74.4, y: 63.9, r: 7 },
@@ -181,7 +183,7 @@ const R4_GAME_DATA = [
     ]
   },
   {
-    img: 'https://i.imgur.com/sV8YkaB.png',
+    img: 'https://i.imgur.com/sV8YkaBl.png',
     answers: [
       { x: 84.6, y: 43.3, r: 7 },
       { x: 67.6, y: 30.5, r: 7 },
@@ -192,8 +194,8 @@ const R4_GAME_DATA = [
 
 const R4_STORY = "본사 복귀를 꿈꾼다면, 먼저 이 낯선 현장의 공기부터 완벽하게 파악해야 한다. 공장 내외부와 그곳을 지키는 강아지 한 마리의 그림 속에 복귀의 실마리가 숨겨져 있다. 당신의 '서울 본사급' 엘리트 눈썰미를 증명할 시간, 두 그림 사이의 미묘한 틀린 부분을 모두 찾아내라!";
 
-// R5 팀 단체사진 (5월)
-const R5_SAMPLE_IMAGE = 'https://i.imgur.com/TlJe72B.jpeg';
+// R5 팀 단체사진 (5월) - 이미지 최적화
+const R5_SAMPLE_IMAGE = 'https://i.imgur.com/TlJe72Bl.jpeg';
 const R5_STORY = "삭막했던 공장 주변에도 어느덧 5월의 신록이 우거졌다. '자연과 하나 된 조직만이 살아남는다!'는 공장장의 뜬금없는 지령, 이것도 본사 복귀 고과에 반영되는 건가? 지금 당장 밖으로 나가 푸른 나무나 식물을 배경으로, 팀원들과 함께 '완벽한 원팀' 인증샷을 찍어오라!";
 
 // R6 사진 퀴즈 (6월)
@@ -201,10 +203,9 @@ const R6_CORRECT_ANSWER = 'BERLIN';
 const R6_STORY = "무더위가 시작되는 6월, 당신의 인사권을 쥔 본사 임원이 극비리에 출장을 떠났다는 첩보가 입수됐다. 그가 머무는 곳을 알아내 줄을 댈 수 있는 천재일우의 기회, 이 동아줄을 반드시 잡아야 한다! 남겨진 단서들을 조합해, 상무님이 머물고 있는 출장지를 정확히 추적하라.";
 const R6_MISSION_IMAGE = 'https://i.ibb.co/dsrs3Pzm/image.jpg';
 
-// R7 음성 퀴즈 (7월)
-const R7_AUDIO_URL = 'https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3'; // 샘플 음성
-const R7_CORRECT_ANSWER = '환불';
-const R7_STORY = "무더운 7월, 본사 복귀를 위해선 임원 라인뿐 아니라 '현장의 위기 관리 능력'까지 완벽하게 증명해야 한다. 단순한 민원 접수가 아니다. \"그냥 좀 불편하네\"라는 주민들의 말 뒤에 숨겨진, 등골 서늘한 진짜 속내를 읽어내야 한다. 겉과 속이 다른 VOC의 진의(眞意)를 정확히 파악해, 당신이 역시 본사로 복귀해야만 하는 뛰어난 '해결사'임을 입증하라!";
+// R7 영상 퀴즈 (7월)
+const R7_VIDEO_URL = 'https://1970jjh.github.io/kim-is-back/7R.mp4';
+const R7_STORY = "베를린 첩보가 통한 걸까? 7월의 폭염을 뚫고 본사 인사팀장이 갑자기 당신을 찾아왔다. 지금 필요한 건 단순한 듣기가 아니다. '맥락적 경청'으로 말 뒤에 숨은 의도를 읽고, '날카로운 통찰력'으로 그가 진짜 원하는 바를 찾아내야 한다. 팀원들과 영상을 정밀 분석해, 빙빙 돌려 말하는 인사팀장의 이야기 속 뒤에 감춰진 핵심을 꿰뚫는 '커뮤니케이션 능력과 상황 파악 능력'을 증명하라! 인사팀장이 진짜 원하는 것은 무엇인가? (When/What)";
 
 // R8 문신 퀴즈 (8월)
 const R8_CORRECT_ANSWER = 'STAR';
@@ -301,10 +302,11 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
   // 지령 이미지 팝업 상태 (R6, R8, R10용)
   const [missionImagePopup, setMissionImagePopup] = useState<string | null>(null);
 
-  // R7 음성 퀴즈 상태 (7월)
+  // R7 영상 퀴즈 상태 (7월)
   const [r7Answer, setR7Answer] = useState('');
   const [r7Cleared, setR7Cleared] = useState(false);
   const [r7Error, setR7Error] = useState('');
+  const [showR7VideoPopup, setShowR7VideoPopup] = useState(false);
 
   // R8 문신 퀴즈 상태 (8월)
   const [r8Answer, setR8Answer] = useState('');
@@ -841,14 +843,22 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
     setViewState('factory');
   };
 
-  // R7 정답 체크
+  // R7 정답 체크 - "다음 주" + "20명" 또는 "스무명" 포함 시 정답
   const handleR7Submit = () => {
-    const normalizedAnswer = r7Answer.replace(/\s/g, '').trim();
-    if (normalizedAnswer === R7_CORRECT_ANSWER) {
+    const answer = r7Answer.trim();
+    const normalizedAnswer = answer.replace(/\s/g, '');
+
+    // "다음 주" 또는 "다음주" 포함 여부 체크
+    const hasNextWeek = answer.includes('다음 주') || answer.includes('다음주') || normalizedAnswer.includes('다음주');
+
+    // "20명" 또는 "스무명" 또는 "스무 명" 포함 여부 체크
+    const hasTwenty = answer.includes('20명') || answer.includes('스무명') || answer.includes('스무 명') || normalizedAnswer.includes('20명') || normalizedAnswer.includes('스무명');
+
+    if (hasNextWeek && hasTwenty) {
       setR7Cleared(true);
       setR7Error('');
     } else {
-      setR7Error('정답이 아닙니다. 다시 시도해주세요.');
+      setR7Error('정답이 아닙니다. (힌트: When/What 두 가지 모두 입력해주세요)');
     }
   };
 
@@ -1117,6 +1127,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
             src={DIARY_IMAGE}
             alt="낡은 다이어리"
             className="w-full brutal-border brutalist-shadow"
+            loading="lazy"
           />
           <div className="bg-[#ffd700] text-black p-8 brutal-border brutalist-shadow text-center">
             <p className="text-4xl font-black italic">"희망을 잃지 말고, 최선을 다해라"</p>
@@ -1389,13 +1400,13 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
           </section>
         </div>
 
-        {/* 공장으로 버튼 */}
+        {/* 달력보기 버튼 */}
         <div className="fixed bottom-4 right-4 z-40">
           <button
             onClick={() => setViewState('factory')}
             className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow active:translate-x-1 active:translate-y-1 active:shadow-none"
           >
-            ← 공장으로
+            ← 달력보기
           </button>
         </div>
       </div>
@@ -1518,7 +1529,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
                   className="cursor-pointer brutal-border overflow-hidden hover:scale-105 transition-transform bg-black"
                   onClick={() => setR1SelectedProfile(profile.id)}
                 >
-                  <img src={profile.image} alt={profile.name} className="w-full h-32 md:h-48 object-cover" />
+                  <img src={profile.image} alt={profile.name} className="w-full h-32 md:h-48 object-cover" loading="lazy" />
                   <p className="text-center font-black py-2 bg-white text-black text-sm md:text-base">{profile.name}</p>
                 </div>
               ))}
@@ -1560,7 +1571,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
 
         <div className="fixed bottom-4 right-4 z-40">
           <button onClick={() => setViewState('factory')} className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow">
-            ← 공장으로
+            ← 달력보기
           </button>
         </div>
       </div>
@@ -1640,7 +1651,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
               className="cursor-pointer brutal-border overflow-hidden hover:scale-[1.02] transition-transform bg-black"
               onClick={() => setR2SelectedImage(1)}
             >
-              <img src={R2_IMAGE} alt="단서" className="w-full object-contain" />
+              <img src={R2_IMAGE} alt="단서" className="w-full object-contain" loading="lazy" />
               <p className="text-center font-black py-2 bg-white text-black">단서 이미지 (클릭하여 크게 보기)</p>
             </div>
 
@@ -1659,7 +1670,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
               </BrutalistButton>
             </BrutalistCard>
 
-            <BrutalistButton variant="ghost" onClick={() => setViewState('factory')}>← 공장으로 돌아가기</BrutalistButton>
+            <BrutalistButton variant="ghost" onClick={() => setViewState('factory')}>← 달력보기 돌아가기</BrutalistButton>
           </div>
         )}
 
@@ -1679,7 +1690,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
 
         <div className="fixed bottom-4 right-4 z-40">
           <button onClick={() => setViewState('factory')} className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow">
-            ← 공장으로
+            ← 달력보기
           </button>
         </div>
       </div>
@@ -1786,22 +1797,27 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
         )}
 
         {showPadletPopup && (
-          <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setShowPadletPopup(false)}>
-            <div className="max-w-4xl w-full bg-white brutal-border brutalist-shadow" onClick={(e) => e.stopPropagation()}>
-              <div className="flex justify-between items-center p-3 bg-yellow-400 border-b-4 border-black">
-                <span className="font-black text-black">공장 위치 힌트</span>
-                <button onClick={() => setShowPadletPopup(false)} className="bg-black text-white px-4 py-2 font-black hover:bg-gray-800 brutal-border">
-                  닫기 ✕
+          <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4">
+            <div className="w-full h-full max-w-5xl max-h-[90vh] bg-white brutal-border brutalist-shadow flex flex-col" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between items-center p-3 bg-yellow-400 border-b-4 border-black flex-shrink-0">
+                <span className="font-black text-black">공장 위치 찾기 - Padlet</span>
+                <button onClick={() => setShowPadletPopup(false)} className="bg-black text-white px-4 py-2 font-black hover:bg-red-600 brutal-border transition-colors">
+                  ✕
                 </button>
               </div>
-              <img src={R3_QUIZ_IMAGE} alt="공장 위치 힌트" className="w-full" />
+              <iframe
+                src={R3_PADLET_LINK}
+                className="w-full flex-1 border-0"
+                allow="camera;microphone;geolocation"
+                title="Padlet"
+              />
             </div>
           </div>
         )}
 
         <div className="fixed bottom-4 right-4 z-40">
           <button onClick={() => setViewState('factory')} className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow">
-            ← 공장으로
+            ← 달력보기
           </button>
         </div>
       </div>
@@ -2087,7 +2103,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
 
         <div className="fixed bottom-4 right-4 z-40">
           <button onClick={() => setViewState('factory')} className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow">
-            ← 공장으로
+            ← 달력보기
           </button>
         </div>
       </div>
@@ -2126,7 +2142,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
           <BrutalistCard className="space-y-4">
             <p className="text-lg font-bold text-center">팀원 전원이 함께 찍은 단체사진을 업로드하세요!</p>
             <p className="text-center text-yellow-400 font-black">단, 사진에 식물(화초, 나무, 꽃 등)이 반드시 포함되어야 합니다!</p>
-            <img src={R5_SAMPLE_IMAGE} alt="샘플 이미지" className="w-full max-w-md mx-auto brutal-border" />
+            <img src={R5_SAMPLE_IMAGE} alt="샘플 이미지" className="w-full max-w-md mx-auto brutal-border" loading="lazy" />
             <p className="text-center text-sm text-gray-400">↑ 샘플 이미지 (이런 식으로 식물과 함께!)</p>
           </BrutalistCard>
 
@@ -2174,7 +2190,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
 
         <div className="fixed bottom-4 right-4 z-40">
           <button onClick={() => setViewState('factory')} className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow">
-            ← 공장으로
+            ← 달력보기
           </button>
         </div>
       </div>
@@ -2212,7 +2228,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
 
           {/* 지령 이미지 */}
           <div className="cursor-pointer" onClick={() => setMissionImagePopup(R6_MISSION_IMAGE)}>
-            <img src={R6_MISSION_IMAGE} alt="R6 지령" className="w-full max-w-md mx-auto brutal-border brutalist-shadow hover:scale-105 transition-transform" />
+            <img src={R6_MISSION_IMAGE} alt="R6 지령" className="w-full max-w-md mx-auto brutal-border brutalist-shadow hover:scale-105 transition-transform" loading="lazy" />
             <p className="text-center text-sm text-gray-400 mt-2">👆 클릭하여 크게 보기</p>
           </div>
 
@@ -2258,14 +2274,14 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
 
         <div className="fixed bottom-4 right-4 z-40">
           <button onClick={() => setViewState('factory')} className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow">
-            ← 공장으로
+            ← 달력보기
           </button>
         </div>
       </div>
     );
   }
 
-  // R7 음성 퀴즈 (7월)
+  // R7 영상 퀴즈 (7월)
   if (isR7) {
     return (
       <div className="max-w-4xl mx-auto p-4 space-y-6 pb-24">
@@ -2288,18 +2304,22 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
         )}
 
         <div className="space-y-6">
-          <h3 className="text-3xl font-black uppercase tracking-tighter text-center">ROUND 7: 7월 미션 - 음성 퀴즈</h3>
+          <h3 className="text-3xl font-black uppercase tracking-tighter text-center">ROUND 7: 7월 미션 - 영상 퀴즈</h3>
 
           <BrutalistCard className="bg-yellow-400/10 border-yellow-400">
             <p className="text-xl font-bold italic text-center">"{R7_STORY}"</p>
           </BrutalistCard>
 
           <BrutalistCard className="space-y-4">
-            <p className="text-lg font-bold text-center">음성을 듣고 고객이 원하는 것을 맞추세요!</p>
-            <audio controls className="w-full">
-              <source src={R7_AUDIO_URL} type="audio/mpeg" />
-              브라우저가 오디오를 지원하지 않습니다.
-            </audio>
+            <p className="text-lg font-bold text-center">영상을 보고 인사팀장이 원하는 것을 맞추세요!</p>
+            <BrutalistButton
+              variant="primary"
+              fullWidth
+              className="text-xl py-4"
+              onClick={() => setShowR7VideoPopup(true)}
+            >
+              🎬 영상 보기
+            </BrutalistButton>
           </BrutalistCard>
 
           {r7Cleared ? (
@@ -2315,23 +2335,48 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
                 <p className="text-2xl font-black text-green-400">✓ 이미 완료한 미션입니다</p>
               </div>
               <div className="flex gap-4">
-                <BrutalistButton variant="ghost" onClick={() => setViewState('factory')} className="flex-shrink-0">← 공장</BrutalistButton>
+                <BrutalistButton variant="ghost" onClick={() => setViewState('factory')} className="flex-shrink-0">← 달력</BrutalistButton>
                 <BrutalistButton variant="gold" fullWidth onClick={() => { firebaseService.setTeamRound(room.id, auth.teamId, 8); setViewState('factory'); }}>다음 라운드로 →</BrutalistButton>
               </div>
             </div>
           ) : (
             <BrutalistCard className="space-y-4">
-              <label className="block text-lg font-black text-yellow-400 uppercase">정답 입력 (두 글자)</label>
-              <BrutalistInput fullWidth placeholder="두 글자를 입력하세요" value={r7Answer} onChange={(e) => { setR7Answer(e.target.value); setR7Error(''); }} onKeyDown={(e) => { if (e.key === 'Enter') handleR7Submit(); }} />
+              <label className="block text-lg font-black text-yellow-400 uppercase">정답 입력</label>
+              <BrutalistInput fullWidth placeholder="인사팀장이 원하는 것을 입력하세요" value={r7Answer} onChange={(e) => { setR7Answer(e.target.value); setR7Error(''); }} onKeyDown={(e) => { if (e.key === 'Enter') handleR7Submit(); }} />
               {r7Error && <p className="text-red-500 font-bold text-sm">{r7Error}</p>}
               <BrutalistButton variant="gold" fullWidth onClick={handleR7Submit}>정답 제출</BrutalistButton>
             </BrutalistCard>
           )}
         </div>
 
+        {/* R7 영상 팝업 */}
+        {showR7VideoPopup && (
+          <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4">
+            <div className="w-full h-full max-w-5xl max-h-[90vh] bg-black brutal-border brutalist-shadow flex flex-col">
+              <div className="flex justify-between items-center p-3 bg-yellow-400 border-b-4 border-black flex-shrink-0">
+                <span className="font-black text-black">7월 미션 - 인사팀장 면담 영상</span>
+                <button onClick={() => setShowR7VideoPopup(false)} className="bg-black text-white px-4 py-2 font-black hover:bg-red-600 brutal-border transition-colors">
+                  ✕
+                </button>
+              </div>
+              <div className="flex-1 flex items-center justify-center p-4">
+                <video
+                  controls
+                  autoPlay
+                  className="max-w-full max-h-full brutal-border"
+                  style={{ maxHeight: 'calc(90vh - 80px)' }}
+                >
+                  <source src={R7_VIDEO_URL} type="video/mp4" />
+                  브라우저가 영상을 지원하지 않습니다.
+                </video>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="fixed bottom-4 right-4 z-40">
           <button onClick={() => setViewState('factory')} className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow">
-            ← 공장으로
+            ← 달력보기
           </button>
         </div>
       </div>
@@ -2369,7 +2414,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
 
           {/* 지령 이미지 */}
           <div className="cursor-pointer" onClick={() => setMissionImagePopup(R8_MISSION_IMAGE)}>
-            <img src={R8_MISSION_IMAGE} alt="R8 지령" className="w-full max-w-md mx-auto brutal-border brutalist-shadow hover:scale-105 transition-transform" />
+            <img src={R8_MISSION_IMAGE} alt="R8 지령" className="w-full max-w-md mx-auto brutal-border brutalist-shadow hover:scale-105 transition-transform" loading="lazy" />
             <p className="text-center text-sm text-gray-400 mt-2">👆 클릭하여 크게 보기</p>
           </div>
 
@@ -2415,7 +2460,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
 
         <div className="fixed bottom-4 right-4 z-40">
           <button onClick={() => setViewState('factory')} className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow">
-            ← 공장으로
+            ← 달력보기
           </button>
         </div>
       </div>
@@ -2492,7 +2537,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
 
         <div className="fixed bottom-4 right-4 z-40">
           <button onClick={() => setViewState('factory')} className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow">
-            ← 공장으로
+            ← 달력보기
           </button>
         </div>
       </div>
@@ -2530,7 +2575,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
 
           {/* 지령 이미지 */}
           <div className="cursor-pointer" onClick={() => setMissionImagePopup(R10_MISSION_IMAGE)}>
-            <img src={R10_MISSION_IMAGE} alt="R10 지령" className="w-full max-w-md mx-auto brutal-border brutalist-shadow hover:scale-105 transition-transform" />
+            <img src={R10_MISSION_IMAGE} alt="R10 지령" className="w-full max-w-md mx-auto brutal-border brutalist-shadow hover:scale-105 transition-transform" loading="lazy" />
             <p className="text-center text-sm text-gray-400 mt-2">👆 클릭하여 크게 보기</p>
           </div>
 
@@ -2583,7 +2628,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
 
         <div className="fixed bottom-4 right-4 z-40">
           <button onClick={() => setViewState('factory')} className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow">
-            ← 공장으로
+            ← 달력보기
           </button>
         </div>
       </div>
@@ -2697,7 +2742,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
 
         <div className="fixed bottom-4 right-4 z-40">
           <button onClick={() => setViewState('factory')} className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow">
-            ← 공장으로
+            ← 달력보기
           </button>
         </div>
       </div>
@@ -2831,14 +2876,14 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
                   {r12Validating ? 'AI 검증 중...' : r12Generating ? '🎨 AI 보고서 생성 중...' : '보고서 제출하기'}
                 </BrutalistButton>
               </BrutalistCard>
-              <BrutalistButton variant="ghost" onClick={() => setViewState('factory')}>← 공장으로 돌아가기</BrutalistButton>
+              <BrutalistButton variant="ghost" onClick={() => setViewState('factory')}>← 달력보기 돌아가기</BrutalistButton>
             </div>
           )}
         </div>
 
         <div className="fixed bottom-4 right-4 z-40">
           <button onClick={() => setViewState('factory')} className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow">
-            ← 공장으로
+            ← 달력보기
           </button>
         </div>
       </div>
@@ -2937,7 +2982,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
           onClick={() => setViewState('factory')}
           className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow active:translate-x-1 active:translate-y-1 active:shadow-none"
         >
-          ← 공장으로
+          ← 달력보기
         </button>
       </div>
     </div>

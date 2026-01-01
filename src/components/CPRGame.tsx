@@ -133,22 +133,25 @@ const CPRGame: React.FC<CPRGameProps> = ({ onComplete, onClose }) => {
     let scoreAdd = 0;
 
     if (currentBpm >= 100 && currentBpm <= 120) {
+      // Perfect 구간 (100-120 BPM) - 높은 점수
       setFeedback('PERFECT');
       setFeedbackColor('#00ff88');
       playSound('correct');
-      scoreAdd = 120 + (perfectCount * 15);
+      scoreAdd = 150 + (perfectCount * 20);
       setPerfectCount(prev => prev + 1);
     } else if (currentBpm < 100) {
+      // 너무 느림 - 아주 적은 점수
       setFeedback('FASTER!');
       setFeedbackColor('#ffcc00');
       playSound('error');
-      scoreAdd = 40;
+      scoreAdd = 5;
       setPerfectCount(0);
     } else {
+      // 너무 빠름 - 아주 적은 점수
       setFeedback('SLOWER!');
       setFeedbackColor('#ff3366');
       playSound('error');
-      scoreAdd = 60;
+      scoreAdd = 5;
       setPerfectCount(0);
     }
 
