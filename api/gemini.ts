@@ -45,6 +45,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.json(await generateInfographic(payload));
       case 'validateReport':
         return res.json(await validateReport(payload));
+      case 'generateCustomerServiceFeedback':
+        return res.json(await generateCustomerServiceFeedback(payload));
       case 'generateReportInfographic':
         return res.json(await generateReportInfographic(payload));
       case 'generateWinnerPoster':
@@ -353,6 +355,105 @@ ${scenario.personality}
   }
 
   return { response: text.slice(0, 200), empathyScore: 10, scoreChange: 0 };
+}
+
+// R11: 고객 응대 대화 피드백 생성
+async function generateCustomerServiceFeedback(payload: {
+  conversationHistory: Array<{ role: string; content: string }>;
+  finalScore: number;
+  industryType: number;
+}) {
+  const scenario = CUSTOMER_SCENARIOS[payload.industryType] || CUSTOMER_SCENARIOS[1];
+
+  // 대화 내용을 텍스트로 변환
+  const conversationText = payload.conversationHistory.map((msg, idx) => {
+    const speaker = msg.role === 'user' ? '직원(학습자)' : '고객';
+    return `${idx + 1}. ${speaker}: ${msg.content}`;
+  }).join('\n');
+
+  const systemPrompt = `당신은 B2B 고객 응대 교육 전문가입니다.
+다음 고객 응대 시뮬레이션 대화를 분석하고 피드백을 제공해주세요.
+
+## 상황 배경
+${scenario.situation}
+
+## 대화 내용
+${conversationText}
+
+## 최종 고객 만족도
+${payload.finalScore}점 / 100점
+
+## 피드백 요청사항
+1. 전체적인 응대 평가 (잘한 점, 아쉬운 점)
+2. 구체적인 개선 포인트 3가지
+3. 실무에서 활용할 수 있는 팁
+4. 종합 점수에 대한 코멘트
+
+## 응답 형식 (반드시 JSON으로)
+{
+  "overallGrade": "S/A/B/C/D 중 하나",
+  "summary": "전체 응대에 대한 2-3문장 요약 평가",
+  "goodPoints": ["잘한 점 1", "잘한 점 2", "잘한 점 3"],
+  "improvementPoints": ["개선점 1", "개선점 2", "개선점 3"],
+  "practicalTips": "실무 활용 팁 (2-3문장)",
+  "scoreComment": "점수에 대한 코멘트 (1문장)"
+}
+
+평가 기준:
+- S등급(90점 이상): 완벽한 응대, 고객이 감동받음
+- A등급(80-89점): 우수한 응대, 문제 해결됨
+- B등급(70-79점): 양호한 응대, 기본은 충족
+- C등급(60-69점): 보통 응대, 개선 필요
+- D등급(60점 미만): 미흡한 응대, 많은 개선 필요`;
+
+  const response = await fetch(`${GEMINI_TEXT_URL}?key=${GEMINI_API_KEY}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{
+        parts: [{ text: systemPrompt }]
+      }],
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 1000
+      }
+    })
+  });
+
+  const data = await response.json();
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+  try {
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const result = JSON.parse(jsonMatch[0]);
+      return {
+        success: true,
+        feedback: {
+          overallGrade: result.overallGrade || 'C',
+          summary: result.summary || '피드백을 생성할 수 없습니다.',
+          goodPoints: result.goodPoints || [],
+          improvementPoints: result.improvementPoints || [],
+          practicalTips: result.practicalTips || '',
+          scoreComment: result.scoreComment || ''
+        }
+      };
+    }
+  } catch {
+    // JSON parsing failed
+  }
+
+  return {
+    success: false,
+    feedback: {
+      overallGrade: 'C',
+      summary: '피드백 생성 중 오류가 발생했습니다.',
+      goodPoints: [],
+      improvementPoints: [],
+      practicalTips: '',
+      scoreComment: ''
+    }
+  };
 }
 
 // R12: Validate resolutions

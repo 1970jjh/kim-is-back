@@ -391,6 +391,17 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
   const [r11StartTime, setR11StartTime] = useState<number | null>(null);
   const [r11CompletionTime, setR11CompletionTime] = useState('');
   const [r11ShowManual, setR11ShowManual] = useState(false);
+  const [r11ShowFeedback, setR11ShowFeedback] = useState(false);
+  const [r11Feedback, setR11Feedback] = useState<{
+    overallGrade: string;
+    summary: string;
+    goodPoints: string[];
+    improvementPoints: string[];
+    practicalTips: string;
+    scoreComment: string;
+  } | null>(null);
+  const [r11FeedbackLoading, setR11FeedbackLoading] = useState(false);
+  const [r11ChatEnded, setR11ChatEnded] = useState(false);
 
   // R12 팀활동 결과보고서 상태 (12월)
   const [r12Report, setR12Report] = useState({
@@ -1057,7 +1068,86 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
     setR11MoodLevel(1);
     setR11EvaluationScores({ greeting: 0, listening: 0, empathy: 0, solution: 0, professionalism: 0, patience: 0, clarity: 0, positivity: 0, responsibility: 0, closing: 0 });
     setR11CompletionTime('');
+    setR11ChatEnded(false);
+    setR11Feedback(null);
     setViewState('factory');
+  };
+
+  // R11 대화 종료 및 피드백 생성
+  const handleR11EndChat = async () => {
+    if (r11FeedbackLoading) return;
+
+    setR11FeedbackLoading(true);
+    setR11ChatEnded(true);
+
+    // 완료 시간 계산
+    let completionTimeStr = '';
+    if (r11StartTime) {
+      const elapsed = Math.floor((Date.now() - r11StartTime) / 1000);
+      const mins = Math.floor(elapsed / 60);
+      const secs = elapsed % 60;
+      completionTimeStr = `${mins}분 ${secs}초`;
+      setR11CompletionTime(completionTimeStr);
+    }
+
+    try {
+      const industryType = room.industryType || IndustryType.IT_SOLUTION;
+      const result = await geminiService.generateCustomerServiceFeedback(
+        r11ChatHistory,
+        r11SatisfactionScore,
+        industryType
+      );
+
+      if (result.success && result.feedback) {
+        setR11Feedback(result.feedback);
+
+        // Firebase에 피드백 저장
+        await firebaseService.saveCustomerServiceFeedback(room.id, auth.teamId, {
+          finalScore: r11SatisfactionScore,
+          overallGrade: result.feedback.overallGrade,
+          summary: result.feedback.summary,
+          goodPoints: result.feedback.goodPoints,
+          improvementPoints: result.feedback.improvementPoints,
+          practicalTips: result.feedback.practicalTips,
+          scoreComment: result.feedback.scoreComment,
+          conversationHistory: r11ChatHistory,
+          completionTime: completionTimeStr
+        });
+      } else {
+        setR11Feedback({
+          overallGrade: r11SatisfactionScore >= 80 ? 'A' : r11SatisfactionScore >= 70 ? 'B' : 'C',
+          summary: '피드백을 생성하는 중 오류가 발생했습니다.',
+          goodPoints: [],
+          improvementPoints: [],
+          practicalTips: '',
+          scoreComment: `최종 점수: ${r11SatisfactionScore}점`
+        });
+      }
+
+      setR11ShowFeedback(true);
+    } catch (error) {
+      console.error('R11 feedback error:', error);
+      setR11Feedback({
+        overallGrade: 'C',
+        summary: '피드백 생성 중 오류가 발생했습니다.',
+        goodPoints: [],
+        improvementPoints: [],
+        practicalTips: '',
+        scoreComment: ''
+      });
+      setR11ShowFeedback(true);
+    } finally {
+      setR11FeedbackLoading(false);
+    }
+  };
+
+  // R11 피드백 팝업 닫기 후 처리
+  const handleR11CloseFeedback = () => {
+    setR11ShowFeedback(false);
+    // 80점 이상이면 자동 클리어 처리
+    if (r11SatisfactionScore >= 80) {
+      setR11Cleared(true);
+    }
   };
 
   // R12 다짐 검증 - 간소화된 검증 (1번 무조건 통과, 2/3/4번 100자 이상)
@@ -2823,31 +2913,74 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
               </div>
 
               {/* 입력 영역 */}
-              <div className="flex gap-2 items-end">
-                <BrutalistTextarea
-                  ref={r11InputRef}
-                  fullWidth
-                  rows={2}
-                  placeholder="고객에게 응대할 내용을 입력하세요... (Shift+Enter: 줄바꿈)"
-                  value={r11UserInput}
-                  onChange={(e) => setR11UserInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleR11SendMessage();
-                    }
-                  }}
-                  disabled={r11Sending}
-                />
-                <button
-                  onClick={() => setR11ShowManual(true)}
-                  className="h-fit px-3 py-2 bg-blue-600 text-white text-xs font-bold brutal-border hover:bg-blue-500 transition-colors whitespace-nowrap"
-                  title="응대 팁 보기"
-                >
-                  📖 매뉴얼
-                </button>
-                <BrutalistButton variant="gold" onClick={handleR11SendMessage} disabled={r11Sending || !r11UserInput.trim()} className="h-fit">전송</BrutalistButton>
-              </div>
+              {!r11ChatEnded ? (
+                <div className="flex gap-2 items-end">
+                  <BrutalistTextarea
+                    ref={r11InputRef}
+                    fullWidth
+                    rows={2}
+                    placeholder="고객에게 응대할 내용을 입력하세요... (Shift+Enter: 줄바꿈)"
+                    value={r11UserInput}
+                    onChange={(e) => setR11UserInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleR11SendMessage();
+                      }
+                    }}
+                    disabled={r11Sending}
+                  />
+                  <button
+                    onClick={() => setR11ShowManual(true)}
+                    className="h-fit px-3 py-2 bg-blue-600 text-white text-xs font-bold brutal-border hover:bg-blue-500 transition-colors whitespace-nowrap"
+                    title="응대 팁 보기"
+                  >
+                    📖 매뉴얼
+                  </button>
+                  <BrutalistButton variant="gold" onClick={handleR11SendMessage} disabled={r11Sending || !r11UserInput.trim()} className="h-fit">전송</BrutalistButton>
+                  {r11SatisfactionScore >= 70 && (
+                    <BrutalistButton
+                      variant="primary"
+                      onClick={handleR11EndChat}
+                      disabled={r11FeedbackLoading}
+                      className="h-fit whitespace-nowrap"
+                    >
+                      {r11FeedbackLoading ? '분석중...' : '대화 종료'}
+                    </BrutalistButton>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="bg-green-600/20 border-2 border-green-500 p-4 text-center">
+                    <p className="text-green-400 font-bold text-lg">✓ 대화가 종료되었습니다</p>
+                    <p className="text-gray-300 text-sm mt-1">최종 점수: {r11SatisfactionScore}점 {r11CompletionTime && `| 소요시간: ${r11CompletionTime}`}</p>
+                  </div>
+                  {r11SatisfactionScore >= 80 ? (
+                    <BrutalistButton variant="gold" fullWidth onClick={handleR11Clear}>
+                      다음 라운드로 →
+                    </BrutalistButton>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-center text-yellow-400 text-sm">80점 이상 달성 시 다음 라운드로 이동할 수 있습니다.</p>
+                      <div className="flex gap-2">
+                        <BrutalistButton variant="secondary" fullWidth onClick={() => {
+                          setR11ChatEnded(false);
+                          setR11ChatHistory([]);
+                          setR11SatisfactionScore(0);
+                          setR11MoodLevel(1);
+                          setR11Feedback(null);
+                          initR11Chat();
+                        }}>
+                          처음부터 다시하기
+                        </BrutalistButton>
+                        <BrutalistButton variant="gold" fullWidth onClick={() => setR11ShowFeedback(true)}>
+                          피드백 다시보기
+                        </BrutalistButton>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -2923,6 +3056,89 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
 
                 <BrutalistButton variant="primary" fullWidth onClick={() => setR11ShowManual(false)}>
                   닫기
+                </BrutalistButton>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* AI 피드백 팝업 */}
+        {r11ShowFeedback && r11Feedback && (
+          <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+            <div className="bg-white text-black max-w-2xl w-full max-h-[85vh] overflow-y-auto brutal-border brutalist-shadow">
+              <div className={`p-4 flex justify-between items-center ${
+                r11Feedback.overallGrade === 'S' ? 'bg-purple-600' :
+                r11Feedback.overallGrade === 'A' ? 'bg-green-600' :
+                r11Feedback.overallGrade === 'B' ? 'bg-blue-600' :
+                r11Feedback.overallGrade === 'C' ? 'bg-yellow-600' : 'bg-red-600'
+              } text-white`}>
+                <h3 className="text-xl font-black">📊 AI 응대 피드백</h3>
+                <button onClick={handleR11CloseFeedback} className="text-2xl font-black hover:text-yellow-400">✕</button>
+              </div>
+              <div className="p-6 space-y-5">
+                {/* 등급 및 점수 */}
+                <div className="flex items-center justify-center gap-6 py-4">
+                  <div className={`text-6xl font-black ${
+                    r11Feedback.overallGrade === 'S' ? 'text-purple-600' :
+                    r11Feedback.overallGrade === 'A' ? 'text-green-600' :
+                    r11Feedback.overallGrade === 'B' ? 'text-blue-600' :
+                    r11Feedback.overallGrade === 'C' ? 'text-yellow-600' : 'text-red-600'
+                  }`}>
+                    {r11Feedback.overallGrade}
+                  </div>
+                  <div className="text-center">
+                    <p className="text-4xl font-black">{r11SatisfactionScore}점</p>
+                    <p className="text-gray-500 text-sm">고객 만족도</p>
+                  </div>
+                </div>
+
+                {/* 종합 평가 */}
+                <div className="bg-gray-100 p-4 rounded-lg">
+                  <p className="font-bold text-gray-800 mb-2">📝 종합 평가</p>
+                  <p className="text-gray-700">{r11Feedback.summary}</p>
+                </div>
+
+                {/* 잘한 점 */}
+                {r11Feedback.goodPoints && r11Feedback.goodPoints.length > 0 && (
+                  <div className="bg-green-50 p-4 rounded-lg border-l-4 border-green-500">
+                    <p className="font-bold text-green-800 mb-2">✅ 잘한 점</p>
+                    <ul className="space-y-1">
+                      {r11Feedback.goodPoints.map((point, idx) => (
+                        <li key={idx} className="text-green-700 text-sm">• {point}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* 개선점 */}
+                {r11Feedback.improvementPoints && r11Feedback.improvementPoints.length > 0 && (
+                  <div className="bg-orange-50 p-4 rounded-lg border-l-4 border-orange-500">
+                    <p className="font-bold text-orange-800 mb-2">💡 개선 포인트</p>
+                    <ul className="space-y-1">
+                      {r11Feedback.improvementPoints.map((point, idx) => (
+                        <li key={idx} className="text-orange-700 text-sm">• {point}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* 실무 팁 */}
+                {r11Feedback.practicalTips && (
+                  <div className="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
+                    <p className="font-bold text-blue-800 mb-2">🎯 실무 활용 팁</p>
+                    <p className="text-blue-700 text-sm">{r11Feedback.practicalTips}</p>
+                  </div>
+                )}
+
+                {/* 점수 코멘트 */}
+                {r11Feedback.scoreComment && (
+                  <div className="bg-gray-200 p-3 rounded text-center">
+                    <p className="text-gray-700 text-sm italic">{r11Feedback.scoreComment}</p>
+                  </div>
+                )}
+
+                <BrutalistButton variant="primary" fullWidth onClick={handleR11CloseFeedback}>
+                  확인
                 </BrutalistButton>
               </div>
             </div>

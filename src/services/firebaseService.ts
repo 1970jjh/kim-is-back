@@ -367,5 +367,33 @@ export const firebaseService = {
     };
 
     await firebaseService.saveRoom(room);
+  },
+
+  // R11: 고객 응대 피드백 저장
+  saveCustomerServiceFeedback: async (
+    roomId: string,
+    teamId: number,
+    feedback: {
+      finalScore: number;
+      overallGrade: string;
+      summary: string;
+      goodPoints: string[];
+      improvementPoints: string[];
+      practicalTips: string;
+      scoreComment: string;
+      conversationHistory: Array<{ role: string; content: string }>;
+      completionTime: string;
+    }
+  ): Promise<void> => {
+    const room = await firebaseService.getRoom(roomId);
+    if (!room || !room.teams[teamId]) return;
+
+    const team = room.teams[teamId];
+    team.r11Feedback = {
+      ...feedback,
+      submittedAt: Date.now()
+    };
+
+    await firebaseService.saveRoom(room);
   }
 };
