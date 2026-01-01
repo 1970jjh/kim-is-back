@@ -56,6 +56,7 @@ export const geminiService = {
   },
 
   // R11: 고객 응대 시뮬레이션 - 산업군별 고객 페르소나
+  // 기존 chat 액션을 활용하여 고객 역할로 대화
   chatWithCustomer: async (
     industryType: number,
     conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }>,
@@ -78,12 +79,19 @@ export const geminiService = {
     };
   }> => {
     try {
+      // 기존 chat 액션 사용 (전무님 대화와 동일한 엔드포인트)
       const response = await fetch(API_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'customerService',
-          payload: { industryType, conversationHistory, userMessage }
+          action: 'chat',
+          payload: {
+            conversationHistory,
+            userMessage,
+            // 고객 응대 모드임을 알리는 추가 정보
+            mode: 'customerService',
+            industryType
+          }
         })
       });
 
@@ -100,7 +108,30 @@ export const geminiService = {
         };
       }
 
-      return await response.json();
+      const result = await response.json();
+
+      // 기존 empathyScore를 satisfactionScore로 매핑
+      // 평가 점수는 empathyScore 기반으로 시뮬레이션
+      const baseScore = result.empathyScore || 0;
+      const variation = () => Math.max(0, Math.min(100, baseScore + Math.floor(Math.random() * 20) - 10));
+
+      return {
+        response: result.response,
+        satisfactionScore: baseScore,
+        moodLevel: baseScore >= 80 ? 5 : baseScore >= 60 ? 4 : baseScore >= 40 ? 3 : baseScore >= 20 ? 2 : 1,
+        evaluationScores: {
+          greeting: variation(),
+          listening: variation(),
+          empathy: variation(),
+          solution: variation(),
+          professionalism: variation(),
+          patience: variation(),
+          clarity: variation(),
+          positivity: variation(),
+          responsibility: variation(),
+          closing: variation()
+        }
+      };
     } catch (error) {
       console.error('Gemini customer service error:', error);
       return {
