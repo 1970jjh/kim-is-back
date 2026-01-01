@@ -306,7 +306,6 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
   const [r7Answer, setR7Answer] = useState('');
   const [r7Cleared, setR7Cleared] = useState(false);
   const [r7Error, setR7Error] = useState('');
-  const [showR7VideoPopup, setShowR7VideoPopup] = useState(false);
 
   // R8 문신 퀴즈 상태 (8월)
   const [r8Answer, setR8Answer] = useState('');
@@ -2312,14 +2311,14 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
 
           <BrutalistCard className="space-y-4">
             <p className="text-lg font-bold text-center">영상을 보고 인사팀장이 원하는 것을 맞추세요!</p>
-            <BrutalistButton
-              variant="primary"
-              fullWidth
-              className="text-xl py-4"
-              onClick={() => setShowR7VideoPopup(true)}
+            <video
+              controls
+              className="w-full brutal-border"
+              playsInline
             >
-              🎬 영상 보기
-            </BrutalistButton>
+              <source src={R7_VIDEO_URL} type="video/mp4" />
+              브라우저가 영상을 지원하지 않습니다.
+            </video>
           </BrutalistCard>
 
           {r7Cleared ? (
@@ -2348,31 +2347,6 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
             </BrutalistCard>
           )}
         </div>
-
-        {/* R7 영상 팝업 */}
-        {showR7VideoPopup && (
-          <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4">
-            <div className="w-full h-full max-w-5xl max-h-[90vh] bg-black brutal-border brutalist-shadow flex flex-col">
-              <div className="flex justify-between items-center p-3 bg-yellow-400 border-b-4 border-black flex-shrink-0">
-                <span className="font-black text-black">7월 미션 - 인사팀장 면담 영상</span>
-                <button onClick={() => setShowR7VideoPopup(false)} className="bg-black text-white px-4 py-2 font-black hover:bg-red-600 brutal-border transition-colors">
-                  ✕
-                </button>
-              </div>
-              <div className="flex-1 flex items-center justify-center p-4">
-                <video
-                  controls
-                  autoPlay
-                  className="max-w-full max-h-full brutal-border"
-                  style={{ maxHeight: 'calc(90vh - 80px)' }}
-                >
-                  <source src={R7_VIDEO_URL} type="video/mp4" />
-                  브라우저가 영상을 지원하지 않습니다.
-                </video>
-              </div>
-            </div>
-          </div>
-        )}
 
         <div className="fixed bottom-4 right-4 z-40">
           <button onClick={() => setViewState('factory')} className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow">
