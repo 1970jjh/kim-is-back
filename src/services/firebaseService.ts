@@ -1,6 +1,6 @@
 import { ref, set, onValue, get, remove } from 'firebase/database';
 import { database } from '../lib/firebase';
-import { RoomState, EventType, AppState, TeamState, TeamPerformance } from '../types';
+import { RoomState, EventType, AppState, TeamState, TeamPerformance, IndustryType } from '../types';
 
 const ROOMS_REF = 'rooms';
 
@@ -18,9 +18,10 @@ const createDefaultTeamState = (id: number): TeamState => ({
   totalBonusTime: 0
 });
 
-const createDefaultRoomState = (id: string, groupName: string, totalTeams: number, membersPerTeam: number): RoomState => ({
+const createDefaultRoomState = (id: string, groupName: string, totalTeams: number, membersPerTeam: number, industryType: IndustryType = IndustryType.IT_SOLUTION): RoomState => ({
   id,
   groupName,
+  industryType,
   totalTeams,
   membersPerTeam,
   missionStarted: false,
@@ -59,9 +60,9 @@ const generateRoomId = (): string => {
 
 export const firebaseService = {
   // 새 방 생성
-  createRoom: async (groupName: string, totalTeams: number, membersPerTeam: number): Promise<string> => {
+  createRoom: async (groupName: string, totalTeams: number, membersPerTeam: number, industryType: IndustryType = IndustryType.IT_SOLUTION): Promise<string> => {
     const roomId = generateRoomId();
-    const newRoom = createDefaultRoomState(roomId, groupName, totalTeams, membersPerTeam);
+    const newRoom = createDefaultRoomState(roomId, groupName, totalTeams, membersPerTeam, industryType);
     const roomRef = ref(database, `${ROOMS_REF}/${roomId}`);
     await set(roomRef, newRoom);
     return roomId;

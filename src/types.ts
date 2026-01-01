@@ -18,6 +18,32 @@ export enum EventType {
   NONE = 'NONE'
 }
 
+export enum IndustryType {
+  IT_SOLUTION = 1,        // IT/솔루션
+  MANUFACTURING = 2,      // 제조/원자재
+  RETAIL = 3,             // 유통/리테일
+  CONSTRUCTION = 4,       // 건설/인프라
+  FINANCE = 5,            // 금융/보험
+  ADVERTISING = 6,        // 광고/마케팅
+  CHEMICAL_ENERGY = 7,    // 화학/에너지
+  MEDICAL = 8,            // 의료/제약
+  LOGISTICS = 9,          // 물류/운송
+  FNB = 10                // 식음료(F&B)
+}
+
+export const IndustryTypeLabels: Record<IndustryType, string> = {
+  [IndustryType.IT_SOLUTION]: 'IT/솔루션',
+  [IndustryType.MANUFACTURING]: '제조/원자재',
+  [IndustryType.RETAIL]: '유통/리테일',
+  [IndustryType.CONSTRUCTION]: '건설/인프라',
+  [IndustryType.FINANCE]: '금융/보험',
+  [IndustryType.ADVERTISING]: '광고/마케팅',
+  [IndustryType.CHEMICAL_ENERGY]: '화학/에너지',
+  [IndustryType.MEDICAL]: '의료/제약',
+  [IndustryType.LOGISTICS]: '물류/운송',
+  [IndustryType.FNB]: '식음료(F&B)'
+};
+
 export interface TeamMember {
   role: string;
   name: string;
@@ -66,6 +92,7 @@ export interface TeamState {
 export interface RoomState {
   id: string;  // 방 고유 ID
   groupName: string;
+  industryType: IndustryType;  // 산업군 타입
   totalTeams: number;
   membersPerTeam: number;
   missionStarted: boolean;
