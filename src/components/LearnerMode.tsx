@@ -2857,50 +2857,67 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
           <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
             <div className="bg-white text-black max-w-lg w-full max-h-[80vh] overflow-y-auto brutal-border brutalist-shadow">
               <div className="bg-blue-600 text-white p-4 flex justify-between items-center">
-                <h3 className="text-xl font-black">📖 고객 대화 매뉴얼</h3>
+                <h3 className="text-xl font-black">📖 B2B 고객 응대 매뉴얼</h3>
                 <button onClick={() => setR11ShowManual(false)} className="text-2xl font-black hover:text-yellow-400">✕</button>
               </div>
               <div className="p-4 space-y-4">
+                <div className="bg-red-100 p-3 border-l-4 border-red-500">
+                  <p className="font-bold text-red-800">⚠️ 상황: 화난 B2B 고객이 클레임을 제기했습니다</p>
+                  <p className="text-sm text-red-700 mt-1">목표: 고객 만족도 80점 이상 달성하기</p>
+                </div>
+
                 <div className="bg-yellow-100 p-3 border-l-4 border-yellow-500">
-                  <p className="font-bold text-yellow-800">💡 높은 점수를 받는 핵심 포인트</p>
+                  <p className="font-bold text-yellow-800">💡 점수를 올리는 핵심 포인트</p>
                 </div>
 
                 <div className="space-y-3 text-sm">
                   <div className="bg-gray-100 p-3 rounded">
-                    <p className="font-black text-blue-600">1. 인사 & 공감</p>
-                    <p className="text-gray-600">• "안녕하세요", "불편을 드려 죄송합니다"</p>
-                    <p className="text-gray-600">• 고객의 감정을 먼저 인정하기</p>
+                    <p className="font-black text-red-600">1. 즉각적인 사과 & 공감 (+15~20점)</p>
+                    <p className="text-gray-600">• "불편을 드려 진심으로 죄송합니다"</p>
+                    <p className="text-gray-600">• "업무에 차질이 생기셨을텐데 정말 송구합니다"</p>
+                    <p className="text-gray-600">• 고객의 피해 상황을 구체적으로 인정하기</p>
                   </div>
 
                   <div className="bg-gray-100 p-3 rounded">
-                    <p className="font-black text-blue-600">2. 경청 표현</p>
-                    <p className="text-gray-600">• "말씀하신 내용 잘 들었습니다"</p>
-                    <p className="text-gray-600">• 고객이 말한 내용을 다시 요약해주기</p>
+                    <p className="font-black text-orange-600">2. 문제 상황 정리 & 경청 (+5~10점)</p>
+                    <p className="text-gray-600">• "말씀하신 내용 정리해보면..."</p>
+                    <p className="text-gray-600">• 고객이 말한 문제를 다시 요약</p>
+                    <p className="text-gray-600">• "제가 정확히 이해한 게 맞을까요?"</p>
                   </div>
 
                   <div className="bg-gray-100 p-3 rounded">
-                    <p className="font-black text-blue-600">3. 해결책 제시</p>
-                    <p className="text-gray-600">• 구체적인 해결 방안 제안</p>
-                    <p className="text-gray-600">• "~해드리겠습니다", "~으로 보상해드리겠습니다"</p>
+                    <p className="font-black text-blue-600">3. 구체적인 해결책 제시 (+10~15점)</p>
+                    <p className="text-gray-600">• 즉시 처리: "지금 바로 담당자 연결해드리겠습니다"</p>
+                    <p className="text-gray-600">• 일정 제시: "오늘 오후 3시까지 해결해드리겠습니다"</p>
+                    <p className="text-gray-600">• 대안 제안: "임시로 ~를 지원해드리겠습니다"</p>
                   </div>
 
                   <div className="bg-gray-100 p-3 rounded">
-                    <p className="font-black text-blue-600">4. 책임감 있는 태도</p>
-                    <p className="text-gray-600">• 변명하지 않고 책임 인정</p>
-                    <p className="text-gray-600">• "저희 잘못입니다", "책임지고 처리하겠습니다"</p>
+                    <p className="font-black text-purple-600">4. 보상 & 재발 방지 (+10~15점)</p>
+                    <p className="text-gray-600">• "손해 비용 전액 보상해드리겠습니다"</p>
+                    <p className="text-gray-600">• "추가 서비스/할인을 제공해드리겠습니다"</p>
+                    <p className="text-gray-600">• "재발 방지를 위해 프로세스를 개선하겠습니다"</p>
                   </div>
 
                   <div className="bg-gray-100 p-3 rounded">
-                    <p className="font-black text-blue-600">5. 긍정적 마무리</p>
-                    <p className="text-gray-600">• "다시 한번 죄송합니다"</p>
-                    <p className="text-gray-600">• "더 좋은 서비스로 보답하겠습니다"</p>
+                    <p className="font-black text-green-600">5. 책임감 있는 마무리 (+8~12점)</p>
+                    <p className="text-gray-600">• "저희 책임입니다. 변명하지 않겠습니다"</p>
+                    <p className="text-gray-600">• "제가 끝까지 책임지고 처리하겠습니다"</p>
+                    <p className="text-gray-600">• "처리 결과 직접 연락드리겠습니다"</p>
                   </div>
                 </div>
 
+                <div className="bg-red-50 p-3 border-l-4 border-red-400">
+                  <p className="font-bold text-red-700 mb-1">❌ 피해야 할 표현 (감점)</p>
+                  <p className="text-sm text-red-600">• "그건 저희 잘못이 아닙니다" (변명)</p>
+                  <p className="text-sm text-red-600">• "규정상 어렵습니다" (딱딱한 거절)</p>
+                  <p className="text-sm text-red-600">• "확인해보고 연락드릴게요" (애매한 답변)</p>
+                </div>
+
                 <div className="bg-green-100 p-3 border-l-4 border-green-500">
-                  <p className="font-bold text-green-800 mb-2">✅ 예시 응대</p>
+                  <p className="font-bold text-green-800 mb-2">✅ 좋은 응대 예시</p>
                   <p className="text-sm text-green-700 italic">
-                    "안녕하세요, 고객님. 불편을 드려 정말 죄송합니다. 말씀하신 문제에 대해 저희가 책임지고 즉시 확인하여 처리해드리겠습니다. 보상 방안도 함께 안내드리겠습니다."
+                    "고객님, 업무에 큰 차질이 생기셨을텐데 진심으로 죄송합니다. 말씀하신 것처럼 저희 측 실수로 발생한 문제입니다. 지금 즉시 기술팀장을 투입하여 오후 2시까지 복구 완료하겠습니다. 손해 비용은 전액 보상드리고, 다음 달 서비스 비용 20% 할인도 적용해드리겠습니다. 제가 직접 처리 상황 1시간마다 문자로 안내드리겠습니다."
                   </p>
                 </div>
 
