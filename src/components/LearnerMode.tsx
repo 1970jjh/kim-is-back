@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { firebaseService } from '../services/firebaseService';
 import { geminiService } from '../services/geminiService';
-import { RoomState, TeamState, TeamPerformance } from '../types';
+import { RoomState, TeamState, TeamPerformance, IndustryType, IndustryTypeLabels } from '../types';
 import { BrutalistButton, BrutalistCard, BrutalistInput, BrutalistTextarea } from './BrutalistUI';
 import { ROUNDS } from '../constants';
 import CPRGame from './CPRGame';
@@ -219,8 +219,62 @@ const R9_STORY = "전무에게 확실한 눈도장을 찍으며 승승장구하�
 const R10_STORY = "김부장의 눈부신 CPR 실력으로 쓰러졌던 직원은 다행히 의식을 찾았지만, 그 과정에서 공장 내부는 태풍이 휩쓸고 간 듯 자재들이 뒤엉켜 아수라장이 되었다. \"이 상태로 10월 정기 감사가 나오면 끝장이다!\" 흩어진 자재들을 제자리에 완벽하게 끼워 맞추는 대대적인 '현장 정상화(5S)'가 시급하다. 팀원 모두가 앞으로 나와서 제한 시간 내에 어수선한 공장의 질서를 바로잡고, 칼 같은 정리 정돈 능력을 보여줘라!";
 const R10_MISSION_IMAGE = 'https://i.ibb.co/Xxh8xWrp/image.jpg';
 
-// R11 공감대화 (11월)
-const R11_STORY = "완벽하게 정돈된 공장, 하드웨어는 준비됐다. 이제 본사 복귀의 마지막 관문은 당신의 '소프트웨어', 즉 달라진 리더십을 증명하는 것이다. \"보고는 짧게, 성과는 숫자로!\"만 외치던 과거의 꼰대 김부장은 잊어라. 전무님과의 대화에서 필요한 건 화려한 언변이 아닌 '진심 어린 경청'과 '공감'뿐. AI가 당신의 대화 온도를 분석한다. 콧대 높은 전무님의 마음을 녹여 공감 점수 90점을 돌파하고, 진정한 리더의 자격을 완성하라!";
+// R11 고객 응대 시뮬레이션 (11월)
+const R11_STORY = "본사 복귀의 마지막 관문! 당신의 고객 응대 스킬을 증명할 시간이다. 화가 난 고객이 클레임을 걸어왔다. 경청하고, 공감하고, 해결책을 제시하라. AI가 당신의 응대를 10가지 항목으로 평가한다. 고객 만족도 80점 이상을 달성하고, 진정한 프로페셔널의 자격을 완성하라!";
+
+// 산업군별 고객 시나리오
+const CUSTOMER_SCENARIOS: Record<IndustryType, { title: string; scenario: string; customerName: string }> = {
+  [IndustryType.IT_SOLUTION]: {
+    title: "시스템 장애 클레임",
+    scenario: "ERP 시스템이 갑자기 멈춰서 우리 회사 전체가 마비됐습니다! 어제 업데이트 이후로 계속 이러는데 어떻게 하실 건가요?",
+    customerName: "박 과장"
+  },
+  [IndustryType.MANUFACTURING]: {
+    title: "납품 품질 불량",
+    scenario: "어제 입고된 원자재 중 30%가 규격 미달입니다! 생산라인이 멈출 판인데 이게 말이 됩니까?",
+    customerName: "김 공장장"
+  },
+  [IndustryType.RETAIL]: {
+    title: "배송 지연 불만",
+    scenario: "일주일 전에 주문한 상품이 아직도 안 왔어요! 추적 번호는 업데이트도 안 되고... 선물용이었는데 기념일 다 지났잖아요!",
+    customerName: "이 고객님"
+  },
+  [IndustryType.CONSTRUCTION]: {
+    title: "시공 하자 민원",
+    scenario: "입주한 지 3개월밖에 안 됐는데 벽에 금이 가고 화장실에서 물이 새요! 이게 신축 아파트 맞습니까?",
+    customerName: "최 입주민"
+  },
+  [IndustryType.FINANCE]: {
+    title: "금융 상품 손실",
+    scenario: "추천하신 펀드가 3개월 만에 20% 손실입니다! 원금 보장에 가깝다고 하셨잖아요? 이게 어떻게 된 겁니까?",
+    customerName: "정 고객님"
+  },
+  [IndustryType.ADVERTISING]: {
+    title: "광고 성과 미달",
+    scenario: "한 달 광고비 5천만원 썼는데 전환율이 0.1%예요! 예상치의 10분의 1도 안 나왔는데 책임지실 거예요?",
+    customerName: "강 마케팅팀장"
+  },
+  [IndustryType.CHEMICAL_ENERGY]: {
+    title: "연료 품질 클레임",
+    scenario: "납품받은 연료로 가동했더니 보일러 효율이 급격히 떨어졌어요! 성분 분석 결과 규격에 미달이던데 어떻게 보상받죠?",
+    customerName: "윤 시설관리자"
+  },
+  [IndustryType.MEDICAL]: {
+    title: "의료기기 오작동",
+    scenario: "새로 도입한 진단 장비가 계속 오류를 일으켜요! 환자 검사 일정이 다 밀리고 있는데 긴급 A/S가 안 된다니요?",
+    customerName: "한 원장님"
+  },
+  [IndustryType.LOGISTICS]: {
+    title: "화물 파손 사고",
+    scenario: "보낸 물품이 박살나서 도착했어요! 분명 '취급주의' 표시했는데... 이 손해는 누가 배상하는 겁니까?",
+    customerName: "송 수출담당"
+  },
+  [IndustryType.FNB]: {
+    title: "식품 이물질 발견",
+    scenario: "케이터링 음식에서 이물질이 나왔어요! 중요한 행사였는데 손님들 앞에서 얼마나 창피했는지... 책임자 나오세요!",
+    customerName: "임 행사담당"
+  }
+};
 
 // R12 팀활동 결과보고서 (12월)
 const R12_STORY = "드디어 해냈다! [본사 복귀 확정] 통지서가 도착했다. 흙먼지 날리는 현장에서 고군분투한 당신, 진심으로 축하한다! 하지만 화려한 피날레를 위해선 지난 1년의 희로애락을 정리하는 '최종 결과 보고서'가 완벽해야만 한다. 팀원들과 나눈 뜨거운 협업과 성찰, 현업 적용 다짐까지 꼼꼼히 기록하라. 까다로운 AI 심사관의 'PASS' 도장이 찍히는 순간, 당신을 위한 서울행 리무진이 도착할 것이다!";
@@ -306,7 +360,6 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
   const [r7Answer, setR7Answer] = useState('');
   const [r7Cleared, setR7Cleared] = useState(false);
   const [r7Error, setR7Error] = useState('');
-  const [showR7VideoPopup, setShowR7VideoPopup] = useState(false);
 
   // R8 문신 퀴즈 상태 (8월)
   const [r8Answer, setR8Answer] = useState('');
@@ -324,10 +377,15 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
   const [r10Cleared, setR10Cleared] = useState(false);
   const [r10Error, setR10Error] = useState('');
 
-  // R11 공감대화 상태 (11월)
+  // R11 고객 응대 시뮬레이션 상태 (11월)
   const [r11ChatHistory, setR11ChatHistory] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const [r11UserInput, setR11UserInput] = useState('');
-  const [r11EmpathyScore, setR11EmpathyScore] = useState(0);
+  const [r11SatisfactionScore, setR11SatisfactionScore] = useState(0);
+  const [r11MoodLevel, setR11MoodLevel] = useState(1); // 1-5 (1: 매우 화남, 5: 만족)
+  const [r11EvaluationScores, setR11EvaluationScores] = useState<{
+    greeting: number; listening: number; empathy: number; solution: number; professionalism: number;
+    patience: number; clarity: number; positivity: number; responsibility: number; closing: number;
+  }>({ greeting: 0, listening: 0, empathy: 0, solution: 0, professionalism: 0, patience: 0, clarity: 0, positivity: 0, responsibility: 0, closing: 0 });
   const [r11Sending, setR11Sending] = useState(false);
   const [r11Cleared, setR11Cleared] = useState(false);
   const [r11StartTime, setR11StartTime] = useState<number | null>(null);
@@ -935,12 +993,16 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
     }
   }, [r11ChatHistory, r11Sending]);
 
-  // R11 대화 시작
+  // R11 고객 응대 대화 시작
   const startR11Chat = () => {
+    const industryType = room.industryType || IndustryType.IT_SOLUTION;
+    const scenario = CUSTOMER_SCENARIOS[industryType];
     setR11StartTime(Date.now());
+    setR11MoodLevel(1); // 시작시 매우 화남
+    setR11SatisfactionScore(0);
     setR11ChatHistory([{
       role: 'assistant',
-      content: '(한숨)... 아, 김부장. 무슨 일이야?'
+      content: scenario.scenario
     }]);
   };
 
@@ -957,14 +1019,17 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
     setR11ChatHistory(newHistory);
 
     try {
-      const result = await geminiService.chatWithExecutive(r11ChatHistory, userMessage);
+      const industryType = room.industryType || IndustryType.IT_SOLUTION;
+      const result = await geminiService.chatWithCustomer(industryType, r11ChatHistory, userMessage);
 
       // AI 응답 추가
       setR11ChatHistory([...newHistory, { role: 'assistant', content: result.response }]);
-      setR11EmpathyScore(result.empathyScore);
+      setR11SatisfactionScore(result.satisfactionScore);
+      setR11MoodLevel(result.moodLevel);
+      setR11EvaluationScores(result.evaluationScores);
 
-      // 90점 이상이면 클리어
-      if (result.empathyScore >= 90 && r11StartTime) {
+      // 80점 이상이면 클리어
+      if (result.satisfactionScore >= 80 && r11StartTime) {
         const elapsed = Math.floor((Date.now() - r11StartTime) / 1000);
         const mins = Math.floor(elapsed / 60);
         const secs = elapsed % 60;
@@ -987,7 +1052,9 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
     await firebaseService.advanceTeamRound(room.id, auth.teamId);
     setR11Cleared(false);
     setR11ChatHistory([]);
-    setR11EmpathyScore(0);
+    setR11SatisfactionScore(0);
+    setR11MoodLevel(1);
+    setR11EvaluationScores({ greeting: 0, listening: 0, empathy: 0, solution: 0, professionalism: 0, patience: 0, clarity: 0, positivity: 0, responsibility: 0, closing: 0 });
     setR11CompletionTime('');
     setViewState('factory');
   };
@@ -2312,14 +2379,14 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
 
           <BrutalistCard className="space-y-4">
             <p className="text-lg font-bold text-center">영상을 보고 인사팀장이 원하는 것을 맞추세요!</p>
-            <BrutalistButton
-              variant="primary"
-              fullWidth
-              className="text-xl py-4"
-              onClick={() => setShowR7VideoPopup(true)}
+            <video
+              controls
+              className="w-full brutal-border"
+              playsInline
             >
-              🎬 영상 보기
-            </BrutalistButton>
+              <source src={R7_VIDEO_URL} type="video/mp4" />
+              브라우저가 영상을 지원하지 않습니다.
+            </video>
           </BrutalistCard>
 
           {r7Cleared ? (
@@ -2348,31 +2415,6 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
             </BrutalistCard>
           )}
         </div>
-
-        {/* R7 영상 팝업 */}
-        {showR7VideoPopup && (
-          <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4">
-            <div className="w-full h-full max-w-5xl max-h-[90vh] bg-black brutal-border brutalist-shadow flex flex-col">
-              <div className="flex justify-between items-center p-3 bg-yellow-400 border-b-4 border-black flex-shrink-0">
-                <span className="font-black text-black">7월 미션 - 인사팀장 면담 영상</span>
-                <button onClick={() => setShowR7VideoPopup(false)} className="bg-black text-white px-4 py-2 font-black hover:bg-red-600 brutal-border transition-colors">
-                  ✕
-                </button>
-              </div>
-              <div className="flex-1 flex items-center justify-center p-4">
-                <video
-                  controls
-                  autoPlay
-                  className="max-w-full max-h-full brutal-border"
-                  style={{ maxHeight: 'calc(90vh - 80px)' }}
-                >
-                  <source src={R7_VIDEO_URL} type="video/mp4" />
-                  브라우저가 영상을 지원하지 않습니다.
-                </video>
-              </div>
-            </div>
-          </div>
-        )}
 
         <div className="fixed bottom-4 right-4 z-40">
           <button onClick={() => setViewState('factory')} className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow">
@@ -2635,8 +2677,13 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
     );
   }
 
-  // R11 공감대화 (11월)
+  // R11 고객 응대 시뮬레이션 (11월)
   if (isR11) {
+    const industryType = room.industryType || IndustryType.IT_SOLUTION;
+    const scenario = CUSTOMER_SCENARIOS[industryType];
+    const moodEmojis = ['😤', '😠', '😐', '🙂', '😊'];
+    const moodLabels = ['매우 화남', '화남', '보통', '좋음', '만족'];
+
     return (
       <div className="max-w-4xl mx-auto p-4 space-y-6 pb-24">
         <header className="flex justify-between items-center border-b-4 border-white pb-4">
@@ -2658,20 +2705,46 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
         )}
 
         <div className="space-y-6">
-          <h3 className="text-3xl font-black uppercase tracking-tighter text-center">ROUND 11: 11월 미션 - 공감대화</h3>
+          <h3 className="text-3xl font-black uppercase tracking-tighter text-center">ROUND 11: 고객 응대 시뮬레이션</h3>
+          <p className="text-center text-sm text-gray-400">산업군: {IndustryTypeLabels[industryType]} | 시나리오: {scenario.title}</p>
 
           <BrutalistCard className="bg-yellow-400/10 border-yellow-400">
             <p className="text-xl font-bold italic text-center">"{R11_STORY}"</p>
           </BrutalistCard>
 
-          {/* 공감 점수 표시 */}
-          <div className="text-center">
-            <p className="text-sm text-gray-400 mb-2">공감 지수</p>
-            <div className="w-full h-8 bg-gray-700 brutal-border overflow-hidden">
-              <div className={`h-full transition-all duration-500 ${r11EmpathyScore >= 90 ? 'bg-green-500' : r11EmpathyScore >= 70 ? 'bg-yellow-400' : 'bg-orange-500'}`} style={{ width: `${r11EmpathyScore}%` }} />
+          {/* 고객 기분 게이지 */}
+          {r11ChatHistory.length > 0 && (
+            <div className="bg-black/30 p-4 brutal-border space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-bold text-gray-400">고객 기분</span>
+                <span className="text-3xl">{moodEmojis[r11MoodLevel - 1]}</span>
+              </div>
+              <div className="flex gap-1">
+                {[1, 2, 3, 4, 5].map(level => (
+                  <div
+                    key={level}
+                    className={`flex-1 h-3 transition-all duration-300 ${
+                      level <= r11MoodLevel
+                        ? level <= 2 ? 'bg-red-500' : level === 3 ? 'bg-yellow-400' : 'bg-green-500'
+                        : 'bg-gray-700'
+                    }`}
+                  />
+                ))}
+              </div>
+              <p className="text-center text-sm font-bold" style={{ color: r11MoodLevel <= 2 ? '#ef4444' : r11MoodLevel === 3 ? '#facc15' : '#22c55e' }}>
+                {moodLabels[r11MoodLevel - 1]}
+              </p>
             </div>
-            <p className={`text-4xl font-black mt-2 ${r11EmpathyScore >= 90 ? 'text-green-400' : r11EmpathyScore >= 70 ? 'text-yellow-400' : 'text-orange-400'}`}>{r11EmpathyScore}점</p>
-            {r11EmpathyScore >= 90 && <p className="text-green-400 font-bold animate-pulse">목표 달성!</p>}
+          )}
+
+          {/* 만족도 점수 표시 */}
+          <div className="text-center">
+            <p className="text-sm text-gray-400 mb-2">고객 만족도</p>
+            <div className="w-full h-8 bg-gray-700 brutal-border overflow-hidden">
+              <div className={`h-full transition-all duration-500 ${r11SatisfactionScore >= 80 ? 'bg-green-500' : r11SatisfactionScore >= 50 ? 'bg-yellow-400' : 'bg-orange-500'}`} style={{ width: `${r11SatisfactionScore}%` }} />
+            </div>
+            <p className={`text-4xl font-black mt-2 ${r11SatisfactionScore >= 80 ? 'text-green-400' : r11SatisfactionScore >= 50 ? 'text-yellow-400' : 'text-orange-400'}`}>{r11SatisfactionScore}점</p>
+            {r11SatisfactionScore >= 80 && <p className="text-green-400 font-bold animate-pulse">목표 달성!</p>}
           </div>
 
           {r11Cleared ? (
@@ -2679,8 +2752,37 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
               <div className="bg-green-600 text-white p-8 brutal-border brutalist-shadow text-center">
                 <h2 className="text-4xl font-black mb-4">11월 미션 CLEAR!</h2>
                 <p className="text-xl">소요 시간: {r11CompletionTime}</p>
-                <p className="text-lg mt-2">전무님의 마음을 열었습니다!</p>
+                <p className="text-lg mt-2">고객의 마음을 사로잡았습니다!</p>
               </div>
+
+              {/* 평가 점수 레이더 차트 대신 바 차트로 표시 */}
+              <BrutalistCard className="space-y-3">
+                <h4 className="text-lg font-black text-yellow-400 text-center">응대 평가 결과</h4>
+                {[
+                  { key: 'greeting', label: '인사/첫인상' },
+                  { key: 'listening', label: '경청' },
+                  { key: 'empathy', label: '공감 표현' },
+                  { key: 'solution', label: '해결책 제시' },
+                  { key: 'professionalism', label: '전문성' },
+                  { key: 'patience', label: '인내심' },
+                  { key: 'clarity', label: '명확한 의사소통' },
+                  { key: 'positivity', label: '긍정적 태도' },
+                  { key: 'responsibility', label: '책임감' },
+                  { key: 'closing', label: '마무리' }
+                ].map(({ key, label }) => (
+                  <div key={key} className="flex items-center gap-2">
+                    <span className="text-xs w-24 text-gray-400">{label}</span>
+                    <div className="flex-1 h-4 bg-gray-700 overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-yellow-400 to-green-500 transition-all duration-500"
+                        style={{ width: `${r11EvaluationScores[key as keyof typeof r11EvaluationScores]}%` }}
+                      />
+                    </div>
+                    <span className="text-xs w-8 text-right font-bold">{r11EvaluationScores[key as keyof typeof r11EvaluationScores]}</span>
+                  </div>
+                ))}
+              </BrutalistCard>
+
               <BrutalistButton variant="gold" fullWidth className="text-2xl" onClick={handleR11Clear}>월 업무 마감하기(클릭)</BrutalistButton>
             </div>
           ) : isR11Completed ? (
@@ -2689,41 +2791,43 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
                 <p className="text-2xl font-black text-green-400">✓ 이미 완료한 미션입니다</p>
               </div>
               <div className="flex gap-4">
-                <BrutalistButton variant="ghost" onClick={() => setViewState('factory')} className="flex-shrink-0">← 공장</BrutalistButton>
+                <BrutalistButton variant="ghost" onClick={() => setViewState('factory')} className="flex-shrink-0">← 달력</BrutalistButton>
                 <BrutalistButton variant="gold" fullWidth onClick={() => { firebaseService.setTeamRound(room.id, auth.teamId, 12); setViewState('factory'); }}>다음 라운드로 →</BrutalistButton>
               </div>
             </div>
           ) : r11ChatHistory.length === 0 ? (
             <div className="space-y-4">
-              <BrutalistCard className="text-center p-8">
-                <p className="text-lg mb-4">전무님과의 대화를 시작하세요.</p>
-                <p className="text-sm text-gray-400 mb-6">공감 지수가 90점 이상이 되면 미션 클리어!</p>
-                <BrutalistButton variant="gold" fullWidth onClick={startR11Chat}>대화 시작하기</BrutalistButton>
+              <BrutalistCard className="text-center p-8 space-y-4">
+                <div className="text-5xl">📞</div>
+                <p className="text-xl font-bold text-red-400">{scenario.customerName}님으로부터 클레임 전화!</p>
+                <p className="text-lg">{scenario.title}</p>
+                <p className="text-sm text-gray-400">고객 만족도가 80점 이상이 되면 미션 클리어!</p>
+                <BrutalistButton variant="gold" fullWidth onClick={startR11Chat}>전화 받기</BrutalistButton>
               </BrutalistCard>
-              <BrutalistButton variant="ghost" onClick={() => setViewState('factory')}>월 업무 마감하기(클릭)</BrutalistButton>
+              <BrutalistButton variant="ghost" onClick={() => setViewState('factory')}>← 달력보기</BrutalistButton>
             </div>
           ) : (
             <div className="space-y-4">
-              {/* 채팅 영역 - 높이 30% 증가 */}
-              <div ref={chatContainerRef} className="h-[400px] overflow-y-auto bg-black/50 brutal-border p-4 space-y-3">
+              {/* 채팅 영역 */}
+              <div ref={chatContainerRef} className="h-[350px] overflow-y-auto bg-black/50 brutal-border p-4 space-y-3">
                 {r11ChatHistory.map((msg, idx) => (
                   <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[80%] p-3 brutal-border ${msg.role === 'user' ? 'bg-yellow-400 text-black' : 'bg-white text-black'}`}>
-                      <p className="text-xs font-bold mb-1">{msg.role === 'user' ? '나' : '전무님'}</p>
+                      <p className="text-xs font-bold mb-1">{msg.role === 'user' ? '나 (김부장)' : scenario.customerName}</p>
                       <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                     </div>
                   </div>
                 ))}
-                {r11Sending && <div className="text-center text-gray-400 animate-pulse">전무님이 답변 중...</div>}
+                {r11Sending && <div className="text-center text-gray-400 animate-pulse">{scenario.customerName}님이 응답 중...</div>}
               </div>
 
-              {/* 입력 영역 - shift+enter 줄바꿈 지원 */}
+              {/* 입력 영역 */}
               <div className="flex gap-2 items-end">
                 <BrutalistTextarea
                   ref={r11InputRef}
                   fullWidth
                   rows={2}
-                  placeholder="공감하는 말을 입력하세요... (Shift+Enter: 줄바꿈)"
+                  placeholder="고객에게 응대할 내용을 입력하세요... (Shift+Enter: 줄바꿈)"
                   value={r11UserInput}
                   onChange={(e) => setR11UserInput(e.target.value)}
                   onKeyDown={(e) => {

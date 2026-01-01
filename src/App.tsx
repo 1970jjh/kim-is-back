@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { UserRole, AuthState, RoomState, EventType, TeamMember } from './types';
+import { UserRole, AuthState, RoomState, EventType, TeamMember, IndustryType, IndustryTypeLabels } from './types';
 import { firebaseService } from './services/firebaseService';
 import { ADMIN_PASSWORD, ROLES, EVENTS } from './constants';
 import { BrutalistButton, BrutalistCard, BrutalistInput } from './components/BrutalistUI';
@@ -20,7 +20,7 @@ const App: React.FC = () => {
 
   // Login States
   const [pwInput, setPwInput] = useState('');
-  const [setupData, setSetupData] = useState({ groupName: '', totalTeams: 5, membersPerTeam: 6 });
+  const [setupData, setSetupData] = useState({ groupName: '', totalTeams: 5, membersPerTeam: 6, industryType: IndustryType.IT_SOLUTION });
   const [joinData, setJoinData] = useState<{ teamId: number; members: Record<string, string> }>({
     teamId: 1,
     members: {}
@@ -152,10 +152,11 @@ const App: React.FC = () => {
     const newRoomId = await firebaseService.createRoom(
       setupData.groupName,
       setupData.totalTeams,
-      setupData.membersPerTeam
+      setupData.membersPerTeam,
+      setupData.industryType
     );
     setCurrentRoomId(newRoomId);
-    setSetupData({ groupName: '', totalTeams: 5, membersPerTeam: 6 });
+    setSetupData({ groupName: '', totalTeams: 5, membersPerTeam: 6, industryType: IndustryType.IT_SOLUTION });
   };
 
   const handleJoinTeam = async () => {
@@ -440,6 +441,18 @@ const App: React.FC = () => {
                 value={setupData.groupName}
                 onChange={(e) => setSetupData({...setupData, groupName: e.target.value})}
               />
+              <div>
+                <label className="block font-bold">산업군 선택</label>
+                <select
+                  className="w-full brutal-border bg-white text-black p-2 font-bold text-sm mt-1"
+                  value={setupData.industryType}
+                  onChange={(e) => setSetupData({...setupData, industryType: parseInt(e.target.value) as IndustryType})}
+                >
+                  {Object.entries(IndustryTypeLabels).map(([key, label]) => (
+                    <option key={key} value={key}>{label}</option>
+                  ))}
+                </select>
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block font-bold">조 편성 (1-30)</label>

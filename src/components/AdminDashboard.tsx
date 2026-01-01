@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { firebaseService } from '../services/firebaseService';
 import { geminiService } from '../services/geminiService';
-import { RoomState, EventType, TeamPerformance } from '../types';
+import { RoomState, EventType, TeamPerformance, IndustryType, IndustryTypeLabels } from '../types';
 import { BrutalistButton, BrutalistCard, BrutalistInput } from './BrutalistUI';
 import { EVENTS, ROUNDS } from '../constants';
 
@@ -43,7 +43,7 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
   const [showPerformanceModal, setShowPerformanceModal] = useState(false);
   const [selectedPerformanceTeamId, setSelectedPerformanceTeamId] = useState<number | null>(null);
   const [showNewRoomModal, setShowNewRoomModal] = useState(false);
-  const [newRoomData, setNewRoomData] = useState({ groupName: '', totalTeams: 5, membersPerTeam: 6 });
+  const [newRoomData, setNewRoomData] = useState({ groupName: '', totalTeams: 5, membersPerTeam: 6, industryType: IndustryType.IT_SOLUTION });
   const [remainingTime, setRemainingTime] = useState<string>("");
   const [eventTargetTeam, setEventTargetTeam] = useState<'all' | number>('all'); // 이벤트 대상 팀
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -226,9 +226,9 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
       alert('교육 그룹명을 입력해주세요.');
       return;
     }
-    await firebaseService.createRoom(newRoomData.groupName, newRoomData.totalTeams, newRoomData.membersPerTeam);
+    await firebaseService.createRoom(newRoomData.groupName, newRoomData.totalTeams, newRoomData.membersPerTeam, newRoomData.industryType);
     setShowNewRoomModal(false);
-    setNewRoomData({ groupName: '', totalTeams: 5, membersPerTeam: 6 });
+    setNewRoomData({ groupName: '', totalTeams: 5, membersPerTeam: 6, industryType: IndustryType.IT_SOLUTION });
   };
 
   const handleDeleteRoom = async (roomId: string) => {
@@ -1031,6 +1031,18 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
                 value={newRoomData.groupName}
                 onChange={(e) => setNewRoomData({...newRoomData, groupName: e.target.value})}
               />
+              <div>
+                <label className="block font-bold">산업군 선택</label>
+                <select
+                  className="w-full brutal-border bg-white text-black p-2 font-bold text-sm mt-1"
+                  value={newRoomData.industryType}
+                  onChange={(e) => setNewRoomData({...newRoomData, industryType: parseInt(e.target.value) as IndustryType})}
+                >
+                  {Object.entries(IndustryTypeLabels).map(([key, label]) => (
+                    <option key={key} value={key}>{label}</option>
+                  ))}
+                </select>
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block font-bold">조 편성 (1-30)</label>

@@ -28,7 +28,7 @@ export const geminiService = {
     }
   },
 
-  // R11: 공감 대화 (전무님 역할) - 공감 점수 계산
+  // R11: 공감 대화 (전무님 역할) - 공감 점수 계산 (레거시)
   chatWithExecutive: async (
     conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }>,
     userMessage: string
@@ -52,6 +52,66 @@ export const geminiService = {
     } catch (error) {
       console.error('Gemini chat error:', error);
       return { response: '죄송합니다, 잠시 후 다시 시도해주세요.', empathyScore: 0, scoreChange: 0 };
+    }
+  },
+
+  // R11: 고객 응대 시뮬레이션 - 산업군별 고객 페르소나
+  chatWithCustomer: async (
+    industryType: number,
+    conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }>,
+    userMessage: string
+  ): Promise<{
+    response: string;
+    satisfactionScore: number;
+    moodLevel: number; // 1-5 (1: 매우 화남, 5: 만족)
+    evaluationScores: {
+      greeting: number;      // 인사/첫인상
+      listening: number;     // 경청
+      empathy: number;       // 공감 표현
+      solution: number;      // 해결책 제시
+      professionalism: number; // 전문성
+      patience: number;      // 인내심
+      clarity: number;       // 명확한 의사소통
+      positivity: number;    // 긍정적 태도
+      responsibility: number; // 책임감
+      closing: number;       // 마무리
+    };
+  }> => {
+    try {
+      const response = await fetch(API_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'customerService',
+          payload: { industryType, conversationHistory, userMessage }
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        return {
+          response: error.error || 'API 오류가 발생했습니다.',
+          satisfactionScore: 0,
+          moodLevel: 1,
+          evaluationScores: {
+            greeting: 0, listening: 0, empathy: 0, solution: 0, professionalism: 0,
+            patience: 0, clarity: 0, positivity: 0, responsibility: 0, closing: 0
+          }
+        };
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Gemini customer service error:', error);
+      return {
+        response: '죄송합니다, 잠시 후 다시 시도해주세요.',
+        satisfactionScore: 0,
+        moodLevel: 1,
+        evaluationScores: {
+          greeting: 0, listening: 0, empathy: 0, solution: 0, professionalism: 0,
+          patience: 0, clarity: 0, positivity: 0, responsibility: 0, closing: 0
+        }
+      };
     }
   },
 
