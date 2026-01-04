@@ -415,7 +415,14 @@ const RelayRacingGame: React.FC<RelayRacingGameProps> = ({ teamMembers, onComple
       totalDistance: prev.totalDistance + DISTANCE_PER_ROUND
     }));
     setLastRoundTimeLeft(stats.timeLeft);
-    setGameState(GameState.BATON);
+
+    // 6번째 주자(마지막)인 경우 바로 결과로 이동
+    if (stats.round >= TOTAL_PLAYERS) {
+      if (soundEnabled) GameSounds.playSuccess(); // 전체 성공 효과음
+      setGameState(GameState.SUCCESS);
+    } else {
+      setGameState(GameState.BATON);
+    }
   };
 
   const handleGameOver = () => {
@@ -663,10 +670,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       });
     }
 
-    // 게임 시작 직후 장애물/아이템 즉시 스폰 (6-10개, 더 멀리서)
-    const initialSpawnCount = 6 + Math.floor(Math.random() * 5);
+    // 게임 시작 직후 장애물/아이템 즉시 스폰 (12-16개, 골고루 분포)
+    const initialSpawnCount = 12 + Math.floor(Math.random() * 5);
     for (let i = 0; i < initialSpawnCount; i++) {
-      const spawnZ = 1500 + i * 2200 + Math.random() * 1000; // 더 멀리 배치
+      const spawnZ = 1200 + i * 1200 + Math.random() * 600; // 더 촘촘하게 배치
       spawnEntityAtZ(spawnZ);
     }
 
@@ -701,27 +708,32 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     let color = '';
     let driveSpeed = 0; // 차량이 앞으로 달리는 속도 (플레이어보다 느리면 추월)
 
-    if (roll < 0.25) {
+    if (roll < 0.12) {
+      // 에너지 아이템 12% (충전량 감소했으므로 적당히)
       type = EntityType.ITEM_FUEL;
       label = ITEMS_ENERGY[Math.floor(Math.random() * ITEMS_ENERGY.length)];
       color = '#10b981';
       driveSpeed = 0; // 아이템은 정지
-    } else if (roll < 0.35) {
+    } else if (roll < 0.30) {
+      // 부스터 18% (2배 증가)
       type = EntityType.ITEM_BOOST;
       label = ITEMS_BOOST[Math.floor(Math.random() * ITEMS_BOOST.length)];
       color = '#fbbf24';
       driveSpeed = 0;
-    } else if (roll < 0.42) {
+    } else if (roll < 0.38) {
+      // 방패 8%
       type = EntityType.ITEM_SHIELD;
       label = ITEMS_SHIELD[Math.floor(Math.random() * ITEMS_SHIELD.length)];
       color = '#3b82f6';
       driveSpeed = 0;
-    } else if (roll < 0.62) {
+    } else if (roll < 0.60) {
+      // 빠른 차 22%
       type = EntityType.OBSTACLE_CAR_FAST;
       label = OBSTACLES_HUMAN[Math.floor(Math.random() * OBSTACLES_HUMAN.length)];
       color = '#ef4444';
       driveSpeed = 15; // 플레이어보다 느림 (뒤에서 박지 못함)
     } else if (roll < 0.82) {
+      // 느린 차 22%
       type = EntityType.OBSTACLE_CAR_SLOW;
       label = OBSTACLES_WORK[Math.floor(Math.random() * OBSTACLES_WORK.length)];
       color = '#dc2626';
@@ -801,8 +813,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       GameSounds.updateEngine(player.speed);
     }
 
-    // Fuel consumption - 더 느리게
-    player.fuel -= (player.boostTimer > 0 ? 0.004 : 0.006);
+    // Fuel consumption - 운전할수록 연료 소모 (속도에 비례)
+    const fuelDrain = player.boostTimer > 0 ? 0.12 : 0.06 + (player.speed / 500);
+    player.fuel -= fuelDrain;
     setFuelUI(player.fuel);
 
     if (player.fuel <= 0) {
@@ -827,9 +840,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       return;
     }
 
-    // Spawn entities - 더 간격 넓게
-    if (positionRef.current - lastSpawnRef.current > 1500) {
-      if (Math.random() < 0.8) spawnEntity();
+    // Spawn entities - 더 자주, 골고루 분포
+    if (positionRef.current - lastSpawnRef.current > 800) {
+      // 항상 스폰 (빈 구간 없도록)
+      spawnEntity();
+      // 추가로 50% 확률로 한 개 더 스폰 (난이도 향상)
+      if (Math.random() < 0.5) spawnEntity();
       lastSpawnRef.current = positionRef.current;
     }
 
@@ -917,7 +933,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
           } else {
             // Item pickup
             if (e.type === EntityType.ITEM_FUEL) {
-              player.fuel = Math.min(MAX_FUEL, player.fuel + 25);
+              player.fuel = Math.min(MAX_FUEL, player.fuel + 8); // 충전량 감소 (25→8)
               onCollectFuel();
               if (soundEnabled) GameSounds.playPickup();
             }
