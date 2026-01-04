@@ -3416,9 +3416,9 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
           )}
         </div>
 
-        {/* R12 릴레이 레이싱 게임 팝업 */}
+        {/* R12 릴레이 레이싱 게임 팝업 - 전체화면 (z-index 최상위) */}
         {r12GameStarted && (
-          <div className="fixed inset-0 z-50 bg-black">
+          <div className="fixed inset-0 z-[100] bg-black">
             <RelayRacingGame
               teamMembers={team?.members || []}
               onComplete={handleR12GameComplete}
@@ -3427,11 +3427,14 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
           </div>
         )}
 
-        <div className="fixed bottom-4 right-4 z-40">
-          <button onClick={() => setViewState('factory')} className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow">
-            ← 달력보기
-          </button>
-        </div>
+        {/* 게임 중이 아닐 때만 대시보드 버튼 표시 */}
+        {!r12GameStarted && (
+          <div className="fixed bottom-4 right-4 z-40">
+            <button onClick={() => setViewState('factory')} className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow">
+              ← 달력보기
+            </button>
+          </div>
+        )}
       </div>
     );
   }

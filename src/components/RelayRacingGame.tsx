@@ -57,16 +57,16 @@ interface GameStats {
   fuelItemsCollected: number;
 }
 
-// Constants - 3인칭 뷰 설정 (느린 속도, 넓은 도로)
+// Constants - 위에서 내려다보는 3인칭 뷰 (더 넓은 도로, 느린 속도)
 const TOTAL_PLAYERS = 6;
 const INITIAL_TIME_LIMIT = 420; // 7분 (주자당 1분+)
 const MAX_FUEL = 100;
-const DISTANCE_PER_ROUND = 800; // 1분 정도 걸리도록 축소
-const ROAD_WIDTH = 6000; // 도로 폭 3배 확대
+const DISTANCE_PER_ROUND = 800; // 1분 정도 걸리도록
+const ROAD_WIDTH = 8000; // 도로 폭 더 확대
 const SEGMENT_LENGTH = 200;
-const DRAW_DISTANCE = 120;
-const FOV = 80; // 더 넓은 시야
-const CAMERA_HEIGHT = 1000; // 카메라 높이
+const DRAW_DISTANCE = 80; // 더 가까이 보이게
+const FOV = 60; // 좁은 FOV로 위에서 보는 느낌
+const CAMERA_HEIGHT = 1800; // 카메라 높이 올림 (위에서 내려다보기)
 
 // 부정적 요소 (장애물)
 const OBSTACLES_HUMAN = [
@@ -613,51 +613,58 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     };
   }, []);
 
-  // Spawn entity - 더 적게, 더 멀리서
+  // Spawn entity - 다른 차량들도 같이 달리는 느낌
   const spawnEntity = useCallback(() => {
     const roll = Math.random();
     let type: EntityType;
     let label = '';
     let color = '';
+    let driveSpeed = 0; // 차량이 앞으로 달리는 속도 (플레이어보다 느리면 추월)
 
     if (roll < 0.25) {
       type = EntityType.ITEM_FUEL;
       label = ITEMS_ENERGY[Math.floor(Math.random() * ITEMS_ENERGY.length)];
       color = '#10b981';
+      driveSpeed = 0; // 아이템은 정지
     } else if (roll < 0.35) {
       type = EntityType.ITEM_BOOST;
       label = ITEMS_BOOST[Math.floor(Math.random() * ITEMS_BOOST.length)];
       color = '#fbbf24';
+      driveSpeed = 0;
     } else if (roll < 0.42) {
       type = EntityType.ITEM_SHIELD;
       label = ITEMS_SHIELD[Math.floor(Math.random() * ITEMS_SHIELD.length)];
       color = '#3b82f6';
+      driveSpeed = 0;
     } else if (roll < 0.62) {
       type = EntityType.OBSTACLE_CAR_FAST;
       label = OBSTACLES_HUMAN[Math.floor(Math.random() * OBSTACLES_HUMAN.length)];
       color = '#ef4444';
+      driveSpeed = 18; // 빠른 차 (플레이어 25보다 느림 → 추월 가능)
     } else if (roll < 0.82) {
       type = EntityType.OBSTACLE_CAR_SLOW;
       label = OBSTACLES_WORK[Math.floor(Math.random() * OBSTACLES_WORK.length)];
       color = '#dc2626';
+      driveSpeed = 12; // 느린 차
     } else {
       type = EntityType.OBSTACLE_TRUCK;
       label = OBSTACLES_CULTURE[Math.floor(Math.random() * OBSTACLES_CULTURE.length)];
       color = '#991b1b';
+      driveSpeed = 8; // 트럭은 가장 느림
     }
 
-    // 3개 레인 중 하나에 스폰 (왼쪽, 중앙, 오른쪽)
-    const lanes = [-0.6, 0, 0.6];
+    // 5개 레인으로 확대 (더 넓은 도로)
+    const lanes = [-0.7, -0.35, 0, 0.35, 0.7];
     const laneX = lanes[Math.floor(Math.random() * lanes.length)];
 
     entitiesRef.current.push({
       id: Date.now() + Math.random(),
       type,
       x: laneX,
-      z: positionRef.current + DRAW_DISTANCE * SEGMENT_LENGTH * 0.8,
-      width: type === EntityType.OBSTACLE_TRUCK ? 0.35 : 0.25,
-      height: type === EntityType.OBSTACLE_TRUCK ? 0.2 : 0.15,
-      speed: type === EntityType.OBSTACLE_CAR_FAST ? 30 : (type === EntityType.OBSTACLE_CAR_SLOW ? 10 : 0),
+      z: positionRef.current + DRAW_DISTANCE * SEGMENT_LENGTH * 0.7,
+      width: type === EntityType.OBSTACLE_TRUCK ? 0.4 : 0.3, // 크기 증가
+      height: type === EntityType.OBSTACLE_TRUCK ? 0.25 : 0.2,
+      speed: driveSpeed, // 앞으로 달리는 속도
       label, color
     });
   }, []);
@@ -731,9 +738,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       }
     });
 
-    // Update entities and collision
+    // Update entities and collision - 다른 차량도 앞으로 달림
     entitiesRef.current = entitiesRef.current.filter(e => {
-      e.z -= e.speed * 0.016;
+      // 차량들도 앞으로 달림 (플레이어보다 느리면 추월당함)
+      e.z += e.speed;
 
       const relZ = e.z - positionRef.current;
       if (relZ < -300) {
@@ -760,7 +768,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
               onHitObstacle(e.label);
               player.speed = 0;
               player.fuel = Math.max(0, player.fuel - 25);
-              shakeRef.current = 60;
+              shakeRef.current = 100; // 더 강한 화면 흔들림
+
+              // 모바일 진동 효과
+              if (navigator.vibrate) {
+                navigator.vibrate([100, 50, 100, 50, 100]); // 진동 패턴
+              }
+
               setHitFlash(true);
 
               // 충돌 시 0.5초 딜레이
@@ -846,9 +860,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     ctx.closePath();
     ctx.fill();
 
-    // Ground
-    ctx.fillStyle = theme.ground;
+    // Ground - 잔디색으로 바닥 전체 채움 (베이지색 제거)
+    ctx.fillStyle = theme.grass1;
     ctx.fillRect(0, h * 0.45, w, h * 0.55);
+
+    // 화면 하단은 도로색으로 채워서 베이지 띠 제거
+    ctx.fillStyle = theme.road;
+    ctx.fillRect(0, h * 0.85, w, h * 0.15);
 
     // Road segments
     const baseSegment = Math.floor(positionRef.current / SEGMENT_LENGTH);
@@ -973,25 +991,25 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       const roadX = w / 2 - (player.x * projW * 0.4) + getCurve(e.z) * projW * 0.5;
       const projX = roadX + e.x * projW * 0.4;
 
-      // 차량/아이템 크기 대폭 증가
-      const size = 350 * scale;
-      if (size < 10) return;
+      // 차량/아이템 크기 2배 증가
+      const size = 700 * scale;
+      if (size < 15) return;
 
       if (e.type.includes('OBSTACLE')) {
-        // 다른 차량 그리기 (3인칭 뷰에서 더 크게)
+        // 다른 차량 그리기 (2배 크기)
         drawOtherCar(ctx, projX, projY, size, e.color, e.type === EntityType.OBSTACLE_TRUCK);
       } else {
         drawItem(ctx, projX, projY, size, e.type, e.color);
       }
 
-      // Label - 더 크게, 더 잘 보이게
-      if (size > 25) {
+      // Label - 글자 크기 2배
+      if (size > 30) {
         ctx.fillStyle = '#fff';
-        ctx.font = `bold ${Math.min(22, size * 0.25)}px sans-serif`;
+        ctx.font = `bold ${Math.min(40, size * 0.35)}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.shadowColor = '#000';
-        ctx.shadowBlur = 8;
-        ctx.fillText(e.label, projX, projY - size * 0.8);
+        ctx.shadowBlur = 12;
+        ctx.fillText(e.label, projX, projY - size * 0.9);
         ctx.shadowBlur = 0;
       }
     });
@@ -1123,12 +1141,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   );
 };
 
-// 3인칭 플레이어 자동차 그리기 (화면 하단 중앙)
+// 3인칭 플레이어 자동차 그리기 (화면 하단 중앙, 크기 2배)
 function drawPlayerCar(ctx: CanvasRenderingContext2D, w: number, h: number, playerX: number, boosting: boolean, shield: boolean) {
-  const carW = 140;
-  const carH = 200;
+  const carW = 200; // 2배 크기
+  const carH = 280;
   const baseX = w / 2 + playerX * w * 0.25; // 좌우 이동에 따라 위치 변경
-  const baseY = h - 30;
+  const baseY = h + 20; // 화면 아래쪽으로 더 내림 (베이지색 가림)
 
   // 그림자
   ctx.fillStyle = 'rgba(0,0,0,0.5)';
