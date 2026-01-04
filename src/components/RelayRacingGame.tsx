@@ -57,16 +57,16 @@ interface GameStats {
   fuelItemsCollected: number;
 }
 
-// Constants - 속도 대폭 감소
+// Constants - 3인칭 뷰 설정
 const TOTAL_PLAYERS = 6;
 const INITIAL_TIME_LIMIT = 360;
 const MAX_FUEL = 100;
-const DISTANCE_PER_ROUND = 3000; // 거리 줄임
+const DISTANCE_PER_ROUND = 3000;
 const ROAD_WIDTH = 2000;
 const SEGMENT_LENGTH = 200;
-const DRAW_DISTANCE = 80;
-const FOV = 120; // FOV 증가로 더 넓은 시야
-const CAMERA_HEIGHT = 1000; // 카메라 낮춤 (1인칭 느낌)
+const DRAW_DISTANCE = 100;
+const FOV = 100; // 3인칭에 맞게 조정
+const CAMERA_HEIGHT = 1200; // 카메라 높이 (3인칭 뷰)
 
 // 부정적 요소 (장애물)
 const OBSTACLES_HUMAN = [
@@ -959,7 +959,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       drawScenery(ctx, s.type, projX, projY, size, theme);
     });
 
-    // Draw entities
+    // Draw entities (다른 차량들) - 더 크게, 더 잘 보이게
     const sortedEntities = [...entitiesRef.current]
       .filter(e => e.z > positionRef.current && e.z < positionRef.current + DRAW_DISTANCE * SEGMENT_LENGTH)
       .sort((a, b) => b.z - a.z);
@@ -973,29 +973,34 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       const roadX = w / 2 - (player.x * projW * 0.4) + getCurve(e.z) * projW * 0.5;
       const projX = roadX + e.x * projW * 0.4;
 
-      const size = 180 * scale;
-      if (size < 8) return;
+      // 차량/아이템 크기 대폭 증가
+      const size = 350 * scale;
+      if (size < 10) return;
 
       if (e.type.includes('OBSTACLE')) {
-        drawCar(ctx, projX, projY, size, e.color, e.type === EntityType.OBSTACLE_TRUCK);
+        // 다른 차량 그리기 (3인칭 뷰에서 더 크게)
+        drawOtherCar(ctx, projX, projY, size, e.color, e.type === EntityType.OBSTACLE_TRUCK);
       } else {
         drawItem(ctx, projX, projY, size, e.type, e.color);
       }
 
-      // Label - 더 크게
-      if (size > 20) {
+      // Label - 더 크게, 더 잘 보이게
+      if (size > 25) {
         ctx.fillStyle = '#fff';
-        ctx.font = `bold ${Math.min(18, size * 0.2)}px sans-serif`;
+        ctx.font = `bold ${Math.min(22, size * 0.25)}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.shadowColor = '#000';
-        ctx.shadowBlur = 6;
-        ctx.fillText(e.label, projX, projY - size * 0.7);
+        ctx.shadowBlur = 8;
+        ctx.fillText(e.label, projX, projY - size * 0.8);
         ctx.shadowBlur = 0;
       }
     });
 
-    // Draw cockpit/dashboard (1인칭 시점 강조)
-    drawCockpit(ctx, w, h, player.boostTimer > 0, player.shield);
+    // Draw player car (3인칭 - 내 차가 화면 하단에 보임)
+    drawPlayerCar(ctx, w, h, player.x, player.boostTimer > 0, player.shield);
+
+    // Draw speedometer gauge (속도계)
+    drawSpeedometer(ctx, w, h, player.speed);
 
     ctx.restore();
 
@@ -1080,13 +1085,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         </div>
       </div>
 
-      {/* Speed indicator */}
-      <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
-        <div className="text-3xl font-black text-white tabular-nums text-center">
-          {Math.floor(stateRef.current.speed)}
-          <span className="text-sm text-slate-400 ml-1">km/h</span>
-        </div>
-      </div>
 
       <canvas
         ref={canvasRef}
@@ -1124,86 +1122,294 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   );
 };
 
-// 1인칭 콕핏 뷰 그리기
-function drawCockpit(ctx: CanvasRenderingContext2D, w: number, h: number, boosting: boolean, shield: boolean) {
-  // 대시보드
-  ctx.fillStyle = '#1a1a1a';
+// 3인칭 플레이어 자동차 그리기 (화면 하단 중앙)
+function drawPlayerCar(ctx: CanvasRenderingContext2D, w: number, h: number, playerX: number, boosting: boolean, shield: boolean) {
+  const carW = 140;
+  const carH = 200;
+  const baseX = w / 2 + playerX * w * 0.25; // 좌우 이동에 따라 위치 변경
+  const baseY = h - 30;
+
+  // 그림자
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
   ctx.beginPath();
-  ctx.moveTo(0, h);
-  ctx.lineTo(0, h * 0.88);
-  ctx.quadraticCurveTo(w * 0.2, h * 0.85, w * 0.5, h * 0.9);
-  ctx.quadraticCurveTo(w * 0.8, h * 0.85, w, h * 0.88);
-  ctx.lineTo(w, h);
+  ctx.ellipse(baseX, baseY + 10, carW * 0.5, 20, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 부스트 불꽃 (차량 뒤에서)
+  if (boosting) {
+    ctx.fillStyle = `rgba(255, ${100 + Math.random() * 100}, 0, 0.9)`;
+    // 왼쪽 배기구
+    ctx.beginPath();
+    ctx.moveTo(baseX - 30, baseY);
+    ctx.lineTo(baseX - 35, baseY + 40 + Math.random() * 30);
+    ctx.lineTo(baseX - 25, baseY);
+    ctx.fill();
+    // 오른쪽 배기구
+    ctx.beginPath();
+    ctx.moveTo(baseX + 30, baseY);
+    ctx.lineTo(baseX + 35, baseY + 40 + Math.random() * 30);
+    ctx.lineTo(baseX + 25, baseY);
+    ctx.fill();
+  }
+
+  // 차체 (뒤에서 본 모습)
+  // 뒤 범퍼
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(baseX - carW * 0.45, baseY - 15, carW * 0.9, 20);
+
+  // 차체 메인
+  ctx.fillStyle = '#2563eb'; // 파란색 스포츠카
+  ctx.beginPath();
+  ctx.moveTo(baseX - carW * 0.5, baseY - 15);
+  ctx.lineTo(baseX - carW * 0.48, baseY - carH * 0.5);
+  ctx.lineTo(baseX - carW * 0.35, baseY - carH * 0.7);
+  ctx.lineTo(baseX + carW * 0.35, baseY - carH * 0.7);
+  ctx.lineTo(baseX + carW * 0.48, baseY - carH * 0.5);
+  ctx.lineTo(baseX + carW * 0.5, baseY - 15);
   ctx.closePath();
   ctx.fill();
 
-  // 핸들
-  ctx.strokeStyle = '#444';
-  ctx.lineWidth = 12;
+  // 후면 유리창
+  ctx.fillStyle = '#0f172a';
   ctx.beginPath();
-  ctx.arc(w / 2, h * 1.05, 80, Math.PI * 1.2, Math.PI * 1.8);
-  ctx.stroke();
+  ctx.moveTo(baseX - carW * 0.32, baseY - carH * 0.5);
+  ctx.lineTo(baseX - carW * 0.25, baseY - carH * 0.65);
+  ctx.lineTo(baseX + carW * 0.25, baseY - carH * 0.65);
+  ctx.lineTo(baseX + carW * 0.32, baseY - carH * 0.5);
+  ctx.closePath();
+  ctx.fill();
 
-  ctx.strokeStyle = boosting ? '#fbbf24' : '#666';
-  ctx.lineWidth = 8;
+  // 지붕
+  ctx.fillStyle = '#1d4ed8';
   ctx.beginPath();
-  ctx.arc(w / 2, h * 1.05, 80, Math.PI * 1.2, Math.PI * 1.8);
-  ctx.stroke();
+  ctx.moveTo(baseX - carW * 0.25, baseY - carH * 0.65);
+  ctx.lineTo(baseX - carW * 0.2, baseY - carH * 0.82);
+  ctx.lineTo(baseX + carW * 0.2, baseY - carH * 0.82);
+  ctx.lineTo(baseX + carW * 0.25, baseY - carH * 0.65);
+  ctx.closePath();
+  ctx.fill();
+
+  // 테일라이트 (빨간색)
+  ctx.fillStyle = '#dc2626';
+  ctx.fillRect(baseX - carW * 0.45, baseY - 35, carW * 0.2, 12);
+  ctx.fillRect(baseX + carW * 0.25, baseY - 35, carW * 0.2, 12);
+
+  // 테일라이트 발광 효과
+  ctx.shadowBlur = 15;
+  ctx.shadowColor = '#dc2626';
+  ctx.fillStyle = '#ff4444';
+  ctx.fillRect(baseX - carW * 0.42, baseY - 32, carW * 0.15, 6);
+  ctx.fillRect(baseX + carW * 0.27, baseY - 32, carW * 0.15, 6);
+  ctx.shadowBlur = 0;
+
+  // 뒷바퀴 (좌우)
+  ctx.fillStyle = '#111';
+  ctx.beginPath();
+  ctx.ellipse(baseX - carW * 0.42, baseY - 8, 22, 12, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(baseX + carW * 0.42, baseY - 8, 22, 12, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 휠캡
+  ctx.fillStyle = '#666';
+  ctx.beginPath();
+  ctx.ellipse(baseX - carW * 0.42, baseY - 8, 10, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(baseX + carW * 0.42, baseY - 8, 10, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
 
   // 방패 효과
   if (shield) {
-    ctx.strokeStyle = 'rgba(59, 130, 246, 0.6)';
-    ctx.lineWidth = 8;
-    ctx.setLineDash([15, 10]);
+    ctx.strokeStyle = 'rgba(59, 130, 246, 0.7)';
+    ctx.lineWidth = 4;
+    ctx.setLineDash([10, 5]);
     ctx.beginPath();
-    ctx.arc(w / 2, h * 0.5, Math.min(w, h) * 0.45, 0, Math.PI * 2);
+    ctx.ellipse(baseX, baseY - carH * 0.4, carW * 0.7, carH * 0.55, 0, 0, Math.PI * 2);
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // 방패 아이콘
-    ctx.fillStyle = 'rgba(59, 130, 246, 0.3)';
-    ctx.font = 'bold 24px sans-serif';
+    // 방패 글리프
+    ctx.fillStyle = 'rgba(59, 130, 246, 0.9)';
+    ctx.font = 'bold 18px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('🛡️ SHIELD ACTIVE', w / 2, h * 0.15);
+    ctx.fillText('🛡️ SHIELD', baseX, baseY - carH - 20);
   }
 
-  // 부스트 효과
+  // 부스트 표시
   if (boosting) {
-    ctx.fillStyle = 'rgba(251, 191, 36, 0.3)';
-    ctx.font = 'bold 24px sans-serif';
+    ctx.fillStyle = 'rgba(251, 191, 36, 0.9)';
+    ctx.font = 'bold 18px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('🔥 BOOST!', w / 2, h * 0.15);
+    ctx.fillText('🔥 BOOST!', baseX, baseY - carH - 20);
+  }
+}
 
-    // 부스트 플레임
-    ctx.fillStyle = `rgba(255, ${100 + Math.random() * 100}, 0, 0.8)`;
-    ctx.beginPath();
-    ctx.moveTo(w * 0.3, h);
-    ctx.lineTo(w * 0.35, h - 50 - Math.random() * 30);
-    ctx.lineTo(w * 0.4, h);
-    ctx.fill();
+// 속도계 게이지 (왼쪽 하단, Road & Track 스타일)
+function drawSpeedometer(ctx: CanvasRenderingContext2D, w: number, h: number, speed: number) {
+  const centerX = 80;
+  const centerY = h - 100;
+  const radius = 55;
 
+  // 배경 원
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, radius + 8, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 테두리
+  ctx.strokeStyle = '#444';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, radius + 5, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // 속도계 눈금 배경
+  ctx.fillStyle = '#1a1a1a';
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 눈금선
+  ctx.strokeStyle = '#555';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 12; i++) {
+    const angle = Math.PI * 0.8 + (i / 12) * Math.PI * 1.4;
+    const innerR = i % 3 === 0 ? radius - 15 : radius - 10;
     ctx.beginPath();
-    ctx.moveTo(w * 0.6, h);
-    ctx.lineTo(w * 0.65, h - 50 - Math.random() * 30);
-    ctx.lineTo(w * 0.7, h);
-    ctx.fill();
+    ctx.moveTo(centerX + Math.cos(angle) * innerR, centerY + Math.sin(angle) * innerR);
+    ctx.lineTo(centerX + Math.cos(angle) * (radius - 3), centerY + Math.sin(angle) * (radius - 3));
+    ctx.stroke();
   }
 
-  // 사이드 미러 (좌우)
-  ctx.fillStyle = '#2a2a2a';
+  // 숫자 표시 (0, 60, 120)
+  ctx.fillStyle = '#888';
+  ctx.font = 'bold 10px sans-serif';
+  ctx.textAlign = 'center';
+  const nums = [0, 60, 120];
+  const numAngles = [Math.PI * 0.8, Math.PI * 1.5, Math.PI * 2.2];
+  nums.forEach((num, i) => {
+    const angle = numAngles[i];
+    ctx.fillText(num.toString(), centerX + Math.cos(angle) * (radius - 22), centerY + Math.sin(angle) * (radius - 22) + 4);
+  });
+
+  // 속도 바늘
+  const maxSpeed = 120;
+  const speedAngle = Math.PI * 0.8 + (Math.min(speed, maxSpeed) / maxSpeed) * Math.PI * 1.4;
+
+  ctx.strokeStyle = '#ef4444';
+  ctx.lineWidth = 3;
   ctx.beginPath();
-  ctx.ellipse(w * 0.08, h * 0.6, 35, 20, -0.3, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.moveTo(centerX, centerY);
+  ctx.lineTo(centerX + Math.cos(speedAngle) * (radius - 8), centerY + Math.sin(speedAngle) * (radius - 8));
+  ctx.stroke();
+
+  // 바늘 중심점
+  ctx.fillStyle = '#ef4444';
   ctx.beginPath();
-  ctx.ellipse(w * 0.92, h * 0.6, 35, 20, 0.3, 0, Math.PI * 2);
+  ctx.arc(centerX, centerY, 6, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.fillStyle = '#1a3a5c';
+  // 속도 숫자 표시
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 16px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(Math.floor(speed).toString(), centerX, centerY + 25);
+  ctx.font = '8px sans-serif';
+  ctx.fillStyle = '#888';
+  ctx.fillText('km/h', centerX, centerY + 36);
+}
+
+// 다른 차량 그리기 (전방에서 오는 차량, 더 크고 선명하게)
+function drawOtherCar(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, color: string, isTruck: boolean) {
+  const w = size * (isTruck ? 1.8 : 1.3);
+  const h = size * (isTruck ? 2.5 : 1.8);
+
+  // 그림자
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
   ctx.beginPath();
-  ctx.ellipse(w * 0.08, h * 0.6, 28, 15, -0.3, 0, Math.PI * 2);
+  ctx.ellipse(x, y + 5, w * 0.5, h * 0.1, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (isTruck) {
+    // 트럭 차체
+    ctx.fillStyle = color;
+    ctx.fillRect(x - w * 0.4, y - h * 0.8, w * 0.8, h * 0.9);
+
+    // 트럭 캐빈
+    ctx.fillStyle = '#333';
+    ctx.fillRect(x - w * 0.35, y - h * 0.75, w * 0.7, h * 0.2);
+
+    // 앞유리
+    ctx.fillStyle = '#1a3050';
+    ctx.fillRect(x - w * 0.3, y - h * 0.7, w * 0.6, h * 0.12);
+
+    // 헤드라이트
+    ctx.fillStyle = '#ffeb3b';
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = '#ffeb3b';
+    ctx.beginPath();
+    ctx.ellipse(x - w * 0.25, y - h * 0.55, w * 0.08, h * 0.03, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(x + w * 0.25, y - h * 0.55, w * 0.08, h * 0.03, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  } else {
+    // 승용차 - 앞에서 본 모습 (마주 오는 차량)
+    // 차체 메인
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(x - w * 0.45, y);
+    ctx.lineTo(x - w * 0.48, y - h * 0.35);
+    ctx.lineTo(x - w * 0.35, y - h * 0.55);
+    ctx.lineTo(x - w * 0.25, y - h * 0.75);
+    ctx.lineTo(x + w * 0.25, y - h * 0.75);
+    ctx.lineTo(x + w * 0.35, y - h * 0.55);
+    ctx.lineTo(x + w * 0.48, y - h * 0.35);
+    ctx.lineTo(x + w * 0.45, y);
+    ctx.closePath();
+    ctx.fill();
+
+    // 앞유리
+    ctx.fillStyle = '#1a3050';
+    ctx.beginPath();
+    ctx.moveTo(x - w * 0.25, y - h * 0.55);
+    ctx.lineTo(x - w * 0.2, y - h * 0.7);
+    ctx.lineTo(x + w * 0.2, y - h * 0.7);
+    ctx.lineTo(x + w * 0.25, y - h * 0.55);
+    ctx.closePath();
+    ctx.fill();
+
+    // 그릴
+    ctx.fillStyle = '#111';
+    ctx.fillRect(x - w * 0.3, y - h * 0.32, w * 0.6, h * 0.08);
+
+    // 헤드라이트 (발광 효과)
+    ctx.fillStyle = '#ffeb3b';
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = '#ffeb3b';
+    ctx.beginPath();
+    ctx.ellipse(x - w * 0.35, y - h * 0.38, w * 0.1, h * 0.05, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(x + w * 0.35, y - h * 0.38, w * 0.1, h * 0.05, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // 범퍼
+    ctx.fillStyle = '#222';
+    ctx.fillRect(x - w * 0.45, y - h * 0.15, w * 0.9, h * 0.08);
+  }
+
+  // 바퀴 (앞에서 보이는 것처럼)
+  ctx.fillStyle = '#111';
+  ctx.beginPath();
+  ctx.ellipse(x - w * 0.4, y - 3, w * 0.12, h * 0.05, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.beginPath();
-  ctx.ellipse(w * 0.92, h * 0.6, 28, 15, 0.3, 0, Math.PI * 2);
+  ctx.ellipse(x + w * 0.4, y - 3, w * 0.12, h * 0.05, 0, 0, Math.PI * 2);
   ctx.fill();
 }
 
