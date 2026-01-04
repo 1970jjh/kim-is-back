@@ -57,16 +57,16 @@ interface GameStats {
   fuelItemsCollected: number;
 }
 
-// Constants - 3인칭 뷰 설정
+// Constants - 3인칭 뷰 설정 (느린 속도, 넓은 도로)
 const TOTAL_PLAYERS = 6;
-const INITIAL_TIME_LIMIT = 360;
+const INITIAL_TIME_LIMIT = 420; // 7분 (주자당 1분+)
 const MAX_FUEL = 100;
-const DISTANCE_PER_ROUND = 3000;
-const ROAD_WIDTH = 2000;
+const DISTANCE_PER_ROUND = 800; // 1분 정도 걸리도록 축소
+const ROAD_WIDTH = 6000; // 도로 폭 3배 확대
 const SEGMENT_LENGTH = 200;
-const DRAW_DISTANCE = 100;
-const FOV = 100; // 3인칭에 맞게 조정
-const CAMERA_HEIGHT = 1200; // 카메라 높이 (3인칭 뷰)
+const DRAW_DISTANCE = 120;
+const FOV = 80; // 더 넓은 시야
+const CAMERA_HEIGHT = 1000; // 카메라 높이
 
 // 부정적 요소 (장애물)
 const OBSTACLES_HUMAN = [
@@ -186,9 +186,9 @@ const GameSounds = {
   updateEngine: (speed: number) => {
     if (!GameSounds.engineOsc || !GameSounds.engineGain) return;
     const ctx = getAudioContext();
-    // 속도에 따라 엔진 피치 변경
-    const freq = 60 + (speed / 150) * 100;
-    const vol = 0.02 + (speed / 150) * 0.04;
+    // 속도에 따라 엔진 피치 변경 (새 속도 기준 max 40)
+    const freq = 50 + (speed / 40) * 80;
+    const vol = 0.02 + (speed / 40) * 0.04;
     GameSounds.engineOsc.frequency.setTargetAtTime(freq, ctx.currentTime, 0.1);
     GameSounds.engineGain.gain.setTargetAtTime(vol, ctx.currentTime, 0.1);
   },
@@ -673,16 +673,16 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     const player = stateRef.current;
     const theme = THEMES[(round - 1) % THEMES.length];
 
-    // Player movement - 속도에 비례하지 않고 고정 속도로 이동
-    const steerSpeed = 0.04;
+    // Player movement - 넓은 도로에 맞게 조향 속도 증가
+    const steerSpeed = 0.06;
     if (controlRef.current.left) player.x -= steerSpeed;
     if (controlRef.current.right) player.x += steerSpeed;
-    player.x = Math.max(-1.2, Math.min(1.2, player.x));
+    player.x = Math.max(-1.0, Math.min(1.0, player.x)); // 도로 안에서만 이동
 
     // Speed control - 대폭 감소
     const isOffRoad = Math.abs(player.x) > 0.9;
-    let maxSpeed = player.boostTimer > 0 ? 120 : 80; // 속도 대폭 감소
-    if (isOffRoad) maxSpeed = 30;
+    let maxSpeed = player.boostTimer > 0 ? 35 : 25; // 속도 30%로 감소 (1분 플레이)
+    if (isOffRoad) maxSpeed = 10;
 
     player.speed += (maxSpeed - player.speed) * 0.03;
     if (player.boostTimer > 0) player.boostTimer -= 16;
@@ -1004,20 +1004,21 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
     ctx.restore();
 
-    // Hit flash overlay
+    // Hit flash overlay (충돌 시 빨간 플래시만, 검정화면 없음)
     if (hitFlash) {
-      ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
-      ctx.fillRect(0, 0, w * window.devicePixelRatio, h * window.devicePixelRatio);
-    }
+      // 빨간 테두리 플래시 효과
+      ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
+      ctx.lineWidth = 20;
+      ctx.strokeRect(5, 5, w * window.devicePixelRatio - 10, h * window.devicePixelRatio - 10);
 
-    // Pause overlay
-    if (isPaused) {
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-      ctx.fillRect(0, 0, w * window.devicePixelRatio, h * window.devicePixelRatio);
+      // 충돌 텍스트 (화면 상단)
       ctx.fillStyle = '#ff0000';
-      ctx.font = 'bold 48px sans-serif';
+      ctx.font = 'bold 36px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('💥 충돌!', w / 2 * window.devicePixelRatio, h / 2 * window.devicePixelRatio);
+      ctx.shadowColor = '#000';
+      ctx.shadowBlur = 10;
+      ctx.fillText('💥 충돌!', w / 2 * window.devicePixelRatio, 80);
+      ctx.shadowBlur = 0;
     }
 
     requestRef.current = requestAnimationFrame(update);
@@ -1246,23 +1247,23 @@ function drawPlayerCar(ctx: CanvasRenderingContext2D, w: number, h: number, play
   }
 }
 
-// 속도계 게이지 (왼쪽 하단, Road & Track 스타일)
+// 속도계 게이지 (왼쪽 하단, 방향키 위에 배치)
 function drawSpeedometer(ctx: CanvasRenderingContext2D, w: number, h: number, speed: number) {
-  const centerX = 80;
-  const centerY = h - 100;
-  const radius = 55;
+  const centerX = 75;
+  const centerY = h - 200; // 방향키 위로 올림
+  const radius = 50;
 
   // 배경 원
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
   ctx.beginPath();
-  ctx.arc(centerX, centerY, radius + 8, 0, Math.PI * 2);
+  ctx.arc(centerX, centerY, radius + 6, 0, Math.PI * 2);
   ctx.fill();
 
   // 테두리
-  ctx.strokeStyle = '#444';
-  ctx.lineWidth = 4;
+  ctx.strokeStyle = '#555';
+  ctx.lineWidth = 3;
   ctx.beginPath();
-  ctx.arc(centerX, centerY, radius + 5, 0, Math.PI * 2);
+  ctx.arc(centerX, centerY, radius + 3, 0, Math.PI * 2);
   ctx.stroke();
 
   // 속도계 눈금 배경
@@ -1272,53 +1273,53 @@ function drawSpeedometer(ctx: CanvasRenderingContext2D, w: number, h: number, sp
   ctx.fill();
 
   // 눈금선
-  ctx.strokeStyle = '#555';
+  ctx.strokeStyle = '#666';
   ctx.lineWidth = 1;
-  for (let i = 0; i <= 12; i++) {
-    const angle = Math.PI * 0.8 + (i / 12) * Math.PI * 1.4;
-    const innerR = i % 3 === 0 ? radius - 15 : radius - 10;
+  for (let i = 0; i <= 10; i++) {
+    const angle = Math.PI * 0.75 + (i / 10) * Math.PI * 1.5;
+    const innerR = i % 2 === 0 ? radius - 12 : radius - 8;
     ctx.beginPath();
     ctx.moveTo(centerX + Math.cos(angle) * innerR, centerY + Math.sin(angle) * innerR);
     ctx.lineTo(centerX + Math.cos(angle) * (radius - 3), centerY + Math.sin(angle) * (radius - 3));
     ctx.stroke();
   }
 
-  // 숫자 표시 (0, 60, 120)
-  ctx.fillStyle = '#888';
-  ctx.font = 'bold 10px sans-serif';
+  // 숫자 표시 (0, 20, 40)
+  ctx.fillStyle = '#aaa';
+  ctx.font = 'bold 9px sans-serif';
   ctx.textAlign = 'center';
-  const nums = [0, 60, 120];
-  const numAngles = [Math.PI * 0.8, Math.PI * 1.5, Math.PI * 2.2];
+  const nums = [0, 20, 40];
+  const numAngles = [Math.PI * 0.75, Math.PI * 1.5, Math.PI * 2.25];
   nums.forEach((num, i) => {
     const angle = numAngles[i];
-    ctx.fillText(num.toString(), centerX + Math.cos(angle) * (radius - 22), centerY + Math.sin(angle) * (radius - 22) + 4);
+    ctx.fillText(num.toString(), centerX + Math.cos(angle) * (radius - 20), centerY + Math.sin(angle) * (radius - 20) + 3);
   });
 
-  // 속도 바늘
-  const maxSpeed = 120;
-  const speedAngle = Math.PI * 0.8 + (Math.min(speed, maxSpeed) / maxSpeed) * Math.PI * 1.4;
+  // 속도 바늘 (최대 40km/h 기준)
+  const maxSpeed = 40;
+  const speedAngle = Math.PI * 0.75 + (Math.min(speed, maxSpeed) / maxSpeed) * Math.PI * 1.5;
 
   ctx.strokeStyle = '#ef4444';
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 2.5;
   ctx.beginPath();
   ctx.moveTo(centerX, centerY);
-  ctx.lineTo(centerX + Math.cos(speedAngle) * (radius - 8), centerY + Math.sin(speedAngle) * (radius - 8));
+  ctx.lineTo(centerX + Math.cos(speedAngle) * (radius - 6), centerY + Math.sin(speedAngle) * (radius - 6));
   ctx.stroke();
 
   // 바늘 중심점
   ctx.fillStyle = '#ef4444';
   ctx.beginPath();
-  ctx.arc(centerX, centerY, 6, 0, Math.PI * 2);
+  ctx.arc(centerX, centerY, 5, 0, Math.PI * 2);
   ctx.fill();
 
   // 속도 숫자 표시
   ctx.fillStyle = '#fff';
-  ctx.font = 'bold 16px sans-serif';
+  ctx.font = 'bold 14px sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText(Math.floor(speed).toString(), centerX, centerY + 25);
-  ctx.font = '8px sans-serif';
+  ctx.fillText(Math.floor(speed).toString(), centerX, centerY + 22);
+  ctx.font = '7px sans-serif';
   ctx.fillStyle = '#888';
-  ctx.fillText('km/h', centerX, centerY + 36);
+  ctx.fillText('km/h', centerX, centerY + 32);
 }
 
 // 다른 차량 그리기 (전방에서 오는 차량, 더 크고 선명하게)
