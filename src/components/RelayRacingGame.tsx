@@ -21,8 +21,8 @@ enum EntityType {
 interface GameEntity {
   id: number;
   type: EntityType;
-  x: number; // Road position (-1 to 1, 0 = center)
-  z: number; // Distance ahead
+  x: number;
+  z: number;
   width: number;
   height: number;
   speed: number;
@@ -38,7 +38,7 @@ interface Scenery {
 }
 
 interface PlayerState {
-  x: number; // -1 to 1
+  x: number;
   speed: number;
   fuel: number;
   shield: boolean;
@@ -57,16 +57,16 @@ interface GameStats {
   fuelItemsCollected: number;
 }
 
-// Constants
+// Constants - 속도 대폭 감소
 const TOTAL_PLAYERS = 6;
 const INITIAL_TIME_LIMIT = 360;
 const MAX_FUEL = 100;
-const DISTANCE_PER_ROUND = 8000;
+const DISTANCE_PER_ROUND = 3000; // 거리 줄임
 const ROAD_WIDTH = 2000;
 const SEGMENT_LENGTH = 200;
-const DRAW_DISTANCE = 100;
-const FOV = 100;
-const CAMERA_HEIGHT = 1500;
+const DRAW_DISTANCE = 80;
+const FOV = 120; // FOV 증가로 더 넓은 시야
+const CAMERA_HEIGHT = 1000; // 카메라 낮춤 (1인칭 느낌)
 
 // 부정적 요소 (장애물)
 const OBSTACLES_HUMAN = [
@@ -149,6 +149,151 @@ const THEMES = [
   }
 ];
 
+// ============ SOUND ENGINE ============
+let audioCtx: AudioContext | null = null;
+
+const getAudioContext = () => {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+  return audioCtx;
+};
+
+const GameSounds = {
+  // 엔진 드론 사운드 (지속적)
+  engineOsc: null as OscillatorNode | null,
+  engineGain: null as GainNode | null,
+
+  startEngine: () => {
+    const ctx = getAudioContext();
+    if (GameSounds.engineOsc) return;
+
+    GameSounds.engineOsc = ctx.createOscillator();
+    GameSounds.engineGain = ctx.createGain();
+
+    GameSounds.engineOsc.type = 'sawtooth';
+    GameSounds.engineOsc.frequency.setValueAtTime(80, ctx.currentTime);
+    GameSounds.engineGain.gain.setValueAtTime(0.03, ctx.currentTime);
+
+    GameSounds.engineOsc.connect(GameSounds.engineGain);
+    GameSounds.engineGain.connect(ctx.destination);
+    GameSounds.engineOsc.start();
+  },
+
+  updateEngine: (speed: number) => {
+    if (!GameSounds.engineOsc || !GameSounds.engineGain) return;
+    const ctx = getAudioContext();
+    // 속도에 따라 엔진 피치 변경
+    const freq = 60 + (speed / 150) * 100;
+    const vol = 0.02 + (speed / 150) * 0.04;
+    GameSounds.engineOsc.frequency.setTargetAtTime(freq, ctx.currentTime, 0.1);
+    GameSounds.engineGain.gain.setTargetAtTime(vol, ctx.currentTime, 0.1);
+  },
+
+  stopEngine: () => {
+    if (GameSounds.engineOsc) {
+      GameSounds.engineOsc.stop();
+      GameSounds.engineOsc = null;
+      GameSounds.engineGain = null;
+    }
+  },
+
+  // 아이템 획득 사운드
+  playPickup: () => {
+    const ctx = getAudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(1760, ctx.currentTime + 0.1);
+
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.2);
+  },
+
+  // 부스트 사운드
+  playBoost: () => {
+    const ctx = getAudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(200, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.3);
+
+    gain.gain.setValueAtTime(0.2, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.5);
+  },
+
+  // 충돌 사운드
+  playCrash: () => {
+    const ctx = getAudioContext();
+
+    // 노이즈 생성
+    const bufferSize = ctx.sampleRate * 0.3;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.1));
+    }
+
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.5, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(1000, ctx.currentTime);
+
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    noise.start();
+  },
+
+  // 방패 획득 사운드
+  playShield: () => {
+    const ctx = getAudioContext();
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc1.type = 'sine';
+    osc2.type = 'sine';
+    osc1.frequency.setValueAtTime(523, ctx.currentTime); // C5
+    osc2.frequency.setValueAtTime(659, ctx.currentTime); // E5
+
+    gain.gain.setValueAtTime(0.2, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+
+    osc1.connect(gain);
+    osc2.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc1.start();
+    osc2.start();
+    osc1.stop(ctx.currentTime + 0.4);
+    osc2.stop(ctx.currentTime + 0.4);
+  }
+};
+
 interface RelayRacingGameProps {
   teamMembers: Array<{ role: string; name: string }>;
   onComplete: (stats: GameStats) => void;
@@ -167,6 +312,8 @@ const RelayRacingGame: React.FC<RelayRacingGameProps> = ({ teamMembers, onComple
     obstaclesAvoided: 0,
     fuelItemsCollected: 0
   });
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [showYouTube, setShowYouTube] = useState(false);
 
   const [lastRoundTimeLeft, setLastRoundTimeLeft] = useState(INITIAL_TIME_LIMIT);
   const timerRef = useRef<number | null>(null);
@@ -188,7 +335,20 @@ const RelayRacingGame: React.FC<RelayRacingGameProps> = ({ teamMembers, onComple
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [gameState]);
 
-  const handleStart = () => setGameState(GameState.PLAYING);
+  // 게임 종료 시 엔진 사운드 정지
+  useEffect(() => {
+    if (gameState !== GameState.PLAYING) {
+      GameSounds.stopEngine();
+    }
+    return () => GameSounds.stopEngine();
+  }, [gameState]);
+
+  const handleStart = () => {
+    setGameState(GameState.PLAYING);
+    if (soundEnabled) {
+      GameSounds.startEngine();
+    }
+  };
 
   const handleBatonTouch = () => {
     if (stats.round >= TOTAL_PLAYERS) {
@@ -196,10 +356,12 @@ const RelayRacingGame: React.FC<RelayRacingGameProps> = ({ teamMembers, onComple
     } else {
       setGameState(GameState.PLAYING);
       setStats(prev => ({ ...prev, round: prev.round + 1, currentDistance: 0 }));
+      if (soundEnabled) GameSounds.startEngine();
     }
   };
 
   const handleRoundComplete = () => {
+    GameSounds.stopEngine();
     const timeTaken = lastRoundTimeLeft - stats.timeLeft;
     setStats(prev => ({
       ...prev,
@@ -210,7 +372,10 @@ const RelayRacingGame: React.FC<RelayRacingGameProps> = ({ teamMembers, onComple
     setGameState(GameState.BATON);
   };
 
-  const handleGameOver = () => setGameState(GameState.GAMEOVER);
+  const handleGameOver = () => {
+    GameSounds.stopEngine();
+    setGameState(GameState.GAMEOVER);
+  };
 
   const handleRetry = (fullReset: boolean) => {
     if (fullReset) {
@@ -224,6 +389,7 @@ const RelayRacingGame: React.FC<RelayRacingGameProps> = ({ teamMembers, onComple
       setStats(prev => ({ ...prev, currentDistance: 0 }));
     }
     setGameState(GameState.PLAYING);
+    if (soundEnabled) GameSounds.startEngine();
   };
 
   const getPlayerName = (round: number) => {
@@ -235,6 +401,53 @@ const RelayRacingGame: React.FC<RelayRacingGameProps> = ({ teamMembers, onComple
 
   return (
     <div className="relative w-full h-full overflow-hidden flex flex-col bg-slate-900 text-white">
+      {/* YouTube Background Audio */}
+      {showYouTube && (
+        <div className="absolute top-16 right-4 z-30">
+          <div className="bg-black/80 p-2 rounded-lg">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xs text-white">🎵 레이싱 BGM</span>
+              <button
+                onClick={() => setShowYouTube(false)}
+                className="text-white text-xs bg-red-600 px-2 py-1 rounded"
+              >
+                ✕ 끄기
+              </button>
+            </div>
+            <iframe
+              width="200"
+              height="40"
+              src="https://www.youtube.com/embed/HTREarRyiTA?autoplay=1&loop=1"
+              title="Racing BGM"
+              allow="autoplay"
+              className="rounded"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Sound Controls */}
+      {gameState === GameState.START && (
+        <div className="absolute top-4 right-4 z-30 flex gap-2">
+          <button
+            onClick={() => setSoundEnabled(!soundEnabled)}
+            className={`px-3 py-2 rounded-lg text-sm font-bold transition-all ${
+              soundEnabled ? 'bg-green-600' : 'bg-gray-600'
+            }`}
+          >
+            {soundEnabled ? '🔊 효과음 ON' : '🔇 효과음 OFF'}
+          </button>
+          <button
+            onClick={() => setShowYouTube(!showYouTube)}
+            className={`px-3 py-2 rounded-lg text-sm font-bold transition-all ${
+              showYouTube ? 'bg-red-600' : 'bg-blue-600'
+            }`}
+          >
+            {showYouTube ? '🎵 BGM OFF' : '🎵 BGM ON'}
+          </button>
+        </div>
+      )}
+
       {gameState === GameState.START && (
         <StartScreen onStart={handleStart} onCancel={onCancel} />
       )}
@@ -246,6 +459,7 @@ const RelayRacingGame: React.FC<RelayRacingGameProps> = ({ teamMembers, onComple
           onGameOver={handleGameOver}
           timeLeft={stats.timeLeft}
           playerName={getPlayerName(stats.round)}
+          soundEnabled={soundEnabled}
           onHitObstacle={(label) => setStats(prev => ({ ...prev, obstaclesHit: [...prev.obstaclesHit, label] }))}
           onAvoidObstacle={() => setStats(prev => ({ ...prev, obstaclesAvoided: prev.obstaclesAvoided + 1 }))}
           onCollectFuel={() => setStats(prev => ({ ...prev, fuelItemsCollected: prev.fuelItemsCollected + 1 }))}
@@ -290,8 +504,8 @@ const StartScreen: React.FC<{ onStart: () => void; onCancel: () => void }> = ({ 
       </h3>
       <div className="space-y-3 text-slate-300 text-sm">
         <p className="flex gap-3"><span className="text-cyan-500 font-bold">01</span><span>6명의 팀원이 릴레이로 본사까지 주행합니다.</span></p>
-        <p className="flex gap-3"><span className="text-cyan-500 font-bold">02</span><span>🔴 빨간 차량 = 조직의 부정적 요소 (충돌 시 에너지 -25)</span></p>
-        <p className="flex gap-3"><span className="text-cyan-500 font-bold">03</span><span>🟢 녹색/파랑/노랑 아이템 = 긍정 에너지</span></p>
+        <p className="flex gap-3"><span className="text-cyan-500 font-bold">02</span><span>🔴 빨간 차량 = 부정적 요소 (에너지 -25, 딜레이)</span></p>
+        <p className="flex gap-3"><span className="text-cyan-500 font-bold">03</span><span>⬅️ ➡️ 좌우 버튼으로 피하거나 아이템 획득!</span></p>
         <p className="flex gap-3"><span className="text-cyan-500 font-bold">04</span><span>제한 시간: {Math.floor(INITIAL_TIME_LIMIT / 60)}분</span></p>
       </div>
 
@@ -312,13 +526,14 @@ interface GameCanvasProps {
   onGameOver: () => void;
   timeLeft: number;
   playerName: string;
+  soundEnabled: boolean;
   onHitObstacle: (label: string) => void;
   onAvoidObstacle: () => void;
   onCollectFuel: () => void;
 }
 
 const GameCanvas: React.FC<GameCanvasProps> = ({
-  round, onRoundComplete, onGameOver, timeLeft, playerName,
+  round, onRoundComplete, onGameOver, timeLeft, playerName, soundEnabled,
   onHitObstacle, onAvoidObstacle, onCollectFuel
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -326,6 +541,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const [distance, setDistance] = useState(0);
   const [fuelUI, setFuelUI] = useState(MAX_FUEL);
   const [hitFlash, setHitFlash] = useState(false);
+  const [isPaused, setIsPaused] = useState(false); // 충돌 시 일시정지
 
   const stateRef = useRef<PlayerState>({
     x: 0, speed: 0, fuel: MAX_FUEL, shield: false, shieldTimer: 0, boostTimer: 0
@@ -338,16 +554,16 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const gameActiveRef = useRef(true);
   const shakeRef = useRef(0);
   const lastSpawnRef = useRef(0);
+  const pauseTimerRef = useRef<number | null>(null);
 
-  // Generate road curve
   const getCurve = (z: number) => {
-    const curve1 = Math.sin(z * 0.0003) * 0.8;
-    const curve2 = Math.sin(z * 0.0007) * 0.4;
+    const curve1 = Math.sin(z * 0.0004) * 0.6;
+    const curve2 = Math.sin(z * 0.0008) * 0.3;
     return curve1 + curve2;
   };
 
   const getHill = (z: number) => {
-    return Math.sin(z * 0.0002) * 800 + Math.sin(z * 0.0005) * 400;
+    return Math.sin(z * 0.0003) * 500 + Math.sin(z * 0.0006) * 300;
   };
 
   // Initialize
@@ -360,19 +576,23 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     shakeRef.current = 0;
     positionRef.current = 0;
     lastSpawnRef.current = 0;
+    setIsPaused(false);
 
-    // Generate initial scenery
     sceneryRef.current = [];
-    for (let i = 0; i < 100; i++) {
+    for (let i = 0; i < 80; i++) {
       const theme = THEMES[(round - 1) % THEMES.length];
       const type = theme.sceneryTypes[Math.floor(Math.random() * theme.sceneryTypes.length)];
       sceneryRef.current.push({
         type,
         side: Math.random() > 0.5 ? 'left' : 'right',
-        z: i * 300 + Math.random() * 200,
-        offset: 1.2 + Math.random() * 0.8
+        z: i * 400 + Math.random() * 200,
+        offset: 1.3 + Math.random() * 1.0
       });
     }
+
+    return () => {
+      if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
+    };
   }, [round]);
 
   // Controls
@@ -393,30 +613,30 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     };
   }, []);
 
-  // Spawn entity
+  // Spawn entity - 더 적게, 더 멀리서
   const spawnEntity = useCallback(() => {
     const roll = Math.random();
     let type: EntityType;
     let label = '';
     let color = '';
 
-    if (roll < 0.20) {
+    if (roll < 0.25) {
       type = EntityType.ITEM_FUEL;
       label = ITEMS_ENERGY[Math.floor(Math.random() * ITEMS_ENERGY.length)];
       color = '#10b981';
-    } else if (roll < 0.28) {
+    } else if (roll < 0.35) {
       type = EntityType.ITEM_BOOST;
       label = ITEMS_BOOST[Math.floor(Math.random() * ITEMS_BOOST.length)];
       color = '#fbbf24';
-    } else if (roll < 0.35) {
+    } else if (roll < 0.42) {
       type = EntityType.ITEM_SHIELD;
       label = ITEMS_SHIELD[Math.floor(Math.random() * ITEMS_SHIELD.length)];
       color = '#3b82f6';
-    } else if (roll < 0.55) {
+    } else if (roll < 0.62) {
       type = EntityType.OBSTACLE_CAR_FAST;
       label = OBSTACLES_HUMAN[Math.floor(Math.random() * OBSTACLES_HUMAN.length)];
       color = '#ef4444';
-    } else if (roll < 0.75) {
+    } else if (roll < 0.82) {
       type = EntityType.OBSTACLE_CAR_SLOW;
       label = OBSTACLES_WORK[Math.floor(Math.random() * OBSTACLES_WORK.length)];
       color = '#dc2626';
@@ -426,17 +646,18 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       color = '#991b1b';
     }
 
-    // Spawn on road only (-0.7 to 0.7 of road width)
-    const laneX = (Math.random() - 0.5) * 1.4;
+    // 3개 레인 중 하나에 스폰 (왼쪽, 중앙, 오른쪽)
+    const lanes = [-0.6, 0, 0.6];
+    const laneX = lanes[Math.floor(Math.random() * lanes.length)];
 
     entitiesRef.current.push({
       id: Date.now() + Math.random(),
       type,
       x: laneX,
-      z: positionRef.current + DRAW_DISTANCE * SEGMENT_LENGTH,
-      width: type === EntityType.OBSTACLE_TRUCK ? 0.3 : 0.2,
-      height: type === EntityType.OBSTACLE_TRUCK ? 0.15 : 0.1,
-      speed: type === EntityType.OBSTACLE_CAR_FAST ? 150 : (type === EntityType.OBSTACLE_CAR_SLOW ? 50 : 0),
+      z: positionRef.current + DRAW_DISTANCE * SEGMENT_LENGTH * 0.8,
+      width: type === EntityType.OBSTACLE_TRUCK ? 0.35 : 0.25,
+      height: type === EntityType.OBSTACLE_TRUCK ? 0.2 : 0.15,
+      speed: type === EntityType.OBSTACLE_CAR_FAST ? 30 : (type === EntityType.OBSTACLE_CAR_SLOW ? 10 : 0),
       label, color
     });
   }, []);
@@ -444,28 +665,37 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   // Main game loop
   const update = useCallback((time: number) => {
     if (!gameActiveRef.current) return;
+    if (isPaused) {
+      requestRef.current = requestAnimationFrame(update);
+      return;
+    }
 
     const player = stateRef.current;
     const theme = THEMES[(round - 1) % THEMES.length];
 
-    // Player movement
-    const steerSpeed = 0.03 * (1 + player.speed / 400);
+    // Player movement - 속도에 비례하지 않고 고정 속도로 이동
+    const steerSpeed = 0.04;
     if (controlRef.current.left) player.x -= steerSpeed;
     if (controlRef.current.right) player.x += steerSpeed;
-    player.x = Math.max(-1.5, Math.min(1.5, player.x));
+    player.x = Math.max(-1.2, Math.min(1.2, player.x));
 
-    // Speed control
-    const isOffRoad = Math.abs(player.x) > 1;
-    let maxSpeed = player.boostTimer > 0 ? 350 : 250;
-    if (isOffRoad) maxSpeed = 80;
+    // Speed control - 대폭 감소
+    const isOffRoad = Math.abs(player.x) > 0.9;
+    let maxSpeed = player.boostTimer > 0 ? 120 : 80; // 속도 대폭 감소
+    if (isOffRoad) maxSpeed = 30;
 
-    player.speed += (maxSpeed - player.speed) * 0.02;
+    player.speed += (maxSpeed - player.speed) * 0.03;
     if (player.boostTimer > 0) player.boostTimer -= 16;
     if (player.shieldTimer > 0) player.shieldTimer -= 16;
     if (player.shieldTimer <= 0) player.shield = false;
 
-    // Fuel consumption
-    player.fuel -= (player.boostTimer > 0 ? 0.008 : 0.012);
+    // 엔진 사운드 업데이트
+    if (soundEnabled) {
+      GameSounds.updateEngine(player.speed);
+    }
+
+    // Fuel consumption - 더 느리게
+    player.fuel -= (player.boostTimer > 0 ? 0.004 : 0.006);
     setFuelUI(player.fuel);
 
     if (player.fuel <= 0) {
@@ -485,19 +715,19 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       return;
     }
 
-    // Spawn entities
-    if (positionRef.current - lastSpawnRef.current > 800) {
-      if (Math.random() < 0.7) spawnEntity();
+    // Spawn entities - 더 간격 넓게
+    if (positionRef.current - lastSpawnRef.current > 1500) {
+      if (Math.random() < 0.8) spawnEntity();
       lastSpawnRef.current = positionRef.current;
     }
 
-    // Update scenery (recycle)
+    // Update scenery
     sceneryRef.current.forEach(s => {
       if (s.z < positionRef.current - 500) {
-        s.z += 30000;
+        s.z += 32000;
         s.type = theme.sceneryTypes[Math.floor(Math.random() * theme.sceneryTypes.length)];
         s.side = Math.random() > 0.5 ? 'left' : 'right';
-        s.offset = 1.2 + Math.random() * 0.8;
+        s.offset = 1.3 + Math.random() * 1.0;
       }
     });
 
@@ -506,44 +736,58 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       e.z -= e.speed * 0.016;
 
       const relZ = e.z - positionRef.current;
-      if (relZ < -500) {
+      if (relZ < -300) {
         if (e.type.startsWith('OBSTACLE')) onAvoidObstacle();
         return false;
       }
       if (relZ > DRAW_DISTANCE * SEGMENT_LENGTH) return true;
 
-      // Collision detection
-      const playerWidth = 0.25;
-      const collisionZ = 200;
+      // Collision - 더 넓은 판정
+      const playerWidth = 0.3;
+      const collisionZ = 400;
 
       if (relZ > 0 && relZ < collisionZ) {
         const dx = Math.abs(e.x - player.x);
         if (dx < (playerWidth + e.width) / 2) {
-          if (e.type.startsWith('OBSTACLE') || e.type.startsWith('OBSTACLE')) {
+          if (e.type.startsWith('OBSTACLE')) {
             if (player.shield) {
               player.shield = false;
               player.shieldTimer = 0;
-              shakeRef.current = 20;
-              player.speed *= 0.6;
+              shakeRef.current = 30;
+              player.speed *= 0.5;
+              if (soundEnabled) GameSounds.playCrash();
             } else {
               onHitObstacle(e.label);
-              player.speed = -50;
+              player.speed = 0;
               player.fuel = Math.max(0, player.fuel - 25);
-              shakeRef.current = 50;
+              shakeRef.current = 60;
               setHitFlash(true);
-              setTimeout(() => setHitFlash(false), 150);
+
+              // 충돌 시 0.5초 딜레이
+              setIsPaused(true);
+              if (soundEnabled) GameSounds.playCrash();
+
+              pauseTimerRef.current = window.setTimeout(() => {
+                setIsPaused(false);
+                setHitFlash(false);
+              }, 500);
             }
             return false;
           } else {
             // Item pickup
             if (e.type === EntityType.ITEM_FUEL) {
-              player.fuel = Math.min(MAX_FUEL, player.fuel + 20);
+              player.fuel = Math.min(MAX_FUEL, player.fuel + 25);
               onCollectFuel();
+              if (soundEnabled) GameSounds.playPickup();
             }
-            if (e.type === EntityType.ITEM_BOOST) player.boostTimer = 4000;
+            if (e.type === EntityType.ITEM_BOOST) {
+              player.boostTimer = 5000;
+              if (soundEnabled) GameSounds.playBoost();
+            }
             if (e.type === EntityType.ITEM_SHIELD) {
               player.shield = true;
-              player.shieldTimer = 8000;
+              player.shieldTimer = 10000;
+              if (soundEnabled) GameSounds.playShield();
             }
             return false;
           }
@@ -553,7 +797,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     });
 
     // Shake decay
-    if (shakeRef.current > 0) shakeRef.current *= 0.92;
+    if (shakeRef.current > 0) shakeRef.current *= 0.9;
 
     // Draw
     const canvas = canvasRef.current;
@@ -561,56 +805,58 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const w = canvas.width;
-    const h = canvas.height;
+    const w = canvas.width / window.devicePixelRatio;
+    const h = canvas.height / window.devicePixelRatio;
 
     ctx.save();
+    ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+
     if (shakeRef.current > 1) {
       ctx.translate((Math.random() - 0.5) * shakeRef.current, (Math.random() - 0.5) * shakeRef.current);
     }
 
-    // Sky gradient
-    const skyGrad = ctx.createLinearGradient(0, 0, 0, h * 0.5);
+    // Sky
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, h * 0.45);
     skyGrad.addColorStop(0, theme.sky1);
     skyGrad.addColorStop(1, theme.sky2);
     ctx.fillStyle = skyGrad;
-    ctx.fillRect(0, 0, w, h * 0.5);
+    ctx.fillRect(0, 0, w, h * 0.45);
 
-    // Draw clouds
-    ctx.fillStyle = 'rgba(255,255,255,0.3)';
-    for (let i = 0; i < 5; i++) {
-      const cx = ((i * 200 + positionRef.current * 0.01) % (w + 100)) - 50;
-      const cy = 50 + i * 30;
+    // Clouds
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    for (let i = 0; i < 6; i++) {
+      const cx = ((i * 180 + positionRef.current * 0.008) % (w + 100)) - 50;
+      const cy = 40 + i * 25;
       ctx.beginPath();
-      ctx.arc(cx, cy, 30 + i * 5, 0, Math.PI * 2);
-      ctx.arc(cx + 25, cy - 10, 25 + i * 3, 0, Math.PI * 2);
-      ctx.arc(cx + 50, cy, 20 + i * 4, 0, Math.PI * 2);
+      ctx.arc(cx, cy, 25 + i * 4, 0, Math.PI * 2);
+      ctx.arc(cx + 20, cy - 8, 20 + i * 3, 0, Math.PI * 2);
+      ctx.arc(cx + 40, cy, 18 + i * 3, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    // Mountains/horizon
+    // Mountains
     ctx.fillStyle = theme.fog;
     ctx.beginPath();
-    ctx.moveTo(0, h * 0.5);
-    for (let x = 0; x <= w; x += 50) {
-      const mountainY = h * 0.5 - 20 - Math.sin((x + positionRef.current * 0.02) * 0.02) * 30 - Math.sin((x + positionRef.current * 0.01) * 0.01) * 50;
+    ctx.moveTo(0, h * 0.45);
+    for (let x = 0; x <= w; x += 40) {
+      const mountainY = h * 0.45 - 15 - Math.sin((x + positionRef.current * 0.015) * 0.025) * 25 - Math.sin((x + positionRef.current * 0.008) * 0.012) * 40;
       ctx.lineTo(x, mountainY);
     }
-    ctx.lineTo(w, h * 0.5);
+    ctx.lineTo(w, h * 0.45);
     ctx.closePath();
     ctx.fill();
 
     // Ground
     ctx.fillStyle = theme.ground;
-    ctx.fillRect(0, h * 0.5, w, h * 0.5);
+    ctx.fillRect(0, h * 0.45, w, h * 0.55);
 
-    // Road segments (OutRun style)
+    // Road segments
     const baseSegment = Math.floor(positionRef.current / SEGMENT_LENGTH);
     const basePercent = (positionRef.current % SEGMENT_LENGTH) / SEGMENT_LENGTH;
 
     const segments: Array<{
       x: number; y: number; w: number; scale: number;
-      curve: number; clip: number; index: number;
+      curve: number; index: number;
     }> = [];
 
     let maxY = h;
@@ -621,17 +867,17 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       if (segZ <= 0) continue;
 
       const scale = FOV / segZ;
-      const projY = h * 0.5 + (CAMERA_HEIGHT - getHill(segIndex * SEGMENT_LENGTH)) * scale;
+      const projY = h * 0.45 + (CAMERA_HEIGHT - getHill(segIndex * SEGMENT_LENGTH)) * scale;
       const projW = ROAD_WIDTH * scale;
-      const projX = w / 2 - (player.x * projW * 0.5) + getCurve(segIndex * SEGMENT_LENGTH) * projW;
+      const projX = w / 2 - (player.x * projW * 0.4) + getCurve(segIndex * SEGMENT_LENGTH) * projW * 0.5;
 
-      if (projY < maxY) {
-        segments.push({ x: projX, y: projY, w: projW, scale, curve: getCurve(segIndex * SEGMENT_LENGTH), clip: maxY, index: segIndex });
+      if (projY < maxY && projY > h * 0.3) {
+        segments.push({ x: projX, y: projY, w: projW, scale, curve: getCurve(segIndex * SEGMENT_LENGTH), index: segIndex });
         maxY = projY;
       }
     }
 
-    // Draw road from back to front
+    // Draw road
     for (let i = segments.length - 1; i >= 0; i--) {
       const seg = segments[i];
       const nextSeg = segments[i - 1];
@@ -644,7 +890,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       ctx.fillRect(0, nextSeg.y, w, seg.y - nextSeg.y);
 
       // Rumble strips
-      const rumbleW = seg.w * 0.1;
+      const rumbleW = seg.w * 0.08;
       ctx.fillStyle = isStripe ? theme.rumble1 : theme.rumble2;
 
       ctx.beginPath();
@@ -670,15 +916,25 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       ctx.lineTo(seg.x + seg.w / 2, seg.y);
       ctx.fill();
 
-      // Center line
+      // Lane markers
       if (isStripe) {
         ctx.fillStyle = theme.line;
-        const lineW = seg.w * 0.02;
+        const lineW = seg.w * 0.015;
+
+        // Left lane
         ctx.beginPath();
-        ctx.moveTo(seg.x - lineW, seg.y);
-        ctx.lineTo(nextSeg.x - lineW * nextSeg.scale / seg.scale, nextSeg.y);
-        ctx.lineTo(nextSeg.x + lineW * nextSeg.scale / seg.scale, nextSeg.y);
-        ctx.lineTo(seg.x + lineW, seg.y);
+        ctx.moveTo(seg.x - seg.w * 0.25 - lineW, seg.y);
+        ctx.lineTo(nextSeg.x - nextSeg.w * 0.25 - lineW * nextSeg.scale / seg.scale, nextSeg.y);
+        ctx.lineTo(nextSeg.x - nextSeg.w * 0.25 + lineW * nextSeg.scale / seg.scale, nextSeg.y);
+        ctx.lineTo(seg.x - seg.w * 0.25 + lineW, seg.y);
+        ctx.fill();
+
+        // Right lane
+        ctx.beginPath();
+        ctx.moveTo(seg.x + seg.w * 0.25 - lineW, seg.y);
+        ctx.lineTo(nextSeg.x + nextSeg.w * 0.25 - lineW * nextSeg.scale / seg.scale, nextSeg.y);
+        ctx.lineTo(nextSeg.x + nextSeg.w * 0.25 + lineW * nextSeg.scale / seg.scale, nextSeg.y);
+        ctx.lineTo(seg.x + seg.w * 0.25 + lineW, seg.y);
         ctx.fill();
       }
     }
@@ -690,14 +946,15 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
     sortedScenery.forEach(s => {
       const relZ = s.z - positionRef.current;
+      if (relZ <= 0) return;
       const scale = FOV / relZ;
-      const projY = h * 0.5 + (CAMERA_HEIGHT - getHill(s.z)) * scale;
+      const projY = h * 0.45 + (CAMERA_HEIGHT - getHill(s.z)) * scale;
       const projW = ROAD_WIDTH * scale;
-      const roadX = w / 2 - (player.x * projW * 0.5) + getCurve(s.z) * projW;
-      const projX = roadX + (s.side === 'left' ? -1 : 1) * (projW * 0.5 + projW * s.offset * 0.3);
+      const roadX = w / 2 - (player.x * projW * 0.4) + getCurve(s.z) * projW * 0.5;
+      const projX = roadX + (s.side === 'left' ? -1 : 1) * (projW * 0.5 + projW * s.offset * 0.25);
 
-      const size = 300 * scale;
-      if (size < 3) return;
+      const size = 250 * scale;
+      if (size < 4) return;
 
       drawScenery(ctx, s.type, projX, projY, size, theme);
     });
@@ -709,14 +966,15 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
     sortedEntities.forEach(e => {
       const relZ = e.z - positionRef.current;
+      if (relZ <= 0) return;
       const scale = FOV / relZ;
-      const projY = h * 0.5 + (CAMERA_HEIGHT - getHill(e.z)) * scale;
+      const projY = h * 0.45 + (CAMERA_HEIGHT - getHill(e.z)) * scale;
       const projW = ROAD_WIDTH * scale;
-      const roadX = w / 2 - (player.x * projW * 0.5) + getCurve(e.z) * projW;
-      const projX = roadX + e.x * projW * 0.5;
+      const roadX = w / 2 - (player.x * projW * 0.4) + getCurve(e.z) * projW * 0.5;
+      const projX = roadX + e.x * projW * 0.4;
 
-      const size = 200 * scale;
-      if (size < 5) return;
+      const size = 180 * scale;
+      if (size < 8) return;
 
       if (e.type.includes('OBSTACLE')) {
         drawCar(ctx, projX, projY, size, e.color, e.type === EntityType.OBSTACLE_TRUCK);
@@ -724,46 +982,41 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         drawItem(ctx, projX, projY, size, e.type, e.color);
       }
 
-      // Label
-      if (size > 15) {
+      // Label - 더 크게
+      if (size > 20) {
         ctx.fillStyle = '#fff';
-        ctx.font = `bold ${Math.min(14, size * 0.15)}px sans-serif`;
+        ctx.font = `bold ${Math.min(18, size * 0.2)}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.shadowColor = '#000';
-        ctx.shadowBlur = 4;
-        ctx.fillText(e.label, projX, projY - size * 0.6);
+        ctx.shadowBlur = 6;
+        ctx.fillText(e.label, projX, projY - size * 0.7);
         ctx.shadowBlur = 0;
       }
     });
 
-    // Draw player car
-    drawPlayerCar(ctx, w / 2, h * 0.85, player.boostTimer > 0, player.shield);
-
-    // Boost flames
-    if (player.boostTimer > 0) {
-      ctx.fillStyle = `rgba(255, ${150 + Math.random() * 100}, 0, 0.9)`;
-      ctx.beginPath();
-      ctx.moveTo(w / 2 - 25, h * 0.85 + 50);
-      ctx.lineTo(w / 2 - 15, h * 0.85 + 80 + Math.random() * 30);
-      ctx.lineTo(w / 2 - 5, h * 0.85 + 50);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.moveTo(w / 2 + 5, h * 0.85 + 50);
-      ctx.lineTo(w / 2 + 15, h * 0.85 + 80 + Math.random() * 30);
-      ctx.lineTo(w / 2 + 25, h * 0.85 + 50);
-      ctx.fill();
-    }
+    // Draw cockpit/dashboard (1인칭 시점 강조)
+    drawCockpit(ctx, w, h, player.boostTimer > 0, player.shield);
 
     ctx.restore();
 
     // Hit flash overlay
     if (hitFlash) {
-      ctx.fillStyle = 'rgba(255, 0, 0, 0.4)';
-      ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+      ctx.fillRect(0, 0, w * window.devicePixelRatio, h * window.devicePixelRatio);
+    }
+
+    // Pause overlay
+    if (isPaused) {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+      ctx.fillRect(0, 0, w * window.devicePixelRatio, h * window.devicePixelRatio);
+      ctx.fillStyle = '#ff0000';
+      ctx.font = 'bold 48px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('💥 충돌!', w / 2 * window.devicePixelRatio, h / 2 * window.devicePixelRatio);
     }
 
     requestRef.current = requestAnimationFrame(update);
-  }, [onRoundComplete, onGameOver, spawnEntity, onHitObstacle, onAvoidObstacle, onCollectFuel, round, hitFlash]);
+  }, [onRoundComplete, onGameOver, spawnEntity, onHitObstacle, onAvoidObstacle, onCollectFuel, round, hitFlash, isPaused, soundEnabled]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -771,8 +1024,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     const resize = () => {
       canvas.width = canvas.offsetWidth * window.devicePixelRatio;
       canvas.height = canvas.offsetHeight * window.devicePixelRatio;
-      const ctx = canvas.getContext('2d');
-      if (ctx) ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
     };
     window.addEventListener('resize', resize);
     resize();
@@ -788,37 +1039,36 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
   return (
     <div className="relative w-full h-full flex flex-col">
-      {/* HUD */}
-      <div className="absolute top-0 left-0 right-0 h-24 bg-gradient-to-b from-black/80 to-transparent z-20 pointer-events-none flex justify-between items-start px-4 pt-3">
+      {/* HUD - 게임 중 대시보드 버튼 없음 */}
+      <div className="absolute top-0 left-0 right-0 h-20 bg-gradient-to-b from-black/70 to-transparent z-20 pointer-events-none flex justify-between items-start px-4 pt-2">
         <div className="flex flex-col">
           <div className="text-[10px] uppercase tracking-widest text-cyan-400 font-bold">
             주자 {round}/6: {playerName}
           </div>
-          <div className="text-xl font-black text-white">
+          <div className="text-lg font-black text-white">
             {Math.floor(distance)}m <span className="text-xs text-slate-500">/ {DISTANCE_PER_ROUND}m</span>
           </div>
-          <div className="w-32 h-2 bg-slate-800 mt-2 rounded-full overflow-hidden border border-slate-600">
+          <div className="w-28 h-2 bg-slate-800 mt-1 rounded-full overflow-hidden border border-slate-600">
             <div
               className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-100"
               style={{ width: `${(distance / DISTANCE_PER_ROUND) * 100}%` }}
             />
           </div>
-          <div className="text-[9px] text-slate-400 mt-1">{THEMES[(round - 1) % THEMES.length].name}</div>
         </div>
         <div className="flex flex-col items-end">
           <div className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">TIME</div>
-          <div className={`text-2xl font-black tabular-nums ${timeLeft < 30 ? 'text-red-500 animate-pulse' : 'text-white'}`}>
+          <div className={`text-xl font-black tabular-nums ${timeLeft < 30 ? 'text-red-500 animate-pulse' : 'text-white'}`}>
             {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
           </div>
-          <div className="mt-2 flex flex-col items-end">
+          <div className="mt-1 flex flex-col items-end">
             <div className={`text-[9px] font-bold ${fuelUI < 25 ? 'text-red-500 animate-pulse' : 'text-green-400'}`}>
               ENERGY {Math.round(fuelUI)}%
             </div>
-            <div className="flex gap-0.5 mt-1">
+            <div className="flex gap-0.5 mt-0.5">
               {[...Array(fuelSegments)].map((_, i) => (
                 <div
                   key={i}
-                  className={`w-2.5 h-4 rounded-sm transition-all ${
+                  className={`w-2 h-3 rounded-sm transition-all ${
                     i < activeSegments
                       ? (fuelUI < 25 ? 'bg-red-500' : 'bg-green-500')
                       : 'bg-slate-700'
@@ -831,8 +1081,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       </div>
 
       {/* Speed indicator */}
-      <div className="absolute bottom-24 left-4 z-20 pointer-events-none">
-        <div className="text-4xl font-black text-white tabular-nums">
+      <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+        <div className="text-3xl font-black text-white tabular-nums text-center">
           {Math.floor(stateRef.current.speed)}
           <span className="text-sm text-slate-400 ml-1">km/h</span>
         </div>
@@ -841,33 +1091,32 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       <canvas
         ref={canvasRef}
         className="w-full h-full"
-        style={{ imageRendering: 'pixelated' }}
       />
 
-      {/* Mobile Controls */}
-      <div className="absolute bottom-4 left-0 right-0 flex justify-between px-4 pointer-events-none">
+      {/* Mobile Controls - 대시보드 버튼 없이 순수 컨트롤만 */}
+      <div className="absolute bottom-4 left-0 right-0 flex justify-between px-6 pointer-events-none z-30">
         <button
-          onTouchStart={(e) => { e.preventDefault(); controlRef.current.left = true; }}
-          onTouchEnd={(e) => { e.preventDefault(); controlRef.current.left = false; }}
-          onMouseDown={() => controlRef.current.left = true}
-          onMouseUp={() => controlRef.current.left = false}
+          onTouchStart={(e) => { e.preventDefault(); e.stopPropagation(); controlRef.current.left = true; }}
+          onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); controlRef.current.left = false; }}
+          onMouseDown={(e) => { e.stopPropagation(); controlRef.current.left = true; }}
+          onMouseUp={(e) => { e.stopPropagation(); controlRef.current.left = false; }}
           onMouseLeave={() => controlRef.current.left = false}
-          className="w-24 h-24 bg-white/10 backdrop-blur rounded-2xl flex items-center justify-center pointer-events-auto active:bg-cyan-600 active:scale-90 transition-all border-2 border-white/30"
+          className="w-28 h-28 bg-cyan-600/40 backdrop-blur rounded-2xl flex items-center justify-center pointer-events-auto active:bg-cyan-500 active:scale-95 transition-all border-4 border-cyan-400/50 shadow-lg shadow-cyan-500/30"
         >
-          <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" />
+          <svg className="w-14 h-14 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M15 19l-7-7 7-7" />
           </svg>
         </button>
         <button
-          onTouchStart={(e) => { e.preventDefault(); controlRef.current.right = true; }}
-          onTouchEnd={(e) => { e.preventDefault(); controlRef.current.right = false; }}
-          onMouseDown={() => controlRef.current.right = true}
-          onMouseUp={() => controlRef.current.right = false}
+          onTouchStart={(e) => { e.preventDefault(); e.stopPropagation(); controlRef.current.right = true; }}
+          onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); controlRef.current.right = false; }}
+          onMouseDown={(e) => { e.stopPropagation(); controlRef.current.right = true; }}
+          onMouseUp={(e) => { e.stopPropagation(); controlRef.current.right = false; }}
           onMouseLeave={() => controlRef.current.right = false}
-          className="w-24 h-24 bg-white/10 backdrop-blur rounded-2xl flex items-center justify-center pointer-events-auto active:bg-cyan-600 active:scale-90 transition-all border-2 border-white/30"
+          className="w-28 h-28 bg-cyan-600/40 backdrop-blur rounded-2xl flex items-center justify-center pointer-events-auto active:bg-cyan-500 active:scale-95 transition-all border-4 border-cyan-400/50 shadow-lg shadow-cyan-500/30"
         >
-          <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" />
+          <svg className="w-14 h-14 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M9 5l7 7-7 7" />
           </svg>
         </button>
       </div>
@@ -875,177 +1124,184 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   );
 };
 
-// Drawing functions
-function drawPlayerCar(ctx: CanvasRenderingContext2D, x: number, y: number, boosting: boolean, shield: boolean) {
-  const carW = 70;
-  const carH = 100;
+// 1인칭 콕핏 뷰 그리기
+function drawCockpit(ctx: CanvasRenderingContext2D, w: number, h: number, boosting: boolean, shield: boolean) {
+  // 대시보드
+  ctx.fillStyle = '#1a1a1a';
+  ctx.beginPath();
+  ctx.moveTo(0, h);
+  ctx.lineTo(0, h * 0.88);
+  ctx.quadraticCurveTo(w * 0.2, h * 0.85, w * 0.5, h * 0.9);
+  ctx.quadraticCurveTo(w * 0.8, h * 0.85, w, h * 0.88);
+  ctx.lineTo(w, h);
+  ctx.closePath();
+  ctx.fill();
+
+  // 핸들
+  ctx.strokeStyle = '#444';
+  ctx.lineWidth = 12;
+  ctx.beginPath();
+  ctx.arc(w / 2, h * 1.05, 80, Math.PI * 1.2, Math.PI * 1.8);
+  ctx.stroke();
+
+  ctx.strokeStyle = boosting ? '#fbbf24' : '#666';
+  ctx.lineWidth = 8;
+  ctx.beginPath();
+  ctx.arc(w / 2, h * 1.05, 80, Math.PI * 1.2, Math.PI * 1.8);
+  ctx.stroke();
+
+  // 방패 효과
+  if (shield) {
+    ctx.strokeStyle = 'rgba(59, 130, 246, 0.6)';
+    ctx.lineWidth = 8;
+    ctx.setLineDash([15, 10]);
+    ctx.beginPath();
+    ctx.arc(w / 2, h * 0.5, Math.min(w, h) * 0.45, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 방패 아이콘
+    ctx.fillStyle = 'rgba(59, 130, 246, 0.3)';
+    ctx.font = 'bold 24px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('🛡️ SHIELD ACTIVE', w / 2, h * 0.15);
+  }
+
+  // 부스트 효과
+  if (boosting) {
+    ctx.fillStyle = 'rgba(251, 191, 36, 0.3)';
+    ctx.font = 'bold 24px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('🔥 BOOST!', w / 2, h * 0.15);
+
+    // 부스트 플레임
+    ctx.fillStyle = `rgba(255, ${100 + Math.random() * 100}, 0, 0.8)`;
+    ctx.beginPath();
+    ctx.moveTo(w * 0.3, h);
+    ctx.lineTo(w * 0.35, h - 50 - Math.random() * 30);
+    ctx.lineTo(w * 0.4, h);
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(w * 0.6, h);
+    ctx.lineTo(w * 0.65, h - 50 - Math.random() * 30);
+    ctx.lineTo(w * 0.7, h);
+    ctx.fill();
+  }
+
+  // 사이드 미러 (좌우)
+  ctx.fillStyle = '#2a2a2a';
+  ctx.beginPath();
+  ctx.ellipse(w * 0.08, h * 0.6, 35, 20, -0.3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(w * 0.92, h * 0.6, 35, 20, 0.3, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#1a3a5c';
+  ctx.beginPath();
+  ctx.ellipse(w * 0.08, h * 0.6, 28, 15, -0.3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(w * 0.92, h * 0.6, 28, 15, 0.3, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawCar(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, color: string, isTruck: boolean) {
+  const w = size * (isTruck ? 1.6 : 1.1);
+  const h = size * (isTruck ? 2.2 : 1.6);
 
   // Shadow
   ctx.fillStyle = 'rgba(0,0,0,0.4)';
   ctx.beginPath();
-  ctx.ellipse(x, y + carH * 0.45, carW * 0.5, 15, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Shield effect
-  if (shield) {
-    ctx.strokeStyle = 'rgba(59, 130, 246, 0.8)';
-    ctx.lineWidth = 4;
-    ctx.setLineDash([10, 5]);
-    ctx.beginPath();
-    ctx.ellipse(x, y, carW * 0.8, carH * 0.6, 0, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.setLineDash([]);
-  }
-
-  // Car body
-  const bodyColor = boosting ? '#fbbf24' : '#2563eb';
-
-  // Main body
-  ctx.fillStyle = bodyColor;
-  ctx.beginPath();
-  ctx.moveTo(x - carW * 0.4, y + carH * 0.4);
-  ctx.lineTo(x - carW * 0.45, y);
-  ctx.lineTo(x - carW * 0.3, y - carH * 0.3);
-  ctx.lineTo(x + carW * 0.3, y - carH * 0.3);
-  ctx.lineTo(x + carW * 0.45, y);
-  ctx.lineTo(x + carW * 0.4, y + carH * 0.4);
-  ctx.closePath();
-  ctx.fill();
-
-  // Hood
-  ctx.fillStyle = boosting ? '#f59e0b' : '#1d4ed8';
-  ctx.beginPath();
-  ctx.moveTo(x - carW * 0.3, y - carH * 0.3);
-  ctx.lineTo(x - carW * 0.2, y - carH * 0.45);
-  ctx.lineTo(x + carW * 0.2, y - carH * 0.45);
-  ctx.lineTo(x + carW * 0.3, y - carH * 0.3);
-  ctx.closePath();
-  ctx.fill();
-
-  // Windshield
-  ctx.fillStyle = '#87CEEB';
-  ctx.beginPath();
-  ctx.moveTo(x - carW * 0.25, y - carH * 0.15);
-  ctx.lineTo(x - carW * 0.2, y - carH * 0.28);
-  ctx.lineTo(x + carW * 0.2, y - carH * 0.28);
-  ctx.lineTo(x + carW * 0.25, y - carH * 0.15);
-  ctx.closePath();
-  ctx.fill();
-
-  // Headlights
-  ctx.fillStyle = '#fff';
-  ctx.beginPath();
-  ctx.ellipse(x - carW * 0.25, y - carH * 0.42, 8, 5, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.ellipse(x + carW * 0.25, y - carH * 0.42, 8, 5, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Wheels
-  ctx.fillStyle = '#1f2937';
-  ctx.fillRect(x - carW * 0.5, y - carH * 0.2, 10, 30);
-  ctx.fillRect(x + carW * 0.5 - 10, y - carH * 0.2, 10, 30);
-  ctx.fillRect(x - carW * 0.5, y + carH * 0.1, 10, 30);
-  ctx.fillRect(x + carW * 0.5 - 10, y + carH * 0.1, 10, 30);
-}
-
-function drawCar(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, color: string, isTruck: boolean) {
-  const w = size * (isTruck ? 1.5 : 1);
-  const h = size * (isTruck ? 2 : 1.5);
-
-  // Shadow
-  ctx.fillStyle = 'rgba(0,0,0,0.3)';
-  ctx.beginPath();
-  ctx.ellipse(x, y + 3, w * 0.4, h * 0.15, 0, 0, Math.PI * 2);
+  ctx.ellipse(x, y + 5, w * 0.45, h * 0.12, 0, 0, Math.PI * 2);
   ctx.fill();
 
   // Body
   ctx.fillStyle = color;
   ctx.beginPath();
   if (isTruck) {
-    ctx.rect(x - w * 0.4, y - h * 0.4, w * 0.8, h * 0.8);
+    ctx.rect(x - w * 0.4, y - h * 0.45, w * 0.8, h * 0.9);
   } else {
-    ctx.moveTo(x - w * 0.35, y + h * 0.3);
-    ctx.lineTo(x - w * 0.4, y - h * 0.1);
-    ctx.lineTo(x - w * 0.25, y - h * 0.35);
-    ctx.lineTo(x + w * 0.25, y - h * 0.35);
-    ctx.lineTo(x + w * 0.4, y - h * 0.1);
-    ctx.lineTo(x + w * 0.35, y + h * 0.3);
+    ctx.moveTo(x - w * 0.38, y + h * 0.35);
+    ctx.lineTo(x - w * 0.42, y - h * 0.05);
+    ctx.lineTo(x - w * 0.28, y - h * 0.38);
+    ctx.lineTo(x + w * 0.28, y - h * 0.38);
+    ctx.lineTo(x + w * 0.42, y - h * 0.05);
+    ctx.lineTo(x + w * 0.38, y + h * 0.35);
     ctx.closePath();
   }
   ctx.fill();
 
   // Windshield
-  ctx.fillStyle = '#374151';
+  ctx.fillStyle = '#1a3050';
   if (isTruck) {
-    ctx.fillRect(x - w * 0.3, y - h * 0.3, w * 0.6, h * 0.2);
+    ctx.fillRect(x - w * 0.32, y - h * 0.35, w * 0.64, h * 0.22);
   } else {
     ctx.beginPath();
-    ctx.moveTo(x - w * 0.2, y - h * 0.1);
-    ctx.lineTo(x - w * 0.15, y - h * 0.25);
-    ctx.lineTo(x + w * 0.15, y - h * 0.25);
-    ctx.lineTo(x + w * 0.2, y - h * 0.1);
+    ctx.moveTo(x - w * 0.22, y - h * 0.08);
+    ctx.lineTo(x - w * 0.18, y - h * 0.28);
+    ctx.lineTo(x + w * 0.18, y - h * 0.28);
+    ctx.lineTo(x + w * 0.22, y - h * 0.08);
     ctx.closePath();
     ctx.fill();
   }
 
-  // Warning stripes for obstacles
-  ctx.strokeStyle = '#000';
-  ctx.lineWidth = 2;
+  // Headlights
+  ctx.fillStyle = '#ffeb3b';
   ctx.beginPath();
-  ctx.moveTo(x - w * 0.3, y);
-  ctx.lineTo(x + w * 0.3, y);
-  ctx.stroke();
+  ctx.ellipse(x - w * 0.25, y - h * 0.35, w * 0.08, h * 0.04, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(x + w * 0.25, y - h * 0.35, w * 0.08, h * 0.04, 0, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 function drawItem(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, type: EntityType, color: string) {
   ctx.save();
-  ctx.shadowBlur = size * 0.3;
+  ctx.shadowBlur = size * 0.4;
   ctx.shadowColor = color;
 
   if (type === EntityType.ITEM_FUEL) {
-    // Energy orb
-    const gradient = ctx.createRadialGradient(x, y, 0, x, y, size * 0.4);
+    const gradient = ctx.createRadialGradient(x, y, 0, x, y, size * 0.45);
     gradient.addColorStop(0, '#fff');
-    gradient.addColorStop(0.5, color);
+    gradient.addColorStop(0.4, color);
     gradient.addColorStop(1, 'transparent');
     ctx.fillStyle = gradient;
     ctx.beginPath();
-    ctx.arc(x, y, size * 0.4, 0, Math.PI * 2);
+    ctx.arc(x, y, size * 0.45, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.fillStyle = '#fff';
-    ctx.font = `bold ${size * 0.3}px sans-serif`;
+    ctx.font = `bold ${size * 0.35}px sans-serif`;
     ctx.textAlign = 'center';
-    ctx.fillText('⚡', x, y + size * 0.1);
+    ctx.fillText('⚡', x, y + size * 0.12);
   } else if (type === EntityType.ITEM_BOOST) {
-    // Lightning bolt
     ctx.fillStyle = color;
     ctx.beginPath();
-    ctx.moveTo(x, y - size * 0.4);
-    ctx.lineTo(x - size * 0.2, y);
+    ctx.moveTo(x, y - size * 0.45);
+    ctx.lineTo(x - size * 0.25, y);
     ctx.lineTo(x - size * 0.05, y);
-    ctx.lineTo(x - size * 0.15, y + size * 0.4);
-    ctx.lineTo(x + size * 0.2, y - size * 0.1);
+    ctx.lineTo(x - size * 0.18, y + size * 0.45);
+    ctx.lineTo(x + size * 0.25, y - size * 0.1);
     ctx.lineTo(x + size * 0.05, y - size * 0.1);
     ctx.closePath();
     ctx.fill();
   } else if (type === EntityType.ITEM_SHIELD) {
-    // Shield
     ctx.fillStyle = color;
     ctx.beginPath();
-    ctx.moveTo(x, y - size * 0.35);
-    ctx.lineTo(x - size * 0.3, y - size * 0.2);
-    ctx.lineTo(x - size * 0.3, y + size * 0.1);
-    ctx.quadraticCurveTo(x, y + size * 0.4, x + size * 0.3, y + size * 0.1);
-    ctx.lineTo(x + size * 0.3, y - size * 0.2);
+    ctx.moveTo(x, y - size * 0.4);
+    ctx.lineTo(x - size * 0.35, y - size * 0.2);
+    ctx.lineTo(x - size * 0.35, y + size * 0.15);
+    ctx.quadraticCurveTo(x, y + size * 0.45, x + size * 0.35, y + size * 0.15);
+    ctx.lineTo(x + size * 0.35, y - size * 0.2);
     ctx.closePath();
     ctx.fill();
 
     ctx.fillStyle = '#fff';
-    ctx.font = `bold ${size * 0.2}px sans-serif`;
+    ctx.font = `bold ${size * 0.25}px sans-serif`;
     ctx.textAlign = 'center';
-    ctx.fillText('🛡', x, y + size * 0.05);
+    ctx.fillText('🛡', x, y + size * 0.08);
   }
 
   ctx.restore();
@@ -1053,68 +1309,62 @@ function drawItem(ctx: CanvasRenderingContext2D, x: number, y: number, size: num
 
 function drawScenery(ctx: CanvasRenderingContext2D, type: string, x: number, y: number, size: number, theme: typeof THEMES[0]) {
   if (type === 'palm') {
-    // Palm tree trunk
     ctx.fillStyle = '#8B4513';
     ctx.beginPath();
-    ctx.moveTo(x - size * 0.05, y);
-    ctx.lineTo(x - size * 0.08, y - size * 0.8);
-    ctx.lineTo(x + size * 0.08, y - size * 0.8);
-    ctx.lineTo(x + size * 0.05, y);
+    ctx.moveTo(x - size * 0.04, y);
+    ctx.lineTo(x - size * 0.06, y - size * 0.75);
+    ctx.lineTo(x + size * 0.06, y - size * 0.75);
+    ctx.lineTo(x + size * 0.04, y);
     ctx.fill();
 
-    // Palm leaves
     ctx.fillStyle = '#228B22';
-    for (let i = 0; i < 7; i++) {
-      const angle = (i / 7) * Math.PI * 2;
+    for (let i = 0; i < 6; i++) {
+      const angle = (i / 6) * Math.PI * 2;
       ctx.beginPath();
-      ctx.moveTo(x, y - size * 0.8);
+      ctx.moveTo(x, y - size * 0.75);
       ctx.quadraticCurveTo(
-        x + Math.cos(angle) * size * 0.5,
-        y - size * 0.9 + Math.sin(angle) * size * 0.2,
-        x + Math.cos(angle) * size * 0.6,
-        y - size * 0.7 + Math.sin(angle) * size * 0.3
+        x + Math.cos(angle) * size * 0.45,
+        y - size * 0.85 + Math.sin(angle) * size * 0.15,
+        x + Math.cos(angle) * size * 0.55,
+        y - size * 0.65 + Math.sin(angle) * size * 0.25
       );
       ctx.quadraticCurveTo(
-        x + Math.cos(angle) * size * 0.3,
-        y - size * 0.8,
-        x, y - size * 0.8
+        x + Math.cos(angle) * size * 0.25,
+        y - size * 0.75,
+        x, y - size * 0.75
       );
       ctx.fill();
     }
   } else if (type === 'tree') {
-    // Tree trunk
     ctx.fillStyle = '#5D4037';
-    ctx.fillRect(x - size * 0.06, y - size * 0.5, size * 0.12, size * 0.5);
+    ctx.fillRect(x - size * 0.05, y - size * 0.45, size * 0.1, size * 0.45);
 
-    // Tree foliage
     ctx.fillStyle = '#2E7D32';
     ctx.beginPath();
-    ctx.moveTo(x, y - size);
-    ctx.lineTo(x - size * 0.3, y - size * 0.5);
-    ctx.lineTo(x + size * 0.3, y - size * 0.5);
+    ctx.moveTo(x, y - size * 0.95);
+    ctx.lineTo(x - size * 0.28, y - size * 0.45);
+    ctx.lineTo(x + size * 0.28, y - size * 0.45);
     ctx.fill();
     ctx.beginPath();
-    ctx.moveTo(x, y - size * 0.8);
-    ctx.lineTo(x - size * 0.35, y - size * 0.35);
-    ctx.lineTo(x + size * 0.35, y - size * 0.35);
+    ctx.moveTo(x, y - size * 0.75);
+    ctx.lineTo(x - size * 0.32, y - size * 0.3);
+    ctx.lineTo(x + size * 0.32, y - size * 0.3);
     ctx.fill();
   } else if (type === 'building') {
-    // Building
-    const buildingH = size * (0.8 + Math.random() * 0.4);
+    const buildingH = size * (0.7 + Math.random() * 0.3);
     ctx.fillStyle = '#37474F';
-    ctx.fillRect(x - size * 0.2, y - buildingH, size * 0.4, buildingH);
+    ctx.fillRect(x - size * 0.18, y - buildingH, size * 0.36, buildingH);
 
-    // Windows
     ctx.fillStyle = '#FFC107';
-    const rows = Math.floor(buildingH / (size * 0.15));
+    const rows = Math.floor(buildingH / (size * 0.12));
     for (let row = 0; row < rows; row++) {
-      for (let col = 0; col < 3; col++) {
-        if (Math.random() > 0.3) {
+      for (let col = 0; col < 2; col++) {
+        if (Math.random() > 0.25) {
           ctx.fillRect(
-            x - size * 0.15 + col * size * 0.12,
-            y - buildingH + size * 0.1 + row * size * 0.15,
+            x - size * 0.12 + col * size * 0.14,
+            y - buildingH + size * 0.08 + row * size * 0.12,
             size * 0.08,
-            size * 0.08
+            size * 0.06
           );
         }
       }
@@ -1122,25 +1372,23 @@ function drawScenery(ctx: CanvasRenderingContext2D, type: string, x: number, y: 
   } else if (type === 'rock') {
     ctx.fillStyle = '#78909C';
     ctx.beginPath();
-    ctx.moveTo(x - size * 0.2, y);
-    ctx.lineTo(x - size * 0.25, y - size * 0.15);
-    ctx.lineTo(x - size * 0.1, y - size * 0.3);
-    ctx.lineTo(x + size * 0.15, y - size * 0.25);
-    ctx.lineTo(x + size * 0.2, y - size * 0.1);
-    ctx.lineTo(x + size * 0.15, y);
+    ctx.moveTo(x - size * 0.18, y);
+    ctx.lineTo(x - size * 0.22, y - size * 0.12);
+    ctx.lineTo(x - size * 0.08, y - size * 0.25);
+    ctx.lineTo(x + size * 0.12, y - size * 0.2);
+    ctx.lineTo(x + size * 0.18, y - size * 0.08);
+    ctx.lineTo(x + size * 0.12, y);
     ctx.fill();
   } else if (type === 'sign') {
-    // Sign post
     ctx.fillStyle = '#757575';
-    ctx.fillRect(x - 3, y - size * 0.6, 6, size * 0.6);
+    ctx.fillRect(x - 2, y - size * 0.55, 4, size * 0.55);
 
-    // Sign board
     ctx.fillStyle = '#1565C0';
-    ctx.fillRect(x - size * 0.25, y - size * 0.7, size * 0.5, size * 0.25);
+    ctx.fillRect(x - size * 0.22, y - size * 0.65, size * 0.44, size * 0.22);
     ctx.fillStyle = '#fff';
-    ctx.font = `bold ${size * 0.1}px sans-serif`;
+    ctx.font = `bold ${size * 0.12}px sans-serif`;
     ctx.textAlign = 'center';
-    ctx.fillText('→', x, y - size * 0.55);
+    ctx.fillText('→', x, y - size * 0.5);
   }
 }
 
