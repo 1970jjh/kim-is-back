@@ -887,7 +887,7 @@ async function analyzeTotalPerformance(payload: {
     return `${mins}분 ${secs}초`;
   };
 
-  const prompt = `당신은 기업 교육 프로그램 분석 전문가입니다. 다음 팀 빌딩 미션 데이터를 종합적으로 분석하고 상세한 리포트를 작성해주세요.
+  const prompt = `당신은 기업 교육 성과 분석 및 학습자 피드백 전문가입니다. 다음 팀 빌딩 미션 데이터를 분석하여 **학습자와 교육담당자에게 전달할 종합 피드백 리포트**를 작성해주세요.
 
 ## 교육 프로그램 정보
 - 교육그룹명: ${groupName}
@@ -902,10 +902,10 @@ async function analyzeTotalPerformance(payload: {
 ## 라운드별 평균 소요시간
 ${Object.entries(roundAvgTimes).map(([r, t]) => `- R${r}: ${formatTimeStr(t)}`).join('\n')}
 
-## 가장 어려웠던 라운드
+## 가장 도전적이었던 라운드
 - ${hardestRound ? `R${hardestRound.round} (평균 ${formatTimeStr(hardestRound.time)})` : '데이터 없음'}
 
-## 가장 쉬웠던 라운드
+## 가장 빠르게 해결한 라운드
 - ${easiestRound ? `R${easiestRound.round} (평균 ${formatTimeStr(easiestRound.time)})` : '데이터 없음'}
 
 ## 팀별 성과 데이터
@@ -915,34 +915,59 @@ ${performances.map(p => `
 - 총 소요시간: ${formatTimeStr(p.totalTimeWithBonus)}
 `).join('')}
 
-## 팀 활동 소감 (베스트 미션 선정 의견)
+## 팀 활동 소감 (참가자들의 목소리)
 ${bestMissions || '수집된 소감 없음'}
 
 ---
 
-위 데이터를 바탕으로 다음 형식의 JSON 분석 리포트를 작성해주세요:
+## 리포트 작성 가이드라인
+
+이 리포트는 **학습자들과 교육담당자에게 공유되는 자료**입니다. 다음 관점에서 분석해주세요:
+
+1. **오늘 활동의 가치**: 이번 교육이 얼마나 재미있고 유익했는지
+2. **업무 역량 향상**: 현업에서의 문제해결, 의사결정, 시간관리 역량에 어떤 도움이 될지
+3. **소통과 협업**: 팀원 간 의사소통, 역할 분담, 협업 능력이 어떻게 발휘되었는지
+4. **AI 활용 스킬**: AI 도구를 업무에 활용하는 역량이 어떻게 성장했는지
+5. **강점 발견**: 각 팀과 개인이 발견한 강점과 가능성
+6. **실무 적용**: 오늘의 경험이 실제 업무에 어떻게 적용될 수 있는지
+
+다음 형식의 JSON 분석 리포트를 작성해주세요:
 
 {
-  "executiveSummary": "3-5문장의 핵심 요약",
-  "overallAssessment": "전체 교육 프로그램에 대한 종합 평가 (5-7문장)",
-  "teamRankingAnalysis": "순위별 팀 분석 및 특징 (상위팀/중위팀/하위팀 그룹별 특성)",
+  "executiveSummary": "3-5문장의 핵심 요약 (이번 교육의 성과와 의미 중심)",
+  "overallAssessment": "전체 교육 프로그램에 대한 종합 평가 (5-7문장, 참가자들의 열정과 성취를 칭찬하고, 교육의 가치를 강조)",
+  "teamRankingAnalysis": "팀별 분석 (상위팀의 성공 비결, 모든 팀이 보여준 강점과 가능성 중심으로 긍정적으로 분석)",
   "roundAnalysis": {
-    "hardestRounds": ["가장 어려웠던 라운드 3개와 그 이유"],
-    "easiestRounds": ["가장 쉬웠던 라운드 3개와 그 이유"],
-    "keyInsights": "라운드별 분석에서 발견된 주요 인사이트"
+    "hardestRounds": ["도전적이었던 라운드에서 참가자들이 보여준 끈기와 문제해결 능력"],
+    "easiestRounds": ["빠르게 해결한 라운드에서 드러난 팀의 강점과 협업 능력"],
+    "keyInsights": "라운드별 활동을 통해 발견된 학습 포인트와 성장 기회"
   },
-  "teamworkInsights": "팀워크 및 협업에 대한 분석",
+  "teamworkInsights": "팀워크 및 협업에 대한 분석 (구체적 사례 언급, 소통 방식의 발전, 신뢰 형성 등)",
   "recommendations": [
-    "향후 교육 프로그램 개선을 위한 구체적 제안 5가지"
+    "현업에서 활용할 수 있는 구체적인 팁 5가지 (오늘 배운 것을 실무에 적용하는 방법)"
   ],
   "bestPractices": [
-    "이번 교육에서 발견된 베스트 프랙티스 3가지"
+    "이번 교육에서 발견된 베스트 프랙티스 3가지 (다른 학습자들에게 공유할 만한 성공 사례)"
   ],
+  "skillsGained": {
+    "aiSkills": "AI 활용 역량에서의 성장 포인트",
+    "communicationSkills": "소통과 협업 역량에서의 성장 포인트",
+    "problemSolvingSkills": "문제해결과 의사결정 역량에서의 성장 포인트",
+    "timeManagementSkills": "시간관리와 우선순위 설정 역량에서의 성장 포인트"
+  },
+  "futureApplications": "오늘의 경험을 현업에 적용할 수 있는 구체적인 상황과 방법 (3-5가지)",
+  "closingMessage": "참가자들에게 전하는 격려와 응원의 메시지 (2-3문장)",
   "chartData": {
     "teamTimeComparison": [{"teamId": 1, "time": 초, "rank": 순위}, ...],
     "roundDifficulty": [{"round": 1, "avgTime": 초}, ...]
   }
 }
+
+중요:
+- 관리자/강사 관점의 "프로그램 개선 제안"은 제외
+- 학습자들이 자신의 성장을 느끼고, 자신감을 얻을 수 있는 내용으로 작성
+- 긍정적이고 격려하는 톤 유지
+- 구체적인 사례와 데이터를 바탕으로 설득력 있게 작성
 
 반드시 JSON 형식으로만 응답해주세요.`;
 
