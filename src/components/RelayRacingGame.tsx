@@ -813,8 +813,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       GameSounds.updateEngine(player.speed);
     }
 
-    // Fuel consumption - 운전할수록 연료 소모 (속도에 비례)
-    const fuelDrain = player.boostTimer > 0 ? 0.12 : 0.06 + (player.speed / 500);
+    // Fuel consumption - 운전할수록 연료 소모 (적당한 속도로)
+    const fuelDrain = player.boostTimer > 0 ? 0.04 : 0.02 + (player.speed / 1200);
     player.fuel -= fuelDrain;
     setFuelUI(player.fuel);
 
