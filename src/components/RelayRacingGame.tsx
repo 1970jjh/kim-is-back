@@ -291,6 +291,51 @@ const GameSounds = {
     osc2.start();
     osc1.stop(ctx.currentTime + 0.4);
     osc2.stop(ctx.currentTime + 0.4);
+  },
+
+  // 전체 성공 사운드 (팡파레)
+  playSuccess: () => {
+    const ctx = getAudioContext();
+    const notes = [523, 659, 784, 1047]; // C5, E5, G5, C6
+
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, ctx.currentTime);
+
+      const startTime = ctx.currentTime + i * 0.15;
+      gain.gain.setValueAtTime(0, startTime);
+      gain.gain.linearRampToValueAtTime(0.3, startTime + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.01, startTime + 0.4);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(startTime);
+      osc.stop(startTime + 0.4);
+    });
+  },
+
+  // 실패 사운드
+  playFailure: () => {
+    const ctx = getAudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(200, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(80, ctx.currentTime + 0.5);
+
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.6);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start();
+    osc.stop(ctx.currentTime + 0.6);
   }
 };
 
@@ -353,6 +398,7 @@ const RelayRacingGame: React.FC<RelayRacingGameProps> = ({ teamMembers, onComple
   const handleBatonTouch = () => {
     if (stats.round >= TOTAL_PLAYERS) {
       setGameState(GameState.SUCCESS);
+      if (soundEnabled) GameSounds.playSuccess(); // 전체 성공 효과음
     } else {
       setGameState(GameState.PLAYING);
       setStats(prev => ({ ...prev, round: prev.round + 1, currentDistance: 0 }));
@@ -374,6 +420,7 @@ const RelayRacingGame: React.FC<RelayRacingGameProps> = ({ teamMembers, onComple
 
   const handleGameOver = () => {
     GameSounds.stopEngine();
+    if (soundEnabled) GameSounds.playFailure(); // 실패 효과음
     setGameState(GameState.GAMEOVER);
   };
 
@@ -814,20 +861,25 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       }
       if (relZ > DRAW_DISTANCE * SEGMENT_LENGTH) return true;
 
-      // Collision - 정면 충돌만 감지 (옆을 지나갈 때는 충돌 안됨)
-      const playerWidth = 0.15; // 충돌 판정 더 좁게 (정면 충돌만)
-      const entityWidth = e.type === EntityType.OBSTACLE_TRUCK ? 0.2 : 0.15; // 트럭도 좁게
-      const collisionZ = 200; // 충돌 범위 더 줄임 (정면에서만)
+      // Collision - 정교한 충돌 감지
+      const isObstacle = e.type.startsWith('OBSTACLE');
+      const isItem = !isObstacle;
 
-      // 플레이어가 다가가는 경우만 충돌 (뒤에서 오는 차가 박는 것 방지)
+      // 아이템은 더 넓은 범위로, 장애물은 정확한 범위로
+      const playerWidth = isItem ? 0.35 : 0.22; // 아이템 획득은 넓게
+      const entityWidth = isItem ? 0.35 : (e.type === EntityType.OBSTACLE_TRUCK ? 0.28 : 0.22);
+      const collisionZ = isItem ? 350 : 250; // 아이템은 더 멀리서 획득 가능
+      const minZ = isItem ? 30 : 60; // 아이템은 더 가까이에서도 획득
+
+      // 플레이어가 다가가는 경우 (뒤에서 오는 차가 박는 것 방지)
       const prevRelZ = prevZ - (positionRef.current - player.speed);
-      const isPlayerApproaching = prevRelZ > relZ; // 플레이어와의 거리가 줄어들고 있음
+      const isPlayerApproaching = prevRelZ >= relZ; // 거리가 줄어들거나 유지
 
-      if (relZ > 80 && relZ < collisionZ && isPlayerApproaching) {
+      if (relZ > minZ && relZ < collisionZ && isPlayerApproaching) {
         const dx = Math.abs(e.x - player.x);
-        // 정면 충돌만 감지 (좌우 판정 더 좁게)
+        // 충돌 감지
         if (dx < (playerWidth + entityWidth) / 2) {
-          if (e.type.startsWith('OBSTACLE')) {
+          if (isObstacle) {
             if (player.shield) {
               player.shield = false;
               player.shieldTimer = 0;
@@ -1477,12 +1529,12 @@ function drawSpeedometer(ctx: CanvasRenderingContext2D, w: number, h: number, sp
   ctx.fillText('km/h', centerX, centerY + 32);
 }
 
-// 다른 차량 그리기 (전방에서 오는 차량, 80% 크기)
+// 다른 차량 그리기 (플레이어 차량과 비슷한 크기)
 function drawOtherCar(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, color: string, isTruck: boolean) {
-  // 트럭/빨간차량 80% 크기로 축소
-  const baseSize = size * 0.8; // 80% 크기
-  const w = baseSize * (isTruck ? 1.3 : 1.1);
-  const h = baseSize * (isTruck ? 1.7 : 1.5);
+  // 플레이어 차량과 비슷한 크기로 확대
+  const baseSize = size * 1.8; // 크기 확대
+  const w = baseSize * (isTruck ? 1.4 : 1.2);
+  const h = baseSize * (isTruck ? 1.8 : 1.6);
 
   // 그림자
   ctx.fillStyle = 'rgba(0,0,0,0.5)';
@@ -1623,9 +1675,9 @@ function drawCar(ctx: CanvasRenderingContext2D, x: number, y: number, size: numb
 
 function drawItem(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, type: EntityType, color: string) {
   ctx.save();
-  // 아이템 크기 1.5배 확대
-  const itemSize = size * 1.5;
-  ctx.shadowBlur = itemSize * 0.4;
+  // 아이템 크기 확대 (플레이어 차량과 비슷하게)
+  const itemSize = size * 2.2;
+  ctx.shadowBlur = itemSize * 0.5;
   ctx.shadowColor = color;
 
   if (type === EntityType.ITEM_FUEL) {
@@ -1803,10 +1855,10 @@ const BatonOverlay: React.FC<{ currentRound: number; nextPlayer: string; onBaton
 
       {!isHighFived ? (
         <button onClick={handleHighFive} className="relative w-36 h-36 rounded-full flex items-center justify-center">
-          <div className="absolute inset-0 rounded-full bg-cyan-600/20 animate-ping" />
-          <div className="w-32 h-32 rounded-full bg-gradient-to-br from-cyan-600 to-blue-800 shadow-lg flex flex-col items-center justify-center active:scale-95 transition-transform">
-            <span className="text-5xl mb-1">🤝</span>
-            <span className="text-[10px] font-bold uppercase tracking-widest text-white/80">Baton Pass!</span>
+          <div className="absolute inset-0 rounded-full bg-yellow-500/30 animate-ping" />
+          <div className="w-32 h-32 rounded-full bg-gradient-to-br from-yellow-500 to-orange-600 shadow-lg flex flex-col items-center justify-center active:scale-95 transition-transform">
+            <span className="text-5xl mb-1">🙌</span>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-white/90">High Five!</span>
           </div>
         </button>
       ) : (
