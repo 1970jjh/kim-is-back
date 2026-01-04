@@ -860,13 +860,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     ctx.closePath();
     ctx.fill();
 
-    // Ground - 잔디색으로 바닥 전체 채움 (베이지색 제거)
+    // Ground - 잔디색으로 바닥 전체 채움
     ctx.fillStyle = theme.grass1;
     ctx.fillRect(0, h * 0.45, w, h * 0.55);
-
-    // 화면 하단은 도로색으로 채워서 베이지 띠 제거
-    ctx.fillStyle = theme.road;
-    ctx.fillRect(0, h * 0.85, w, h * 0.15);
 
     // Road segments
     const baseSegment = Math.floor(positionRef.current / SEGMENT_LENGTH);
@@ -955,6 +951,47 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         ctx.lineTo(seg.x + seg.w * 0.25 + lineW, seg.y);
         ctx.fill();
       }
+    }
+
+    // 화면 하단까지 도로 확장 (초록색 띠 제거)
+    if (segments.length > 0) {
+      const lastSeg = segments[0]; // 가장 가까운 세그먼트
+      const bottomY = h + 50; // 화면 바깥까지 확장
+
+      // 하단 도로 폭 계산 (더 넓게)
+      const bottomScale = lastSeg.scale * 2;
+      const bottomW = ROAD_WIDTH * bottomScale;
+      const bottomX = w / 2 - (player.x * bottomW * 0.4) + lastSeg.curve * bottomW * 0.5;
+
+      // 잔디 (하단)
+      ctx.fillStyle = theme.grass1;
+      ctx.fillRect(0, lastSeg.y, w, bottomY - lastSeg.y);
+
+      // Rumble strips (하단)
+      const rumbleW = lastSeg.w * 0.08;
+      ctx.fillStyle = theme.rumble1;
+      ctx.beginPath();
+      ctx.moveTo(lastSeg.x - lastSeg.w / 2, lastSeg.y);
+      ctx.lineTo(bottomX - bottomW / 2, bottomY);
+      ctx.lineTo(bottomX - bottomW / 2 - rumbleW * 3, bottomY);
+      ctx.lineTo(lastSeg.x - lastSeg.w / 2 - rumbleW, lastSeg.y);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(lastSeg.x + lastSeg.w / 2, lastSeg.y);
+      ctx.lineTo(bottomX + bottomW / 2, bottomY);
+      ctx.lineTo(bottomX + bottomW / 2 + rumbleW * 3, bottomY);
+      ctx.lineTo(lastSeg.x + lastSeg.w / 2 + rumbleW, lastSeg.y);
+      ctx.fill();
+
+      // 도로 표면 (하단까지)
+      ctx.fillStyle = theme.road;
+      ctx.beginPath();
+      ctx.moveTo(lastSeg.x - lastSeg.w / 2, lastSeg.y);
+      ctx.lineTo(bottomX - bottomW / 2, bottomY);
+      ctx.lineTo(bottomX + bottomW / 2, bottomY);
+      ctx.lineTo(lastSeg.x + lastSeg.w / 2, lastSeg.y);
+      ctx.fill();
     }
 
     // Draw scenery
@@ -1146,7 +1183,7 @@ function drawPlayerCar(ctx: CanvasRenderingContext2D, w: number, h: number, play
   const carW = 200; // 2배 크기
   const carH = 280;
   const baseX = w / 2 + playerX * w * 0.25; // 좌우 이동에 따라 위치 변경
-  const baseY = h + 20; // 화면 아래쪽으로 더 내림 (베이지색 가림)
+  const baseY = h - 80; // 도로 위에 차가 보이도록
 
   // 그림자
   ctx.fillStyle = 'rgba(0,0,0,0.5)';
