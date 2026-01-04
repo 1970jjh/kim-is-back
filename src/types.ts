@@ -71,6 +71,20 @@ export interface TeamReport {
   submittedAt?: number;
 }
 
+// R11 고객 응대 피드백
+export interface R11Feedback {
+  finalScore: number;
+  overallGrade: string;
+  summary: string;
+  goodPoints: string[];
+  improvementPoints: string[];
+  practicalTips: string;
+  scoreComment: string;
+  conversationHistory: Array<{ role: string; content: string }>;
+  completionTime: string;
+  submittedAt?: number;
+}
+
 export interface TeamState {
   id: number;
   name: string;
@@ -87,6 +101,7 @@ export interface TeamState {
   missionClearTime?: number;  // 미션 완료 시간
   totalBonusTime: number;  // 헬프로 추가된 시간 (초)
   teamReport?: TeamReport;  // R12 팀활동 결과보고서
+  r11Feedback?: R11Feedback;  // R11 고객 응대 피드백
 }
 
 export interface RoomState {

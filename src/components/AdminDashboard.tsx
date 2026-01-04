@@ -1155,6 +1155,55 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
                 })}
               </div>
             </div>
+
+            {/* R11 고객 응대 피드백 */}
+            {room.teams[selectedPerformanceTeamId]?.r11Feedback && (
+              <div className="border-t border-white/20 pt-4">
+                <h3 className="text-xl font-black mb-3 flex items-center gap-2">
+                  <span>📊 R11 고객 응대 피드백</span>
+                  <span className={`text-lg px-2 py-0.5 rounded ${
+                    room.teams[selectedPerformanceTeamId].r11Feedback?.overallGrade === 'S' ? 'bg-purple-600' :
+                    room.teams[selectedPerformanceTeamId].r11Feedback?.overallGrade === 'A' ? 'bg-green-600' :
+                    room.teams[selectedPerformanceTeamId].r11Feedback?.overallGrade === 'B' ? 'bg-blue-600' :
+                    room.teams[selectedPerformanceTeamId].r11Feedback?.overallGrade === 'C' ? 'bg-yellow-600' : 'bg-red-600'
+                  }`}>
+                    {room.teams[selectedPerformanceTeamId].r11Feedback?.overallGrade}등급
+                  </span>
+                </h3>
+                <div className="space-y-3 text-sm">
+                  <div className="flex gap-4">
+                    <div className="bg-white/10 p-3 brutal-border text-center flex-1">
+                      <p className="text-xs text-gray-400">최종 점수</p>
+                      <p className="text-2xl font-black">{room.teams[selectedPerformanceTeamId].r11Feedback?.finalScore}점</p>
+                    </div>
+                    <div className="bg-white/10 p-3 brutal-border text-center flex-1">
+                      <p className="text-xs text-gray-400">소요시간</p>
+                      <p className="text-lg font-bold">{room.teams[selectedPerformanceTeamId].r11Feedback?.completionTime || '-'}</p>
+                    </div>
+                  </div>
+                  <div className="bg-white/10 p-3 brutal-border">
+                    <p className="text-xs text-gray-400 mb-1">AI 종합 평가</p>
+                    <p className="text-white">{room.teams[selectedPerformanceTeamId].r11Feedback?.summary}</p>
+                  </div>
+                  {room.teams[selectedPerformanceTeamId].r11Feedback?.goodPoints && room.teams[selectedPerformanceTeamId].r11Feedback.goodPoints.length > 0 && (
+                    <div className="bg-green-900/30 p-3 brutal-border border-green-500/50">
+                      <p className="text-xs text-green-400 mb-1">✅ 잘한 점</p>
+                      {room.teams[selectedPerformanceTeamId].r11Feedback?.goodPoints.map((point, idx) => (
+                        <p key={idx} className="text-green-300 text-xs">• {point}</p>
+                      ))}
+                    </div>
+                  )}
+                  {room.teams[selectedPerformanceTeamId].r11Feedback?.improvementPoints && room.teams[selectedPerformanceTeamId].r11Feedback.improvementPoints.length > 0 && (
+                    <div className="bg-orange-900/30 p-3 brutal-border border-orange-500/50">
+                      <p className="text-xs text-orange-400 mb-1">💡 개선점</p>
+                      {room.teams[selectedPerformanceTeamId].r11Feedback?.improvementPoints.map((point, idx) => (
+                        <p key={idx} className="text-orange-300 text-xs">• {point}</p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </BrutalistCard>
         </div>
       )}

@@ -146,6 +146,64 @@ export const geminiService = {
     }
   },
 
+  // R11: 고객 응대 대화 피드백 생성
+  generateCustomerServiceFeedback: async (
+    conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }>,
+    finalScore: number,
+    industryType: number
+  ): Promise<{
+    success: boolean;
+    feedback: {
+      overallGrade: string;
+      summary: string;
+      goodPoints: string[];
+      improvementPoints: string[];
+      practicalTips: string;
+      scoreComment: string;
+    };
+  }> => {
+    try {
+      const response = await fetch(API_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'generateCustomerServiceFeedback',
+          payload: { conversationHistory, finalScore, industryType }
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        return {
+          success: false,
+          feedback: {
+            overallGrade: 'C',
+            summary: error.error || 'API 오류가 발생했습니다.',
+            goodPoints: [],
+            improvementPoints: [],
+            practicalTips: '',
+            scoreComment: ''
+          }
+        };
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Gemini feedback error:', error);
+      return {
+        success: false,
+        feedback: {
+          overallGrade: 'C',
+          summary: '피드백 생성 중 오류가 발생했습니다.',
+          goodPoints: [],
+          improvementPoints: [],
+          practicalTips: '',
+          scoreComment: ''
+        }
+      };
+    }
+  },
+
   // R12: 다짐 내용 검증
   validateResolutions: async (resolutions: string[]): Promise<{ pass: boolean; message: string }> => {
     try {

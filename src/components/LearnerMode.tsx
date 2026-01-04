@@ -5,6 +5,7 @@ import { RoomState, TeamState, TeamPerformance, IndustryType, IndustryTypeLabels
 import { BrutalistButton, BrutalistCard, BrutalistInput, BrutalistTextarea } from './BrutalistUI';
 import { ROUNDS } from '../constants';
 import CPRGame from './CPRGame';
+import RelayRacingGame from './RelayRacingGame';
 import { generateResultPDF } from '../utils/canvasInfographic';
 
 // 시간 포맷팅 유틸
@@ -276,8 +277,8 @@ const CUSTOMER_SCENARIOS: Record<IndustryType, { title: string; scenario: string
   }
 };
 
-// R12 팀활동 결과보고서 (12월)
-const R12_STORY = "드디어 해냈다! [본사 복귀 확정] 통지서가 도착했다. 흙먼지 날리는 현장에서 고군분투한 당신, 진심으로 축하한다! 하지만 화려한 피날레를 위해선 지난 1년의 희로애락을 정리하는 '최종 결과 보고서'가 완벽해야만 한다. 팀원들과 나눈 뜨거운 협업과 성찰, 현업 적용 다짐까지 꼼꼼히 기록하라. 까다로운 AI 심사관의 'PASS' 도장이 찍히는 순간, 당신을 위한 서울행 리무진이 도착할 것이다!";
+// R12 릴레이 레이싱 (12월) - 본사 복귀
+const R12_STORY = "드디어 해냈다! 11개월간의 미션을 완수하고 [본사 복귀 확정] 통지서가 도착했다. 하지만 마지막 관문이 남았다. 본사까지의 험난한 길을 6명의 팀원이 릴레이로 주행해야 한다! 조직의 부정적 요소들(비꼬기, 책임회피, 꼰대문화...)을 피하고, 긍정 에너지(협업 파워, 팀워크, 시너지...)를 모아라. 제한 시간 내에 본사에 도착하면 김 부장의 화려한 복귀가 완성된다!";
 
 // 월별 이름 (라운드와 매핑: R1=1월, R2=2월, ... R12=12월)
 const MONTHS = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
@@ -391,8 +392,34 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
   const [r11StartTime, setR11StartTime] = useState<number | null>(null);
   const [r11CompletionTime, setR11CompletionTime] = useState('');
   const [r11ShowManual, setR11ShowManual] = useState(false);
+  const [r11ShowFeedback, setR11ShowFeedback] = useState(false);
+  const [r11Feedback, setR11Feedback] = useState<{
+    overallGrade: string;
+    summary: string;
+    goodPoints: string[];
+    improvementPoints: string[];
+    practicalTips: string;
+    scoreComment: string;
+  } | null>(null);
+  const [r11FeedbackLoading, setR11FeedbackLoading] = useState(false);
+  const [r11ChatEnded, setR11ChatEnded] = useState(false);
 
-  // R12 팀활동 결과보고서 상태 (12월)
+  // R12 릴레이 레이싱 게임 상태 (12월)
+  const [r12GameStarted, setR12GameStarted] = useState(false);
+  const [r12Cleared, setR12Cleared] = useState(false);
+  const [r12CompletionTime, setR12CompletionTime] = useState('');
+  const [r12GameStats, setR12GameStats] = useState<{
+    round: number;
+    totalDistance: number;
+    timeLeft: number;
+    obstaclesHit: string[];
+    obstaclesAvoided: number;
+    fuelItemsCollected: number;
+    roundTimes: number[];
+  } | null>(null);
+
+  // 팀활동 결과보고서 상태 (미션 완료 후 작성)
+  const [showReportForm, setShowReportForm] = useState(false);
   const [r12Report, setR12Report] = useState({
     oneLine: '',        // 한줄 소감
     bestMission: '',    // 협업이 빛났던 미션
@@ -403,7 +430,6 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
   const [r12ValidationResult, setR12ValidationResult] = useState<{ pass: boolean; message: string } | null>(null);
   const [r12Generating, setR12Generating] = useState(false);
   const [r12InfographicUrl, setR12InfographicUrl] = useState<string | null>(null);
-  const [r12Cleared, setR12Cleared] = useState(false);
 
   useEffect(() => {
     setTeam(room.teams?.[auth.teamId]);
@@ -1057,10 +1083,119 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
     setR11MoodLevel(1);
     setR11EvaluationScores({ greeting: 0, listening: 0, empathy: 0, solution: 0, professionalism: 0, patience: 0, clarity: 0, positivity: 0, responsibility: 0, closing: 0 });
     setR11CompletionTime('');
+    setR11ChatEnded(false);
+    setR11Feedback(null);
     setViewState('factory');
   };
 
-  // R12 다짐 검증 - 간소화된 검증 (1번 무조건 통과, 2/3/4번 100자 이상)
+  // R11 대화 종료 및 피드백 생성
+  const handleR11EndChat = async () => {
+    if (r11FeedbackLoading) return;
+
+    setR11FeedbackLoading(true);
+    setR11ChatEnded(true);
+
+    // 완료 시간 계산
+    let completionTimeStr = '';
+    if (r11StartTime) {
+      const elapsed = Math.floor((Date.now() - r11StartTime) / 1000);
+      const mins = Math.floor(elapsed / 60);
+      const secs = elapsed % 60;
+      completionTimeStr = `${mins}분 ${secs}초`;
+      setR11CompletionTime(completionTimeStr);
+    }
+
+    try {
+      const industryType = room.industryType || IndustryType.IT_SOLUTION;
+      const result = await geminiService.generateCustomerServiceFeedback(
+        r11ChatHistory,
+        r11SatisfactionScore,
+        industryType
+      );
+
+      if (result.success && result.feedback) {
+        setR11Feedback(result.feedback);
+
+        // Firebase에 피드백 저장
+        await firebaseService.saveCustomerServiceFeedback(room.id, auth.teamId, {
+          finalScore: r11SatisfactionScore,
+          overallGrade: result.feedback.overallGrade,
+          summary: result.feedback.summary,
+          goodPoints: result.feedback.goodPoints,
+          improvementPoints: result.feedback.improvementPoints,
+          practicalTips: result.feedback.practicalTips,
+          scoreComment: result.feedback.scoreComment,
+          conversationHistory: r11ChatHistory,
+          completionTime: completionTimeStr
+        });
+      } else {
+        setR11Feedback({
+          overallGrade: r11SatisfactionScore >= 80 ? 'A' : r11SatisfactionScore >= 70 ? 'B' : 'C',
+          summary: '피드백을 생성하는 중 오류가 발생했습니다.',
+          goodPoints: [],
+          improvementPoints: [],
+          practicalTips: '',
+          scoreComment: `최종 점수: ${r11SatisfactionScore}점`
+        });
+      }
+
+      setR11ShowFeedback(true);
+    } catch (error) {
+      console.error('R11 feedback error:', error);
+      setR11Feedback({
+        overallGrade: 'C',
+        summary: '피드백 생성 중 오류가 발생했습니다.',
+        goodPoints: [],
+        improvementPoints: [],
+        practicalTips: '',
+        scoreComment: ''
+      });
+      setR11ShowFeedback(true);
+    } finally {
+      setR11FeedbackLoading(false);
+    }
+  };
+
+  // R11 피드백 팝업 닫기 후 처리
+  const handleR11CloseFeedback = () => {
+    setR11ShowFeedback(false);
+    // 80점 이상이면 자동 클리어 처리
+    if (r11SatisfactionScore >= 80) {
+      setR11Cleared(true);
+    }
+  };
+
+  // R12 릴레이 레이싱 게임 시작
+  const startR12Game = () => {
+    setR12GameStarted(true);
+  };
+
+  // R12 릴레이 레이싱 게임 완료
+  const handleR12GameComplete = (stats: {
+    round: number;
+    totalDistance: number;
+    timeLeft: number;
+    obstaclesHit: string[];
+    obstaclesAvoided: number;
+    fuelItemsCollected: number;
+    roundTimes: number[];
+  }) => {
+    setR12GameStats(stats);
+    setR12CompletionTime(new Date().toLocaleTimeString('ko-KR', { hour12: false }));
+    setR12Cleared(true);
+    setR12GameStarted(false);
+  };
+
+  // R12 클리어 후 처리 (다음 라운드로)
+  const handleR12Clear = async () => {
+    await firebaseService.advanceTeamRound(room.id, auth.teamId);
+    setR12Cleared(false);
+    setR12CompletionTime('');
+    setR12GameStats(null);
+    setViewState('factory');
+  };
+
+  // R12 보고서 검증 - 간소화된 검증 (1번 무조건 통과, 2/3/4번 100자 이상)
   const handleR12Validate = async () => {
     const { oneLine, bestMission, regret, futureHelp } = r12Report;
 
@@ -1121,25 +1256,34 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
     }
   };
 
-  // R12 이미지 다운로드
-  const handleR12Download = () => {
+  // R12 이미지 다운로드 및 저장
+  const handleR12Download = async () => {
     if (!r12InfographicUrl) return;
 
+    // 다운로드
     const link = document.createElement('a');
     link.href = r12InfographicUrl;
     link.download = `team${auth.teamId}_팀활동보고서.png`;
     link.click();
-    setR12Cleared(true);
+
+    // Firebase에 저장 (아직 저장되지 않았다면)
+    try {
+      await firebaseService.saveTeamReport(room.id, auth.teamId, r12Report, r12InfographicUrl);
+    } catch (error) {
+      console.error('Report save error:', error);
+    }
+
+    // 폼 닫기
+    setShowReportForm(false);
+    setR12ValidationResult(null);
   };
 
-  // R12 최종 클리어 처리
-  const handleR12FinalClear = async () => {
-    await firebaseService.advanceTeamRound(room.id, auth.teamId);
-    setR12Cleared(false);
+  // 팀 보고서 다운로드 후 닫기
+  const handleReportClose = () => {
+    setShowReportForm(false);
     setR12Report({ oneLine: '', bestMission: '', regret: '', futureHelp: '' });
     setR12InfographicUrl(null);
     setR12ValidationResult(null);
-    setViewState('factory');
   };
 
   // 전체 팀 성과 (순위 계산용)
@@ -1263,10 +1407,10 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
            </div>
         </section>
 
-        {/* R12 팀활동 보고서 인포그래픽 */}
-        {team?.teamReport?.imageData && (
-          <section className="mt-8">
-            <h4 className="text-xl font-black mb-4">팀활동 결과보고서</h4>
+        {/* 팀활동 결과보고서 섹션 */}
+        <section className="mt-8">
+          <h4 className="text-xl font-black mb-4">팀활동 결과보고서</h4>
+          {team?.teamReport?.imageData ? (
             <div className="flex justify-center">
               <img
                 src={team.teamReport.imageData}
@@ -1275,7 +1419,129 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
                 style={{ maxHeight: '600px' }}
               />
             </div>
-          </section>
+          ) : r12InfographicUrl ? (
+            <div className="space-y-4">
+              <div className="flex justify-center">
+                <img
+                  src={r12InfographicUrl}
+                  alt="팀활동 결과보고서"
+                  className="max-w-full brutal-border brutalist-shadow"
+                  style={{ maxHeight: '600px' }}
+                />
+              </div>
+              <BrutalistButton variant="gold" fullWidth onClick={handleR12Download}>
+                보고서 다운로드 & 저장
+              </BrutalistButton>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <BrutalistCard className="bg-yellow-400/10 border-yellow-400 text-center">
+                <p className="text-lg text-gray-300 mb-4">
+                  미션을 완료하셨습니다! 이제 팀활동 결과보고서를 작성해주세요.
+                </p>
+                <BrutalistButton variant="gold" onClick={() => setShowReportForm(true)}>
+                  📝 팀활동 결과보고서 작성하기
+                </BrutalistButton>
+              </BrutalistCard>
+            </div>
+          )}
+        </section>
+
+        {/* 팀활동 결과보고서 작성 팝업 */}
+        {showReportForm && (
+          <div className="fixed inset-0 z-50 bg-black/90 overflow-y-auto p-4">
+            <div className="max-w-2xl mx-auto my-8">
+              <BrutalistCard className="space-y-5">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-2xl font-black text-yellow-400 uppercase">팀활동 결과보고서</h3>
+                  <button
+                    onClick={() => setShowReportForm(false)}
+                    className="text-gray-400 hover:text-white text-2xl font-black"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <p className="text-sm text-gray-400">각 항목을 성의 있게 작성해주세요. AI가 내용을 검증합니다.</p>
+
+                {/* 질문 1 */}
+                <div>
+                  <label className="text-sm font-bold text-yellow-400 block mb-2">1. 팀활동 전반에 대한 한줄 소감</label>
+                  <BrutalistInput
+                    fullWidth
+                    placeholder="한 줄로 소감을 작성해주세요..."
+                    value={r12Report.oneLine}
+                    onChange={(e) => setR12Report({ ...r12Report, oneLine: e.target.value })}
+                  />
+                </div>
+
+                {/* 질문 2 */}
+                <div>
+                  <label className="text-sm font-bold text-yellow-400 block mb-2">2. 팀 전원의 소통과 협업이 가장 빛났던 월 미션과 그 이유는?</label>
+                  <BrutalistTextarea
+                    fullWidth
+                    rows={3}
+                    placeholder="예: 4월 틀린그림찾기 - 팀원들이 각자 다른 영역을 맡아 빠르게 찾았습니다..."
+                    value={r12Report.bestMission}
+                    onChange={(e) => setR12Report({ ...r12Report, bestMission: e.target.value })}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">현재: {r12Report.bestMission.trim().length}자 (최소 100자)</p>
+                </div>
+
+                {/* 질문 3 */}
+                <div>
+                  <label className="text-sm font-bold text-yellow-400 block mb-2">3. 반대로, 팀원들과 함께 미션을 풀어가면서 아쉬웠던 점이 있었다면?</label>
+                  <BrutalistTextarea
+                    fullWidth
+                    rows={3}
+                    placeholder="아쉬웠던 점과 그 이유를 작성해주세요..."
+                    value={r12Report.regret}
+                    onChange={(e) => setR12Report({ ...r12Report, regret: e.target.value })}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">현재: {r12Report.regret.trim().length}자 (최소 100자)</p>
+                </div>
+
+                {/* 질문 4 */}
+                <div>
+                  <label className="text-sm font-bold text-yellow-400 block mb-2">4. 오늘 활동이 향후 현업에 어떤 도움이 될 수 있을까요?</label>
+                  <BrutalistTextarea
+                    fullWidth
+                    rows={3}
+                    placeholder="현업에 적용할 수 있는 점을 작성해주세요..."
+                    value={r12Report.futureHelp}
+                    onChange={(e) => setR12Report({ ...r12Report, futureHelp: e.target.value })}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">현재: {r12Report.futureHelp.trim().length}자 (최소 100자)</p>
+                </div>
+
+                {r12ValidationResult && !r12Generating && (
+                  <div className={`p-4 brutal-border text-center font-bold ${r12ValidationResult.pass ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
+                    {r12ValidationResult.message}
+                  </div>
+                )}
+
+                {/* AI 보고서 생성 중 로딩 화면 */}
+                {r12Generating && (
+                  <div className="p-8 brutal-border bg-gradient-to-r from-purple-600 to-blue-600 text-white text-center space-y-4">
+                    <div className="flex justify-center">
+                      <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                    <p className="text-2xl font-black animate-pulse">AI 보고서가 생성 중입니다</p>
+                    <p className="text-lg">잠시만 기다려주세요... ✨</p>
+                    <p className="text-sm text-white/70">Gemini AI가 팀 활동 인포그래픽을 제작하고 있습니다</p>
+                  </div>
+                )}
+
+                <div className="flex gap-4">
+                  <BrutalistButton variant="ghost" onClick={() => setShowReportForm(false)} className="flex-1">
+                    취소
+                  </BrutalistButton>
+                  <BrutalistButton variant="gold" onClick={handleR12Validate} disabled={r12Validating || r12Generating} className="flex-1">
+                    {r12Validating ? 'AI 검증 중...' : r12Generating ? '🎨 AI 보고서 생성 중...' : '보고서 제출하기'}
+                  </BrutalistButton>
+                </div>
+              </BrutalistCard>
+            </div>
+          </div>
         )}
 
         {/* PDF 다운로드 버튼 */}
@@ -2823,31 +3089,74 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
               </div>
 
               {/* 입력 영역 */}
-              <div className="flex gap-2 items-end">
-                <BrutalistTextarea
-                  ref={r11InputRef}
-                  fullWidth
-                  rows={2}
-                  placeholder="고객에게 응대할 내용을 입력하세요... (Shift+Enter: 줄바꿈)"
-                  value={r11UserInput}
-                  onChange={(e) => setR11UserInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleR11SendMessage();
-                    }
-                  }}
-                  disabled={r11Sending}
-                />
-                <button
-                  onClick={() => setR11ShowManual(true)}
-                  className="h-fit px-3 py-2 bg-blue-600 text-white text-xs font-bold brutal-border hover:bg-blue-500 transition-colors whitespace-nowrap"
-                  title="응대 팁 보기"
-                >
-                  📖 매뉴얼
-                </button>
-                <BrutalistButton variant="gold" onClick={handleR11SendMessage} disabled={r11Sending || !r11UserInput.trim()} className="h-fit">전송</BrutalistButton>
-              </div>
+              {!r11ChatEnded ? (
+                <div className="flex gap-2 items-end">
+                  <BrutalistTextarea
+                    ref={r11InputRef}
+                    fullWidth
+                    rows={2}
+                    placeholder="고객에게 응대할 내용을 입력하세요... (Shift+Enter: 줄바꿈)"
+                    value={r11UserInput}
+                    onChange={(e) => setR11UserInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleR11SendMessage();
+                      }
+                    }}
+                    disabled={r11Sending}
+                  />
+                  <button
+                    onClick={() => setR11ShowManual(true)}
+                    className="h-fit px-3 py-2 bg-blue-600 text-white text-xs font-bold brutal-border hover:bg-blue-500 transition-colors whitespace-nowrap"
+                    title="응대 팁 보기"
+                  >
+                    📖 매뉴얼
+                  </button>
+                  <BrutalistButton variant="gold" onClick={handleR11SendMessage} disabled={r11Sending || !r11UserInput.trim()} className="h-fit">전송</BrutalistButton>
+                  {r11SatisfactionScore >= 70 && (
+                    <BrutalistButton
+                      variant="primary"
+                      onClick={handleR11EndChat}
+                      disabled={r11FeedbackLoading}
+                      className="h-fit whitespace-nowrap"
+                    >
+                      {r11FeedbackLoading ? '분석중...' : '대화 종료'}
+                    </BrutalistButton>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="bg-green-600/20 border-2 border-green-500 p-4 text-center">
+                    <p className="text-green-400 font-bold text-lg">✓ 대화가 종료되었습니다</p>
+                    <p className="text-gray-300 text-sm mt-1">최종 점수: {r11SatisfactionScore}점 {r11CompletionTime && `| 소요시간: ${r11CompletionTime}`}</p>
+                  </div>
+                  {r11SatisfactionScore >= 80 ? (
+                    <BrutalistButton variant="gold" fullWidth onClick={handleR11Clear}>
+                      다음 라운드로 →
+                    </BrutalistButton>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-center text-yellow-400 text-sm">80점 이상 달성 시 다음 라운드로 이동할 수 있습니다.</p>
+                      <div className="flex gap-2">
+                        <BrutalistButton variant="secondary" fullWidth onClick={() => {
+                          setR11ChatEnded(false);
+                          setR11ChatHistory([]);
+                          setR11SatisfactionScore(0);
+                          setR11MoodLevel(1);
+                          setR11Feedback(null);
+                          initR11Chat();
+                        }}>
+                          처음부터 다시하기
+                        </BrutalistButton>
+                        <BrutalistButton variant="gold" fullWidth onClick={() => setR11ShowFeedback(true)}>
+                          피드백 다시보기
+                        </BrutalistButton>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -2929,6 +3238,89 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
           </div>
         )}
 
+        {/* AI 피드백 팝업 */}
+        {r11ShowFeedback && r11Feedback && (
+          <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+            <div className="bg-white text-black max-w-2xl w-full max-h-[85vh] overflow-y-auto brutal-border brutalist-shadow">
+              <div className={`p-4 flex justify-between items-center ${
+                r11Feedback.overallGrade === 'S' ? 'bg-purple-600' :
+                r11Feedback.overallGrade === 'A' ? 'bg-green-600' :
+                r11Feedback.overallGrade === 'B' ? 'bg-blue-600' :
+                r11Feedback.overallGrade === 'C' ? 'bg-yellow-600' : 'bg-red-600'
+              } text-white`}>
+                <h3 className="text-xl font-black">📊 AI 응대 피드백</h3>
+                <button onClick={handleR11CloseFeedback} className="text-2xl font-black hover:text-yellow-400">✕</button>
+              </div>
+              <div className="p-6 space-y-5">
+                {/* 등급 및 점수 */}
+                <div className="flex items-center justify-center gap-6 py-4">
+                  <div className={`text-6xl font-black ${
+                    r11Feedback.overallGrade === 'S' ? 'text-purple-600' :
+                    r11Feedback.overallGrade === 'A' ? 'text-green-600' :
+                    r11Feedback.overallGrade === 'B' ? 'text-blue-600' :
+                    r11Feedback.overallGrade === 'C' ? 'text-yellow-600' : 'text-red-600'
+                  }`}>
+                    {r11Feedback.overallGrade}
+                  </div>
+                  <div className="text-center">
+                    <p className="text-4xl font-black">{r11SatisfactionScore}점</p>
+                    <p className="text-gray-500 text-sm">고객 만족도</p>
+                  </div>
+                </div>
+
+                {/* 종합 평가 */}
+                <div className="bg-gray-100 p-4 rounded-lg">
+                  <p className="font-bold text-gray-800 mb-2">📝 종합 평가</p>
+                  <p className="text-gray-700">{r11Feedback.summary}</p>
+                </div>
+
+                {/* 잘한 점 */}
+                {r11Feedback.goodPoints && r11Feedback.goodPoints.length > 0 && (
+                  <div className="bg-green-50 p-4 rounded-lg border-l-4 border-green-500">
+                    <p className="font-bold text-green-800 mb-2">✅ 잘한 점</p>
+                    <ul className="space-y-1">
+                      {r11Feedback.goodPoints.map((point, idx) => (
+                        <li key={idx} className="text-green-700 text-sm">• {point}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* 개선점 */}
+                {r11Feedback.improvementPoints && r11Feedback.improvementPoints.length > 0 && (
+                  <div className="bg-orange-50 p-4 rounded-lg border-l-4 border-orange-500">
+                    <p className="font-bold text-orange-800 mb-2">💡 개선 포인트</p>
+                    <ul className="space-y-1">
+                      {r11Feedback.improvementPoints.map((point, idx) => (
+                        <li key={idx} className="text-orange-700 text-sm">• {point}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* 실무 팁 */}
+                {r11Feedback.practicalTips && (
+                  <div className="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
+                    <p className="font-bold text-blue-800 mb-2">🎯 실무 활용 팁</p>
+                    <p className="text-blue-700 text-sm">{r11Feedback.practicalTips}</p>
+                  </div>
+                )}
+
+                {/* 점수 코멘트 */}
+                {r11Feedback.scoreComment && (
+                  <div className="bg-gray-200 p-3 rounded text-center">
+                    <p className="text-gray-700 text-sm italic">{r11Feedback.scoreComment}</p>
+                  </div>
+                )}
+
+                <BrutalistButton variant="primary" fullWidth onClick={handleR11CloseFeedback}>
+                  확인
+                </BrutalistButton>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="fixed bottom-4 right-4 z-40">
           <button onClick={() => setViewState('factory')} className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow">
             ← 달력보기
@@ -2938,7 +3330,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
     );
   }
 
-  // R12 새해 다짐 (12월)
+  // R12 릴레이 레이싱 (12월)
   if (isR12) {
     return (
       <div className="max-w-4xl mx-auto p-4 space-y-6 pb-24">
@@ -2961,7 +3353,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
         )}
 
         <div className="space-y-6">
-          <h3 className="text-3xl font-black uppercase tracking-tighter text-center">ROUND 12: 12월 미션 - 팀활동 결과보고서</h3>
+          <h3 className="text-3xl font-black uppercase tracking-tighter text-center">ROUND 12: 12월 미션 - 본사 복귀 릴레이</h3>
 
           <BrutalistCard className="bg-yellow-400/10 border-yellow-400">
             <p className="text-xl font-bold italic text-center">"{R12_STORY}"</p>
@@ -2970,10 +3362,27 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
           {r12Cleared ? (
             <div className="space-y-6 animate-fadeIn">
               <div className="bg-green-600 text-white p-8 brutal-border brutalist-shadow text-center">
-                <h2 className="text-4xl font-black mb-4">🎉 KIM IS BACK!</h2>
-                <p className="text-xl">축하합니다! 모든 미션을 완료했습니다!</p>
+                <h2 className="text-4xl font-black mb-4">🏆 KIM IS BACK!</h2>
+                <p className="text-xl mb-4">축하합니다! 본사에 도착했습니다!</p>
+                {r12GameStats && (
+                  <div className="grid grid-cols-3 gap-4 mt-4 text-sm">
+                    <div className="bg-black/30 p-3 rounded">
+                      <p className="text-gray-300">완주 인원</p>
+                      <p className="text-2xl font-black">{r12GameStats.round}/6</p>
+                    </div>
+                    <div className="bg-black/30 p-3 rounded">
+                      <p className="text-gray-300">장애물 회피</p>
+                      <p className="text-2xl font-black text-green-400">{r12GameStats.obstaclesAvoided}</p>
+                    </div>
+                    <div className="bg-black/30 p-3 rounded">
+                      <p className="text-gray-300">에너지 획득</p>
+                      <p className="text-2xl font-black text-yellow-400">{r12GameStats.fuelItemsCollected}</p>
+                    </div>
+                  </div>
+                )}
+                <p className="text-gray-300 mt-4">완료 시간: {r12CompletionTime}</p>
               </div>
-              <BrutalistButton variant="gold" fullWidth className="text-2xl" onClick={handleR12FinalClear}>미션 최종 완료</BrutalistButton>
+              <BrutalistButton variant="gold" fullWidth className="text-2xl" onClick={handleR12Clear}>미션 최종 완료</BrutalistButton>
             </div>
           ) : isR12Completed ? (
             <div className="space-y-6">
@@ -2982,93 +3391,41 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
               </div>
               <BrutalistButton variant="gold" fullWidth onClick={() => setViewState('result')}>결과 보기</BrutalistButton>
             </div>
-          ) : r12InfographicUrl ? (
-            <div className="space-y-6">
-              <BrutalistCard className="text-center space-y-4">
-                <p className="text-lg font-bold text-green-400">팀활동 결과보고서가 생성되었습니다!</p>
-                <img src={r12InfographicUrl} alt="팀활동 결과보고서" className="w-full brutal-border" />
-                <BrutalistButton variant="gold" fullWidth onClick={handleR12Download}>보고서 다운로드</BrutalistButton>
-              </BrutalistCard>
-            </div>
           ) : (
             <div className="space-y-4">
-              <BrutalistCard className="space-y-5">
-                <label className="block text-lg font-black text-yellow-400 uppercase">팀활동 결과보고서</label>
-                <p className="text-sm text-gray-400">각 항목을 성의 있게 작성해주세요. AI가 내용을 검증합니다.</p>
-
-                {/* 질문 1 */}
-                <div>
-                  <label className="text-sm font-bold text-yellow-400 block mb-2">1. 팀활동 전반에 대한 한줄 소감</label>
-                  <BrutalistInput
-                    fullWidth
-                    placeholder="한 줄로 소감을 작성해주세요..."
-                    value={r12Report.oneLine}
-                    onChange={(e) => setR12Report({ ...r12Report, oneLine: e.target.value })}
-                  />
-                </div>
-
-                {/* 질문 2 */}
-                <div>
-                  <label className="text-sm font-bold text-yellow-400 block mb-2">2. 팀 전원의 소통과 협업이 가장 빛났던 월 미션과 그 이유는?</label>
-                  <BrutalistTextarea
-                    fullWidth
-                    rows={3}
-                    placeholder="예: 4월 틀린그림찾기 - 팀원들이 각자 다른 영역을 맡아 빠르게 찾았습니다..."
-                    value={r12Report.bestMission}
-                    onChange={(e) => setR12Report({ ...r12Report, bestMission: e.target.value })}
-                  />
-                </div>
-
-                {/* 질문 3 */}
-                <div>
-                  <label className="text-sm font-bold text-yellow-400 block mb-2">3. 반대로, 팀원들과 함께 미션을 풀어가면서 아쉬웠던 점이 있었다면?</label>
-                  <BrutalistTextarea
-                    fullWidth
-                    rows={3}
-                    placeholder="아쉬웠던 점과 그 이유를 작성해주세요..."
-                    value={r12Report.regret}
-                    onChange={(e) => setR12Report({ ...r12Report, regret: e.target.value })}
-                  />
-                </div>
-
-                {/* 질문 4 */}
-                <div>
-                  <label className="text-sm font-bold text-yellow-400 block mb-2">4. 오늘 활동이 향후 현업에 어떤 도움이 될 수 있을까요?</label>
-                  <BrutalistTextarea
-                    fullWidth
-                    rows={3}
-                    placeholder="현업에 적용할 수 있는 점을 작성해주세요..."
-                    value={r12Report.futureHelp}
-                    onChange={(e) => setR12Report({ ...r12Report, futureHelp: e.target.value })}
-                  />
-                </div>
-
-                {r12ValidationResult && !r12Generating && (
-                  <div className={`p-4 brutal-border text-center font-bold ${r12ValidationResult.pass ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
-                    {r12ValidationResult.message}
+              <BrutalistCard className="space-y-5 text-center">
+                <div className="text-6xl mb-4">🏎️</div>
+                <h4 className="text-2xl font-black text-yellow-400 uppercase">THE LAST MILE</h4>
+                <p className="text-gray-300">6명의 팀원이 릴레이로 본사까지 레이싱합니다!</p>
+                <div className="grid grid-cols-2 gap-4 text-sm mt-4">
+                  <div className="bg-red-600/20 p-3 rounded border border-red-500">
+                    <p className="font-bold text-red-400">🚫 피해야 할 것</p>
+                    <p className="text-gray-400">비꼬기, 책임회피, 꼰대문화</p>
                   </div>
-                )}
-
-                {/* AI 보고서 생성 중 로딩 화면 */}
-                {r12Generating && (
-                  <div className="p-8 brutal-border bg-gradient-to-r from-purple-600 to-blue-600 text-white text-center space-y-4">
-                    <div className="flex justify-center">
-                      <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
-                    </div>
-                    <p className="text-2xl font-black animate-pulse">AI 보고서가 생성 중입니다</p>
-                    <p className="text-lg">잠시만 기다려주세요... ✨</p>
-                    <p className="text-sm text-white/70">Gemini AI가 팀 활동 인포그래픽을 제작하고 있습니다</p>
+                  <div className="bg-green-600/20 p-3 rounded border border-green-500">
+                    <p className="font-bold text-green-400">⚡ 획득할 것</p>
+                    <p className="text-gray-400">팀워크, 시너지, 협업 파워</p>
                   </div>
-                )}
-
-                <BrutalistButton variant="gold" fullWidth onClick={handleR12Validate} disabled={r12Validating || r12Generating}>
-                  {r12Validating ? 'AI 검증 중...' : r12Generating ? '🎨 AI 보고서 생성 중...' : '보고서 제출하기'}
+                </div>
+                <BrutalistButton variant="gold" fullWidth className="text-xl mt-6" onClick={startR12Game}>
+                  🏁 레이싱 시작!
                 </BrutalistButton>
               </BrutalistCard>
               <BrutalistButton variant="ghost" onClick={() => setViewState('factory')}>← 달력보기 돌아가기</BrutalistButton>
             </div>
           )}
         </div>
+
+        {/* R12 릴레이 레이싱 게임 팝업 */}
+        {r12GameStarted && (
+          <div className="fixed inset-0 z-50 bg-black">
+            <RelayRacingGame
+              teamMembers={team?.members || []}
+              onComplete={handleR12GameComplete}
+              onCancel={() => setR12GameStarted(false)}
+            />
+          </div>
+        )}
 
         <div className="fixed bottom-4 right-4 z-40">
           <button onClick={() => setViewState('factory')} className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow">
