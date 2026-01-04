@@ -842,10 +842,30 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
     // Spawn entities - 더 자주, 골고루 분포
     if (positionRef.current - lastSpawnRef.current > 800) {
-      // 항상 스폰 (빈 구간 없도록)
-      spawnEntity();
-      // 추가로 50% 확률로 한 개 더 스폰 (난이도 향상)
-      if (Math.random() < 0.5) spawnEntity();
+      // 현재 화면에 있는 장애물(빨간차) 개수 확인
+      const visibleObstacles = entitiesRef.current.filter(e =>
+        e.type.startsWith('OBSTACLE') &&
+        e.z > positionRef.current &&
+        e.z < positionRef.current + DRAW_DISTANCE * SEGMENT_LENGTH
+      ).length;
+
+      // 장애물이 5개 미만일 때만 스폰
+      if (visibleObstacles < 5) {
+        spawnEntity();
+        // 장애물이 3개 미만이면 추가 스폰
+        if (visibleObstacles < 3 && Math.random() < 0.5) {
+          spawnEntity();
+        }
+      } else {
+        // 장애물이 많으면 아이템만 스폰 (30% 확률)
+        if (Math.random() < 0.3) {
+          const roll = Math.random();
+          if (roll < 0.5) {
+            // 에너지 또는 부스터만 스폰
+            spawnEntity();
+          }
+        }
+      }
       lastSpawnRef.current = positionRef.current;
     }
 
@@ -1545,12 +1565,12 @@ function drawSpeedometer(ctx: CanvasRenderingContext2D, w: number, h: number, sp
   ctx.fillText('km/h', centerX, centerY + 32);
 }
 
-// 다른 차량 그리기 (플레이어 차량과 비슷한 크기)
+// 다른 차량 그리기 (플레이어와 나란히 있을 때 비슷한 크기)
 function drawOtherCar(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, color: string, isTruck: boolean) {
-  // 플레이어 차량과 비슷한 크기로 확대
-  const baseSize = size * 1.8; // 크기 확대
-  const w = baseSize * (isTruck ? 1.4 : 1.2);
-  const h = baseSize * (isTruck ? 1.8 : 1.6);
+  // 플레이어와 비슷한 크기 (70-80%)
+  const baseSize = size * 1.1;
+  const w = baseSize * (isTruck ? 1.3 : 1.1);
+  const h = baseSize * (isTruck ? 1.6 : 1.4);
 
   // 그림자
   ctx.fillStyle = 'rgba(0,0,0,0.5)';
