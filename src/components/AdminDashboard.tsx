@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { firebaseService } from '../services/firebaseService';
 import { geminiService } from '../services/geminiService';
-import { RoomState, EventType, TeamPerformance, IndustryType, IndustryTypeLabels } from '../types';
+import { RoomState, EventType, TeamPerformance, IndustryType, IndustryTypeLabels, GroupPhoto } from '../types';
 import { BrutalistButton, BrutalistCard, BrutalistInput } from './BrutalistUI';
 import { EVENTS, ROUNDS } from '../constants';
 
@@ -774,6 +774,59 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
                  ⚠️ {selectedTeamId === 'all' && editRound === 'all' ? '전체 팀의 전체 라운드에' : selectedTeamId === 'all' ? '전체 팀에' : '전체 라운드에'} 동일한 지침이 저장됩니다.
                </p>
              )}
+          </BrutalistCard>
+
+          {/* GROUP PHOTOS Section - R5 단체사진 다운로드 */}
+          <h2 className="text-2xl font-black italic mt-6">GROUP PHOTOS</h2>
+          <BrutalistCard className="space-y-4">
+            <p className="text-xs text-gray-400">
+              R5 5월 미션에서 업로드된 조별 단체사진을 다운로드할 수 있습니다.
+            </p>
+
+            {(() => {
+              const groupPhotos = firebaseService.getAllGroupPhotos(room);
+              if (groupPhotos.length === 0) {
+                return (
+                  <p className="text-xs text-yellow-400 text-center py-4">
+                    📷 아직 업로드된 단체사진이 없습니다.
+                  </p>
+                );
+              }
+              return (
+                <div className="space-y-3">
+                  {groupPhotos.map((photo: GroupPhoto) => (
+                    <div key={photo.teamId} className="flex items-center gap-3 p-2 border-2 border-gray-600 bg-gray-800">
+                      <img
+                        src={photo.downloadUrl}
+                        alt={`${photo.teamId}조 단체사진`}
+                        className="w-16 h-16 object-cover brutal-border"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-yellow-400">{photo.teamId}조</p>
+                        <p className="text-[10px] text-gray-400 truncate">{photo.fileName}</p>
+                        <p className="text-[10px] text-gray-500">
+                          {new Date(photo.uploadedAt).toLocaleString('ko-KR')}
+                        </p>
+                      </div>
+                      <a
+                        href={photo.downloadUrl}
+                        download={photo.fileName}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="brutal-border bg-yellow-400 text-black font-bold px-3 py-1 text-xs hover:bg-yellow-300 transition-colors"
+                      >
+                        📥
+                      </a>
+                    </div>
+                  ))}
+
+                  {/* 전체 다운로드 안내 */}
+                  <p className="text-[10px] text-gray-500 text-center mt-2">
+                    💡 개별 사진을 클릭하여 다운로드하세요. (파일명: 과정명_#조_연월일시)
+                  </p>
+                </div>
+              );
+            })()}
           </BrutalistCard>
 
           {/* MISSION POST Section */}

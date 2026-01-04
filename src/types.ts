@@ -85,6 +85,15 @@ export interface R11Feedback {
   submittedAt?: number;
 }
 
+// R5 단체사진 정보
+export interface GroupPhoto {
+  teamId: number;
+  fileName: string;
+  storagePath: string;
+  downloadUrl: string;
+  uploadedAt: number;
+}
+
 export interface TeamState {
   id: number;
   name: string;
@@ -102,6 +111,7 @@ export interface TeamState {
   totalBonusTime: number;  // 헬프로 추가된 시간 (초)
   teamReport?: TeamReport;  // R12 팀활동 결과보고서
   r11Feedback?: R11Feedback;  // R11 고객 응대 피드백
+  groupPhoto?: GroupPhoto;  // R5 단체사진
 }
 
 export interface RoomState {
