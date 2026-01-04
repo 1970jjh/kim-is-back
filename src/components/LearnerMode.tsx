@@ -899,8 +899,22 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
     }
   };
 
-  // R5 클리어 후 처리
+  // R5 클리어 후 처리 (단체사진 Firebase Storage 업로드)
   const handleR5Clear = async () => {
+    // 사진을 Firebase Storage에 저장
+    if (r5ImageFile) {
+      try {
+        await firebaseService.uploadGroupPhoto(
+          room.id,
+          auth.teamId,
+          room.groupName,
+          r5ImageFile
+        );
+      } catch (error) {
+        console.error('단체사진 업로드 실패:', error);
+      }
+    }
+
     await firebaseService.advanceTeamRound(room.id, auth.teamId);
     setR5Cleared(false);
     setR5ImagePreview(null);

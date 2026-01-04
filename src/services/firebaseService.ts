@@ -1,6 +1,7 @@
 import { ref, set, onValue, get, remove } from 'firebase/database';
-import { database } from '../lib/firebase';
-import { RoomState, EventType, AppState, TeamState, TeamPerformance, IndustryType } from '../types';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { database, storage } from '../lib/firebase';
+import { RoomState, EventType, AppState, TeamState, TeamPerformance, IndustryType, GroupPhoto } from '../types';
 
 const ROOMS_REF = 'rooms';
 
@@ -395,5 +396,77 @@ export const firebaseService = {
     };
 
     await firebaseService.saveRoom(room);
+  },
+
+  // R5: 단체사진 Firebase Storage 업로드
+  uploadGroupPhoto: async (
+    roomId: string,
+    teamId: number,
+    groupName: string,
+    file: File
+  ): Promise<GroupPhoto | null> => {
+    try {
+      const room = await firebaseService.getRoom(roomId);
+      if (!room || !room.teams[teamId]) return null;
+
+      // 파일명 생성: "과정명+(#조)+연월일시" 형식
+      const now = new Date();
+      const dateTimeStr = now.getFullYear().toString() +
+        (now.getMonth() + 1).toString().padStart(2, '0') +
+        now.getDate().toString().padStart(2, '0') +
+        now.getHours().toString().padStart(2, '0') +
+        now.getMinutes().toString().padStart(2, '0') +
+        now.getSeconds().toString().padStart(2, '0');
+
+      // 파일 확장자 추출
+      const fileExtension = file.name.split('.').pop() || 'jpg';
+
+      // 파일명: 과정명_#조_연월일시.확장자
+      const fileName = `${groupName}_#${teamId}조_${dateTimeStr}.${fileExtension}`;
+
+      // Storage 경로: group-photos/방ID/파일명
+      const storagePath = `group-photos/${roomId}/${fileName}`;
+      const fileRef = storageRef(storage, storagePath);
+
+      // 파일 업로드
+      await uploadBytes(fileRef, file);
+
+      // 다운로드 URL 가져오기
+      const downloadUrl = await getDownloadURL(fileRef);
+
+      // GroupPhoto 객체 생성
+      const groupPhoto: GroupPhoto = {
+        teamId,
+        fileName,
+        storagePath,
+        downloadUrl,
+        uploadedAt: Date.now()
+      };
+
+      // 팀 상태에 사진 정보 저장
+      room.teams[teamId].groupPhoto = groupPhoto;
+      await firebaseService.saveRoom(room);
+
+      return groupPhoto;
+    } catch (error) {
+      console.error('Group photo upload failed:', error);
+      return null;
+    }
+  },
+
+  // 모든 팀의 단체사진 목록 가져오기
+  getAllGroupPhotos: (room: RoomState): GroupPhoto[] => {
+    const photos: GroupPhoto[] = [];
+    if (!room.teams) return photos;
+
+    Object.values(room.teams).forEach((team) => {
+      if (team.groupPhoto) {
+        photos.push(team.groupPhoto);
+      }
+    });
+
+    // 업로드 시간순 정렬
+    photos.sort((a, b) => a.uploadedAt - b.uploadedAt);
+    return photos;
   }
 };
