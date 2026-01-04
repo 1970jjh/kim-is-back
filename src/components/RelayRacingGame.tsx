@@ -416,10 +416,10 @@ const RelayRacingGame: React.FC<RelayRacingGameProps> = ({ teamMembers, onComple
             </div>
             <iframe
               width="200"
-              height="40"
-              src="https://www.youtube.com/embed/HTREarRyiTA?autoplay=1&loop=1"
+              height="50"
+              src="https://www.youtube.com/embed/U4nCtwYGEBQ?autoplay=1&loop=1&playlist=U4nCtwYGEBQ"
               title="Racing BGM"
-              allow="autoplay"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               className="rounded"
             />
           </div>
@@ -542,6 +542,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const [fuelUI, setFuelUI] = useState(MAX_FUEL);
   const [hitFlash, setHitFlash] = useState(false);
   const [isPaused, setIsPaused] = useState(false); // 충돌 시 일시정지
+  const [showCrash, setShowCrash] = useState(false); // CRASH! 팝업
+  const [showRoundSuccess, setShowRoundSuccess] = useState(false); // 주자 성공 피드백
+  const [isLandscapeTablet, setIsLandscapeTablet] = useState(false); // 태블릿 가로모드
 
   const stateRef = useRef<PlayerState>({
     x: 0, speed: 0, fuel: MAX_FUEL, shield: false, shieldTimer: 0, boostTimer: 0
@@ -555,6 +558,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const shakeRef = useRef(0);
   const lastSpawnRef = useRef(0);
   const pauseTimerRef = useRef<number | null>(null);
+  const bounceRef = useRef(0); // 충돌 시 튕김 효과
+  const prevEntityZRef = useRef<Map<number, number>>(new Map()); // 이전 프레임 엔티티 위치
 
   const getCurve = (z: number) => {
     const curve1 = Math.sin(z * 0.0004) * 0.6;
@@ -566,6 +571,20 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     return Math.sin(z * 0.0003) * 500 + Math.sin(z * 0.0006) * 300;
   };
 
+  // 태블릿 가로모드 감지
+  useEffect(() => {
+    const checkLandscapeTablet = () => {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const isTablet = w >= 768 && w <= 1366;
+      const isLandscape = w > h;
+      setIsLandscapeTablet(isTablet && isLandscape);
+    };
+    checkLandscapeTablet();
+    window.addEventListener('resize', checkLandscapeTablet);
+    return () => window.removeEventListener('resize', checkLandscapeTablet);
+  }, []);
+
   // Initialize
   useEffect(() => {
     stateRef.current = { x: 0, speed: 0, fuel: MAX_FUEL, shield: false, shieldTimer: 0, boostTimer: 0 };
@@ -574,9 +593,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     entitiesRef.current = [];
     gameActiveRef.current = true;
     shakeRef.current = 0;
+    bounceRef.current = 0;
     positionRef.current = 0;
     lastSpawnRef.current = 0;
     setIsPaused(false);
+    setShowCrash(false);
+    setShowRoundSuccess(false);
+    prevEntityZRef.current = new Map();
 
     sceneryRef.current = [];
     for (let i = 0; i < 80; i++) {
@@ -588,6 +611,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         z: i * 400 + Math.random() * 200,
         offset: 1.3 + Math.random() * 1.0
       });
+    }
+
+    // 게임 시작 직후 장애물/아이템 즉시 스폰 (5-8개)
+    const initialSpawnCount = 5 + Math.floor(Math.random() * 4);
+    for (let i = 0; i < initialSpawnCount; i++) {
+      const spawnZ = 2000 + i * 1800 + Math.random() * 800;
+      spawnEntityAtZ(spawnZ);
     }
 
     return () => {
@@ -613,8 +643,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     };
   }, []);
 
-  // Spawn entity - 다른 차량들도 같이 달리는 느낌
-  const spawnEntity = useCallback(() => {
+  // 엔티티 생성 헬퍼 함수
+  const createEntity = useCallback((spawnZ: number) => {
     const roll = Math.random();
     let type: EntityType;
     let label = '';
@@ -640,34 +670,47 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       type = EntityType.OBSTACLE_CAR_FAST;
       label = OBSTACLES_HUMAN[Math.floor(Math.random() * OBSTACLES_HUMAN.length)];
       color = '#ef4444';
-      driveSpeed = 18; // 빠른 차 (플레이어 25보다 느림 → 추월 가능)
+      driveSpeed = 15; // 플레이어보다 느림 (뒤에서 박지 못함)
     } else if (roll < 0.82) {
       type = EntityType.OBSTACLE_CAR_SLOW;
       label = OBSTACLES_WORK[Math.floor(Math.random() * OBSTACLES_WORK.length)];
       color = '#dc2626';
-      driveSpeed = 12; // 느린 차
+      driveSpeed = 10; // 느린 차
     } else {
       type = EntityType.OBSTACLE_TRUCK;
       label = OBSTACLES_CULTURE[Math.floor(Math.random() * OBSTACLES_CULTURE.length)];
       color = '#991b1b';
-      driveSpeed = 8; // 트럭은 가장 느림
+      driveSpeed = 6; // 트럭은 가장 느림
     }
 
     // 5개 레인으로 확대 (더 넓은 도로)
     const lanes = [-0.7, -0.35, 0, 0.35, 0.7];
     const laneX = lanes[Math.floor(Math.random() * lanes.length)];
 
+    const entityId = Date.now() + Math.random();
     entitiesRef.current.push({
-      id: Date.now() + Math.random(),
+      id: entityId,
       type,
       x: laneX,
-      z: positionRef.current + DRAW_DISTANCE * SEGMENT_LENGTH * 0.7,
-      width: type === EntityType.OBSTACLE_TRUCK ? 0.4 : 0.3, // 크기 증가
+      z: spawnZ,
+      width: type === EntityType.OBSTACLE_TRUCK ? 0.4 : 0.3,
       height: type === EntityType.OBSTACLE_TRUCK ? 0.25 : 0.2,
-      speed: driveSpeed, // 앞으로 달리는 속도
+      speed: driveSpeed,
       label, color
     });
+    // 초기 위치 저장 (충돌 감지용)
+    prevEntityZRef.current.set(entityId, spawnZ);
   }, []);
+
+  // 특정 Z 위치에 엔티티 스폰
+  const spawnEntityAtZ = useCallback((z: number) => {
+    createEntity(z);
+  }, [createEntity]);
+
+  // Spawn entity - 다른 차량들도 같이 달리는 느낌
+  const spawnEntity = useCallback(() => {
+    createEntity(positionRef.current + DRAW_DISTANCE * SEGMENT_LENGTH * 0.7);
+  }, [createEntity]);
 
   // Main game loop
   const update = useCallback((time: number) => {
@@ -680,8 +723,15 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     const player = stateRef.current;
     const theme = THEMES[(round - 1) % THEMES.length];
 
-    // Player movement - 넓은 도로에 맞게 조향 속도 증가
-    const steerSpeed = 0.06;
+    // 튕김 효과 적용 및 감쇠
+    if (bounceRef.current !== 0) {
+      player.x += bounceRef.current * 0.1;
+      bounceRef.current *= 0.85;
+      if (Math.abs(bounceRef.current) < 0.01) bounceRef.current = 0;
+    }
+
+    // Player movement - 태블릿 가로모드에서 더 미세한 조종
+    const steerSpeed = isLandscapeTablet ? 0.025 : 0.04; // 미세 조정
     if (controlRef.current.left) player.x -= steerSpeed;
     if (controlRef.current.right) player.x += steerSpeed;
     player.x = Math.max(-1.0, Math.min(1.0, player.x)); // 도로 안에서만 이동
@@ -718,7 +768,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
     if (newDistance >= DISTANCE_PER_ROUND) {
       gameActiveRef.current = false;
-      onRoundComplete();
+      // 주자 성공 피드백 표시 후 라운드 완료
+      setShowRoundSuccess(true);
+      setTimeout(() => {
+        setShowRoundSuccess(false);
+        onRoundComplete();
+      }, 1500);
       return;
     }
 
@@ -740,21 +795,31 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
     // Update entities and collision - 다른 차량도 앞으로 달림
     entitiesRef.current = entitiesRef.current.filter(e => {
+      const prevZ = prevEntityZRef.current.get(e.id) || e.z;
+
       // 차량들도 앞으로 달림 (플레이어보다 느리면 추월당함)
       e.z += e.speed;
+
+      // 현재 위치 저장
+      prevEntityZRef.current.set(e.id, e.z);
 
       const relZ = e.z - positionRef.current;
       if (relZ < -300) {
         if (e.type.startsWith('OBSTACLE')) onAvoidObstacle();
+        prevEntityZRef.current.delete(e.id);
         return false;
       }
       if (relZ > DRAW_DISTANCE * SEGMENT_LENGTH) return true;
 
-      // Collision - 더 넓은 판정
-      const playerWidth = 0.3;
-      const collisionZ = 400;
+      // Collision - 플레이어가 엔티티에 접근할 때만 충돌 감지
+      const playerWidth = 0.25; // 충돌 판정 좁게
+      const collisionZ = 300; // 충돌 범위 줄임
 
-      if (relZ > 0 && relZ < collisionZ) {
+      // 플레이어가 다가가는 경우만 충돌 (뒤에서 오는 차가 박는 것 방지)
+      const prevRelZ = prevZ - (positionRef.current - player.speed);
+      const isPlayerApproaching = prevRelZ > relZ; // 플레이어와의 거리가 줄어들고 있음
+
+      if (relZ > 50 && relZ < collisionZ && isPlayerApproaching) {
         const dx = Math.abs(e.x - player.x);
         if (dx < (playerWidth + e.width) / 2) {
           if (e.type.startsWith('OBSTACLE')) {
@@ -768,24 +833,29 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
               onHitObstacle(e.label);
               player.speed = 0;
               player.fuel = Math.max(0, player.fuel - 25);
-              shakeRef.current = 100; // 더 강한 화면 흔들림
+              shakeRef.current = 80;
+
+              // 튕김 효과 (충돌한 방향 반대로)
+              bounceRef.current = (e.x > player.x ? -1 : 1) * 0.5;
 
               // 모바일 진동 효과
               if (navigator.vibrate) {
-                navigator.vibrate([100, 50, 100, 50, 100]); // 진동 패턴
+                navigator.vibrate([100, 50, 100, 50, 100]);
               }
 
+              // CRASH! 팝업 표시 (까만 화면 없음)
+              setShowCrash(true);
               setHitFlash(true);
-
-              // 충돌 시 0.5초 딜레이
               setIsPaused(true);
               if (soundEnabled) GameSounds.playCrash();
 
               pauseTimerRef.current = window.setTimeout(() => {
                 setIsPaused(false);
                 setHitFlash(false);
-              }, 500);
+                setShowCrash(false);
+              }, 600);
             }
+            prevEntityZRef.current.delete(e.id);
             return false;
           } else {
             // Item pickup
@@ -803,6 +873,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
               player.shieldTimer = 10000;
               if (soundEnabled) GameSounds.playShield();
             }
+            prevEntityZRef.current.delete(e.id);
             return false;
           }
         }
@@ -1052,32 +1123,28 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     });
 
     // Draw player car (3인칭 - 내 차가 화면 하단에 보임)
-    drawPlayerCar(ctx, w, h, player.x, player.boostTimer > 0, player.shield);
+    // 태블릿 가로모드에서는 80% 크기
+    const carScale = isLandscapeTablet ? 0.8 : 1.0;
+    drawPlayerCar(ctx, w, h, player.x, player.boostTimer > 0, player.shield, carScale);
 
     // Draw speedometer gauge (속도계)
     drawSpeedometer(ctx, w, h, player.speed);
 
     ctx.restore();
 
-    // Hit flash overlay (충돌 시 빨간 플래시만, 검정화면 없음)
+    // Hit flash overlay (충돌 시 빨간 테두리 플래시만, 검정화면 없음)
     if (hitFlash) {
+      ctx.save();
+      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
       // 빨간 테두리 플래시 효과
       ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
-      ctx.lineWidth = 20;
-      ctx.strokeRect(5, 5, w * window.devicePixelRatio - 10, h * window.devicePixelRatio - 10);
-
-      // 충돌 텍스트 (화면 상단)
-      ctx.fillStyle = '#ff0000';
-      ctx.font = 'bold 36px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.shadowColor = '#000';
-      ctx.shadowBlur = 10;
-      ctx.fillText('💥 충돌!', w / 2 * window.devicePixelRatio, 80);
-      ctx.shadowBlur = 0;
+      ctx.lineWidth = 15;
+      ctx.strokeRect(5, 5, w - 10, h - 10);
+      ctx.restore();
     }
 
     requestRef.current = requestAnimationFrame(update);
-  }, [onRoundComplete, onGameOver, spawnEntity, onHitObstacle, onAvoidObstacle, onCollectFuel, round, hitFlash, isPaused, soundEnabled]);
+  }, [onRoundComplete, onGameOver, spawnEntity, onHitObstacle, onAvoidObstacle, onCollectFuel, round, hitFlash, isPaused, soundEnabled, isLandscapeTablet]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -1147,6 +1214,35 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         className="w-full h-full"
       />
 
+      {/* CRASH! 팝업 */}
+      {showCrash && (
+        <div className="absolute inset-0 flex items-center justify-center z-40 pointer-events-none">
+          <div className="animate-bounce">
+            <div className="bg-red-600/90 px-8 py-4 rounded-2xl border-4 border-white shadow-2xl">
+              <div className="text-white text-4xl md:text-6xl font-black tracking-wider">
+                💥 CRASH!
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 주자 성공 피드백 */}
+      {showRoundSuccess && (
+        <div className="absolute inset-0 flex items-center justify-center z-40 pointer-events-none bg-green-500/20">
+          <div className="animate-pulse">
+            <div className="bg-green-600/95 px-10 py-6 rounded-3xl border-4 border-white shadow-2xl">
+              <div className="text-white text-3xl md:text-5xl font-black tracking-wider text-center">
+                🎉 구간 완료!
+              </div>
+              <div className="text-green-100 text-lg mt-2 text-center">
+                잘했어요! 다음 주자 준비!
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Mobile Controls - 대시보드 버튼 없이 순수 컨트롤만 */}
       <div className="absolute bottom-4 left-0 right-0 flex justify-between px-6 pointer-events-none z-30">
         <button
@@ -1179,9 +1275,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 };
 
 // 3인칭 플레이어 자동차 그리기 (화면 하단 중앙, 크기 2배)
-function drawPlayerCar(ctx: CanvasRenderingContext2D, w: number, h: number, playerX: number, boosting: boolean, shield: boolean) {
-  const carW = 200; // 2배 크기
-  const carH = 280;
+function drawPlayerCar(ctx: CanvasRenderingContext2D, w: number, h: number, playerX: number, boosting: boolean, shield: boolean, scale: number = 1.0) {
+  const carW = 200 * scale; // 태블릿 가로모드에서 80%
+  const carH = 280 * scale;
   const baseX = w / 2 + playerX * w * 0.25; // 좌우 이동에 따라 위치 변경
   const baseY = h - 80; // 도로 위에 차가 보이도록
 
@@ -1377,10 +1473,12 @@ function drawSpeedometer(ctx: CanvasRenderingContext2D, w: number, h: number, sp
   ctx.fillText('km/h', centerX, centerY + 32);
 }
 
-// 다른 차량 그리기 (전방에서 오는 차량, 더 크고 선명하게)
+// 다른 차량 그리기 (전방에서 오는 차량, 크기 통일)
 function drawOtherCar(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, color: string, isTruck: boolean) {
-  const w = size * (isTruck ? 1.8 : 1.3);
-  const h = size * (isTruck ? 2.5 : 1.8);
+  // 모든 부정적 요소 차량 크기 통일 (편견 사이즈 기준)
+  const baseSize = size * 1.4; // 통일된 기본 크기
+  const w = baseSize * (isTruck ? 1.5 : 1.3);
+  const h = baseSize * (isTruck ? 2.0 : 1.8);
 
   // 그림자
   ctx.fillStyle = 'rgba(0,0,0,0.5)';
@@ -1521,49 +1619,79 @@ function drawCar(ctx: CanvasRenderingContext2D, x: number, y: number, size: numb
 
 function drawItem(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, type: EntityType, color: string) {
   ctx.save();
-  ctx.shadowBlur = size * 0.4;
+  // 아이템 크기 1.5배 확대
+  const itemSize = size * 1.5;
+  ctx.shadowBlur = itemSize * 0.4;
   ctx.shadowColor = color;
 
   if (type === EntityType.ITEM_FUEL) {
-    const gradient = ctx.createRadialGradient(x, y, 0, x, y, size * 0.45);
-    gradient.addColorStop(0, '#fff');
-    gradient.addColorStop(0.4, color);
-    gradient.addColorStop(1, 'transparent');
-    ctx.fillStyle = gradient;
+    // 배터리/연료 아이콘 디자인
+    const battW = itemSize * 0.5;
+    const battH = itemSize * 0.8;
+
+    // 배터리 외곽
+    ctx.fillStyle = '#1a1a1a';
     ctx.beginPath();
-    ctx.arc(x, y, size * 0.45, 0, Math.PI * 2);
+    ctx.roundRect(x - battW / 2, y - battH / 2, battW, battH, 6);
     ctx.fill();
 
+    // 배터리 헤드
+    ctx.fillStyle = '#333';
+    ctx.fillRect(x - battW * 0.25, y - battH / 2 - itemSize * 0.1, battW * 0.5, itemSize * 0.1);
+
+    // 에너지 레벨 (초록색 채움)
+    const energyGrad = ctx.createLinearGradient(x, y + battH * 0.35, x, y - battH * 0.35);
+    energyGrad.addColorStop(0, '#10b981');
+    energyGrad.addColorStop(0.5, '#34d399');
+    energyGrad.addColorStop(1, '#6ee7b7');
+    ctx.fillStyle = energyGrad;
+    ctx.beginPath();
+    ctx.roundRect(x - battW * 0.35, y - battH * 0.35, battW * 0.7, battH * 0.7, 3);
+    ctx.fill();
+
+    // 번개 아이콘
     ctx.fillStyle = '#fff';
-    ctx.font = `bold ${size * 0.35}px sans-serif`;
+    ctx.font = `bold ${itemSize * 0.35}px sans-serif`;
     ctx.textAlign = 'center';
-    ctx.fillText('⚡', x, y + size * 0.12);
+    ctx.fillText('⚡', x, y + itemSize * 0.08);
   } else if (type === EntityType.ITEM_BOOST) {
+    // 부스트 아이템 - 더 크고 화려하게
     ctx.fillStyle = color;
     ctx.beginPath();
-    ctx.moveTo(x, y - size * 0.45);
-    ctx.lineTo(x - size * 0.25, y);
-    ctx.lineTo(x - size * 0.05, y);
-    ctx.lineTo(x - size * 0.18, y + size * 0.45);
-    ctx.lineTo(x + size * 0.25, y - size * 0.1);
-    ctx.lineTo(x + size * 0.05, y - size * 0.1);
-    ctx.closePath();
-    ctx.fill();
-  } else if (type === EntityType.ITEM_SHIELD) {
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.moveTo(x, y - size * 0.4);
-    ctx.lineTo(x - size * 0.35, y - size * 0.2);
-    ctx.lineTo(x - size * 0.35, y + size * 0.15);
-    ctx.quadraticCurveTo(x, y + size * 0.45, x + size * 0.35, y + size * 0.15);
-    ctx.lineTo(x + size * 0.35, y - size * 0.2);
+    ctx.moveTo(x, y - itemSize * 0.5);
+    ctx.lineTo(x - itemSize * 0.3, y);
+    ctx.lineTo(x - itemSize * 0.08, y);
+    ctx.lineTo(x - itemSize * 0.22, y + itemSize * 0.5);
+    ctx.lineTo(x + itemSize * 0.3, y - itemSize * 0.12);
+    ctx.lineTo(x + itemSize * 0.08, y - itemSize * 0.12);
     ctx.closePath();
     ctx.fill();
 
+    // 광채 효과
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  } else if (type === EntityType.ITEM_SHIELD) {
+    // 방패 아이템 - 더 크고 선명하게
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(x, y - itemSize * 0.45);
+    ctx.lineTo(x - itemSize * 0.4, y - itemSize * 0.25);
+    ctx.lineTo(x - itemSize * 0.4, y + itemSize * 0.15);
+    ctx.quadraticCurveTo(x, y + itemSize * 0.5, x + itemSize * 0.4, y + itemSize * 0.15);
+    ctx.lineTo(x + itemSize * 0.4, y - itemSize * 0.25);
+    ctx.closePath();
+    ctx.fill();
+
+    // 테두리
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
     ctx.fillStyle = '#fff';
-    ctx.font = `bold ${size * 0.25}px sans-serif`;
+    ctx.font = `bold ${itemSize * 0.3}px sans-serif`;
     ctx.textAlign = 'center';
-    ctx.fillText('🛡', x, y + size * 0.08);
+    ctx.fillText('🛡', x, y + itemSize * 0.08);
   }
 
   ctx.restore();
