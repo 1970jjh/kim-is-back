@@ -64,7 +64,7 @@ const MAX_FUEL = 100;
 const DISTANCE_PER_ROUND = 800; // 1분 정도 걸리도록
 const ROAD_WIDTH = 8000; // 도로 폭 더 확대
 const SEGMENT_LENGTH = 200;
-const DRAW_DISTANCE = 80; // 더 가까이 보이게
+const DRAW_DISTANCE = 120; // 더 멀리서 보이게
 const FOV = 60; // 좁은 FOV로 위에서 보는 느낌
 const CAMERA_HEIGHT = 1800; // 카메라 높이 올림 (위에서 내려다보기)
 
@@ -80,14 +80,14 @@ const OBSTACLES_WORK = [
 ];
 
 const OBSTACLES_CULTURE = [
-  "수직적 권위", "눈치 문화", "정치질", "형식주의", "꼰대 문화",
+  "수직적 권위", "눈치 문화", "형식주의", "꼰대 문화",
   "사일로 현상", "무사안일", "변화 기피", "창의성 억압", "경직된 분위기"
 ];
 
 // 긍정적 요소 (아이템)
 const ITEMS_ENERGY = ["충전에너지", "활력", "열정", "집중력", "긍정 마인드"];
-const ITEMS_SHIELD = ["방패", "신뢰", "심리적 안전", "동료 지지", "팀워크"];
-const ITEMS_BOOST = ["번개", "시너지", "협업 파워", "집단 지성", "추진력"];
+const ITEMS_SHIELD = ["신뢰", "심리적 안전", "동료 지지", "팀워크", "존중"];
+const ITEMS_BOOST = ["시너지", "협업 파워", "집단 지성", "추진력", "도약"];
 
 const PLAYER_NAMES = ["팀장", "전략가", "시간관리자", "협상가", "기록자", "지지자"];
 
@@ -401,27 +401,30 @@ const RelayRacingGame: React.FC<RelayRacingGameProps> = ({ teamMembers, onComple
 
   return (
     <div className="relative w-full h-full overflow-hidden flex flex-col bg-slate-900 text-white">
-      {/* YouTube Background Audio */}
+      {/* YouTube Background Audio - 항상 보이는 플레이어 */}
       {showYouTube && (
-        <div className="absolute top-16 right-4 z-30">
-          <div className="bg-black/80 p-2 rounded-lg">
+        <div className="absolute top-16 right-4 z-50">
+          <div className="bg-black/90 p-3 rounded-xl shadow-xl border border-white/20">
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-xs text-white">🎵 레이싱 BGM</span>
+              <span className="text-sm text-white font-bold">🎵 레이싱 BGM</span>
               <button
                 onClick={() => setShowYouTube(false)}
-                className="text-white text-xs bg-red-600 px-2 py-1 rounded"
+                className="text-white text-xs bg-red-600 hover:bg-red-500 px-2 py-1 rounded-lg transition-all"
               >
-                ✕ 끄기
+                ✕
               </button>
             </div>
             <iframe
-              width="200"
-              height="50"
-              src="https://www.youtube.com/embed/U4nCtwYGEBQ?autoplay=1&loop=1&playlist=U4nCtwYGEBQ"
+              width="280"
+              height="80"
+              src="https://www.youtube.com/embed/U4nCtwYGEBQ?autoplay=1&loop=1&playlist=U4nCtwYGEBQ&controls=1"
               title="Racing BGM"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              className="rounded"
+              frameBorder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+              className="rounded-lg"
             />
+            <p className="text-[10px] text-gray-400 mt-1 text-center">▶ 재생 버튼을 눌러주세요</p>
           </div>
         </div>
       )}
@@ -613,10 +616,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       });
     }
 
-    // 게임 시작 직후 장애물/아이템 즉시 스폰 (5-8개)
-    const initialSpawnCount = 5 + Math.floor(Math.random() * 4);
+    // 게임 시작 직후 장애물/아이템 즉시 스폰 (6-10개, 더 멀리서)
+    const initialSpawnCount = 6 + Math.floor(Math.random() * 5);
     for (let i = 0; i < initialSpawnCount; i++) {
-      const spawnZ = 2000 + i * 1800 + Math.random() * 800;
+      const spawnZ = 1500 + i * 2200 + Math.random() * 1000; // 더 멀리 배치
       spawnEntityAtZ(spawnZ);
     }
 
@@ -709,7 +712,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
   // Spawn entity - 다른 차량들도 같이 달리는 느낌
   const spawnEntity = useCallback(() => {
-    createEntity(positionRef.current + DRAW_DISTANCE * SEGMENT_LENGTH * 0.7);
+    createEntity(positionRef.current + DRAW_DISTANCE * SEGMENT_LENGTH * 0.9); // 더 멀리서 스폰
   }, [createEntity]);
 
   // Main game loop
@@ -811,17 +814,19 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       }
       if (relZ > DRAW_DISTANCE * SEGMENT_LENGTH) return true;
 
-      // Collision - 플레이어가 엔티티에 접근할 때만 충돌 감지
-      const playerWidth = 0.25; // 충돌 판정 좁게
-      const collisionZ = 300; // 충돌 범위 줄임
+      // Collision - 정면 충돌만 감지 (옆을 지나갈 때는 충돌 안됨)
+      const playerWidth = 0.15; // 충돌 판정 더 좁게 (정면 충돌만)
+      const entityWidth = e.type === EntityType.OBSTACLE_TRUCK ? 0.2 : 0.15; // 트럭도 좁게
+      const collisionZ = 200; // 충돌 범위 더 줄임 (정면에서만)
 
       // 플레이어가 다가가는 경우만 충돌 (뒤에서 오는 차가 박는 것 방지)
       const prevRelZ = prevZ - (positionRef.current - player.speed);
       const isPlayerApproaching = prevRelZ > relZ; // 플레이어와의 거리가 줄어들고 있음
 
-      if (relZ > 50 && relZ < collisionZ && isPlayerApproaching) {
+      if (relZ > 80 && relZ < collisionZ && isPlayerApproaching) {
         const dx = Math.abs(e.x - player.x);
-        if (dx < (playerWidth + e.width) / 2) {
+        // 정면 충돌만 감지 (좌우 판정 더 좁게)
+        if (dx < (playerWidth + entityWidth) / 2) {
           if (e.type.startsWith('OBSTACLE')) {
             if (player.shield) {
               player.shield = false;
@@ -1214,14 +1219,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         className="w-full h-full"
       />
 
-      {/* CRASH! 팝업 */}
+      {/* CRASH! 팝업 - 도로 위에 바로 표시 */}
       {showCrash && (
-        <div className="absolute inset-0 flex items-center justify-center z-40 pointer-events-none">
-          <div className="animate-bounce">
-            <div className="bg-red-600/90 px-8 py-4 rounded-2xl border-4 border-white shadow-2xl">
-              <div className="text-white text-4xl md:text-6xl font-black tracking-wider">
-                💥 CRASH!
-              </div>
+        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 pointer-events-none">
+          <div className="animate-bounce drop-shadow-[0_0_20px_rgba(255,0,0,0.8)]">
+            <div className="text-red-500 text-5xl md:text-7xl font-black tracking-wider"
+                 style={{ textShadow: '3px 3px 0 #fff, -3px -3px 0 #fff, 3px -3px 0 #fff, -3px 3px 0 #fff, 0 0 30px #ff0000' }}>
+              💥 CRASH!
             </div>
           </div>
         </div>
@@ -1473,12 +1477,12 @@ function drawSpeedometer(ctx: CanvasRenderingContext2D, w: number, h: number, sp
   ctx.fillText('km/h', centerX, centerY + 32);
 }
 
-// 다른 차량 그리기 (전방에서 오는 차량, 크기 통일)
+// 다른 차량 그리기 (전방에서 오는 차량, 80% 크기)
 function drawOtherCar(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, color: string, isTruck: boolean) {
-  // 모든 부정적 요소 차량 크기 통일 (편견 사이즈 기준)
-  const baseSize = size * 1.4; // 통일된 기본 크기
-  const w = baseSize * (isTruck ? 1.5 : 1.3);
-  const h = baseSize * (isTruck ? 2.0 : 1.8);
+  // 트럭/빨간차량 80% 크기로 축소
+  const baseSize = size * 0.8; // 80% 크기
+  const w = baseSize * (isTruck ? 1.3 : 1.1);
+  const h = baseSize * (isTruck ? 1.7 : 1.5);
 
   // 그림자
   ctx.fillStyle = 'rgba(0,0,0,0.5)';
