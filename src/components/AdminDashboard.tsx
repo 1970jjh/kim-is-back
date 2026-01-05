@@ -681,10 +681,13 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
               </div>
             </div>
             {/* 2x5 그리드 이벤트 버튼 + 이력 표시 */}
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-3">
               {EVENTS.map((evt) => {
                 const history = room.eventHistory?.[evt.type];
                 const isActive = room.activeEvent === evt.type;
+
+                // 현재 활성 이벤트의 대상 팀 확인
+                const currentTargets = isActive ? room.eventTargetTeams : null;
 
                 return (
                   <div key={evt.type} className="flex flex-col">
@@ -695,46 +698,58 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
                     >
                       {evt.label}
                     </BrutalistButton>
-                    {/* 이벤트별 이력 표시 */}
-                    <div className="flex justify-center items-center gap-1 mt-1 bg-black/20 py-1 px-1 rounded">
+                    {/* 이벤트별 이력 표시 - 동그라미 + 라벨 */}
+                    <div className="flex justify-center items-start gap-1 mt-1 bg-black/30 py-1.5 px-1 rounded">
                       {/* 전체 */}
-                      <span
-                        className={`text-xs ${
-                          history?.targetTeams === 'all' ? 'text-yellow-400' : 'text-gray-600'
-                        }`}
-                        title="전체"
-                      >
-                        {history?.targetTeams === 'all' ? '●' : '○'}
-                      </span>
+                      <div className="flex flex-col items-center">
+                        <span
+                          className={`text-sm ${
+                            isActive && currentTargets === 'all'
+                              ? 'text-red-500'
+                              : history?.targetTeams === 'all'
+                                ? 'text-yellow-400'
+                                : 'text-gray-500'
+                          }`}
+                        >
+                          ●
+                        </span>
+                        <span className="text-[8px] text-gray-400">전체</span>
+                      </div>
                       {/* 각 조별 */}
                       {Array.from({ length: room.totalTeams }).map((_, idx) => {
                         const teamId = idx + 1;
+                        // 현재 진행중인 이벤트의 대상인지
+                        const isCurrentTarget = isActive && (
+                          currentTargets === 'all' ||
+                          (Array.isArray(currentTargets) && currentTargets.includes(teamId))
+                        );
+                        // 과거에 이벤트를 진행했던 대상인지
                         const wasTarget = history && (
                           history.targetTeams === 'all' ||
                           (Array.isArray(history.targetTeams) && history.targetTeams.includes(teamId))
                         );
+
                         return (
-                          <span
-                            key={teamId}
-                            className={`text-xs ${wasTarget ? 'text-yellow-400' : 'text-gray-600'}`}
-                            title={`${teamId}조`}
-                          >
-                            {wasTarget ? '●' : '○'}
-                          </span>
+                          <div key={teamId} className="flex flex-col items-center">
+                            <span
+                              className={`text-sm ${
+                                isCurrentTarget
+                                  ? 'text-red-500'
+                                  : wasTarget
+                                    ? 'text-yellow-400'
+                                    : 'text-gray-500'
+                              }`}
+                            >
+                              ●
+                            </span>
+                            <span className="text-[8px] text-gray-400">{teamId}조</span>
+                          </div>
                         );
                       })}
                     </div>
                   </div>
                 );
               })}
-            </div>
-
-            {/* 범례 */}
-            <div className="flex justify-center items-center gap-2 text-[10px] text-gray-400 mt-1">
-              <span>전체</span>
-              {Array.from({ length: room.totalTeams }).map((_, idx) => (
-                <span key={idx + 1}>{idx + 1}조</span>
-              ))}
             </div>
 
             {/* All EVENT 종료 버튼 */}
