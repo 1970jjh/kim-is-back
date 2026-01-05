@@ -1,7 +1,7 @@
 import { ref, set, onValue, get, remove } from 'firebase/database';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { database, storage } from '../lib/firebase';
-import { RoomState, EventType, AppState, TeamState, TeamPerformance, IndustryType, GroupPhoto } from '../types';
+import { RoomState, EventType, AppState, TeamState, TeamPerformance, IndustryType, GroupPhoto, TeamEvent } from '../types';
 
 const ROOMS_REF = 'rooms';
 
@@ -477,5 +477,143 @@ export const firebaseService = {
     // 업로드 시간순 정렬
     photos.sort((a, b) => a.uploadedAt - b.uploadedAt);
     return photos;
+  },
+
+  // 팀별 이벤트 시작 (개별 조에 이벤트 시작)
+  startTeamEvent: async (
+    roomId: string,
+    teamId: number,
+    eventType: EventType,
+    minutes?: number
+  ): Promise<void> => {
+    const room = await firebaseService.getRoom(roomId);
+    if (!room || !room.teams[teamId]) return;
+
+    const now = Date.now();
+    const teamEvent: TeamEvent = {
+      eventType,
+      startedAt: now,
+      endTime: minutes && minutes > 0 ? now + minutes * 60000 : undefined
+    };
+
+    room.teams[teamId].currentEvent = teamEvent;
+
+    // 이벤트 이력 업데이트
+    if (!room.eventHistory) {
+      room.eventHistory = {};
+    }
+    const existingHistory = room.eventHistory[eventType];
+    const existingTargets = existingHistory?.targetTeams;
+
+    // 기존 대상에 현재 팀 추가
+    let newTargets: number[] | 'all';
+    if (existingTargets === 'all') {
+      newTargets = 'all';
+    } else if (Array.isArray(existingTargets)) {
+      newTargets = existingTargets.includes(teamId) ? existingTargets : [...existingTargets, teamId];
+    } else {
+      newTargets = [teamId];
+    }
+
+    room.eventHistory[eventType] = {
+      targetTeams: newTargets,
+      executedAt: now
+    };
+
+    await firebaseService.saveRoom(room);
+  },
+
+  // 팀별 이벤트 종료 (개별 조의 이벤트 종료)
+  endTeamEvent: async (roomId: string, teamId: number): Promise<void> => {
+    const room = await firebaseService.getRoom(roomId);
+    if (!room || !room.teams[teamId]) return;
+
+    const team = room.teams[teamId];
+    if (team.currentEvent) {
+      // 일시정지 시간 누적
+      const now = Date.now();
+      const pausedSeconds = Math.floor((now - team.currentEvent.startedAt) / 1000);
+      room.eventPausedTotal = (room.eventPausedTotal || 0) + pausedSeconds;
+
+      // 이벤트 종료
+      team.currentEvent = undefined;
+    }
+
+    await firebaseService.saveRoom(room);
+  },
+
+  // 전체 팀 이벤트 시작 (모든 조에 동일 이벤트 시작)
+  startAllTeamsEvent: async (
+    roomId: string,
+    eventType: EventType,
+    minutes?: number
+  ): Promise<void> => {
+    const room = await firebaseService.getRoom(roomId);
+    if (!room) return;
+
+    const now = Date.now();
+    const teamEvent: TeamEvent = {
+      eventType,
+      startedAt: now,
+      endTime: minutes && minutes > 0 ? now + minutes * 60000 : undefined
+    };
+
+    // 모든 팀에 이벤트 적용
+    Object.keys(room.teams).forEach(teamIdStr => {
+      const teamId = parseInt(teamIdStr);
+      room.teams[teamId].currentEvent = teamEvent;
+    });
+
+    // 이벤트 이력 업데이트
+    if (!room.eventHistory) {
+      room.eventHistory = {};
+    }
+    room.eventHistory[eventType] = {
+      targetTeams: 'all',
+      executedAt: now
+    };
+
+    await firebaseService.saveRoom(room);
+  },
+
+  // 전체 팀 이벤트 종료 (모든 조의 이벤트 종료)
+  endAllTeamsEvent: async (roomId: string): Promise<void> => {
+    const room = await firebaseService.getRoom(roomId);
+    if (!room) return;
+
+    const now = Date.now();
+
+    // 모든 팀의 이벤트 종료
+    Object.keys(room.teams).forEach(teamIdStr => {
+      const teamId = parseInt(teamIdStr);
+      const team = room.teams[teamId];
+      if (team.currentEvent) {
+        const pausedSeconds = Math.floor((now - team.currentEvent.startedAt) / 1000);
+        room.eventPausedTotal = (room.eventPausedTotal || 0) + pausedSeconds;
+        team.currentEvent = undefined;
+      }
+    });
+
+    await firebaseService.saveRoom(room);
+  },
+
+  // 특정 팀이 이벤트 진행 중인지 확인
+  isTeamInEvent: (room: RoomState, teamId: number): boolean => {
+    const team = room.teams?.[teamId];
+    return !!team?.currentEvent;
+  },
+
+  // 현재 이벤트 진행 중인 팀 목록 가져오기
+  getTeamsInEvent: (room: RoomState): number[] => {
+    const teamsInEvent: number[] = [];
+    if (!room.teams) return teamsInEvent;
+
+    Object.entries(room.teams).forEach(([teamIdStr, team]) => {
+      if (team.currentEvent) {
+        teamsInEvent.push(parseInt(teamIdStr));
+      }
+    });
+
+    return teamsInEvent;
   }
 };
