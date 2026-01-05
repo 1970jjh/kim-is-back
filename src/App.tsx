@@ -18,6 +18,9 @@ const App: React.FC = () => {
   // Admin이 조별 공간을 볼 때 사용
   const [adminViewTeamId, setAdminViewTeamId] = useState<number | null>(null);
 
+  // 전체화면 상태
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
   // Login States
   const [pwInput, setPwInput] = useState('');
   const [setupData, setSetupData] = useState({ groupName: '', totalTeams: 5, membersPerTeam: 6, industryType: IndustryType.IT_SOLUTION });
@@ -30,6 +33,34 @@ const App: React.FC = () => {
   const [showAdminLoginPopup, setShowAdminLoginPopup] = useState(false);
   const [adminLoginPw, setAdminLoginPw] = useState('');
   const [adminLoginError, setAdminLoginError] = useState('');
+
+  // 전체화면 토글 함수
+  const toggleFullscreen = async () => {
+    try {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+      } else {
+        await document.exitFullscreen();
+      }
+    } catch (error) {
+      console.error('전체화면 전환 실패:', error);
+    }
+  };
+
+  // 전체화면 상태 변경 감지
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+    };
+  }, []);
 
   // 세션 타임아웃: 마지막 활동 시간 업데이트
   const updateLastActivity = () => {
@@ -451,6 +482,24 @@ const App: React.FC = () => {
              </div>
           </BrutalistCard>
         </div>
+
+        {/* 전체화면 토글 버튼 */}
+        <button
+          onClick={toggleFullscreen}
+          className="mt-8 px-6 py-3 bg-gray-800/80 hover:bg-gray-700 text-white font-bold border-2 border-gray-600 transition-all duration-200 flex items-center gap-2"
+        >
+          {isFullscreen ? (
+            <>
+              <span className="text-lg">⛶</span>
+              <span>전체화면 해제</span>
+            </>
+          ) : (
+            <>
+              <span className="text-lg">⛶</span>
+              <span>전체화면 보기</span>
+            </>
+          )}
+        </button>
       </div>
     );
   }
