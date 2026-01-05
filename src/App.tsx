@@ -236,7 +236,7 @@ const App: React.FC = () => {
     setCurrentRoomId(roomId);
   };
 
-  // Event Overlay Component with Countdown
+  // Event Overlay Component with Countdown (팀별 이벤트 지원)
   const EventOverlay = () => {
     const [timeLeft, setTimeLeft] = useState<string>("");
     const [shouldHide, setShouldHide] = useState(false);
@@ -247,28 +247,34 @@ const App: React.FC = () => {
     const hasTriggeredClose = React.useRef(false);
     const currentEventRef = React.useRef<string | null>(null);
 
+    // 현재 팀의 이벤트 정보 가져오기
+    const teamId = auth.teamId;
+    const currentTeam = currentRoom?.teams?.[teamId!];
+    const teamEvent = currentTeam?.currentEvent;
+
     // 이벤트 변경 시 ref 초기화
     useEffect(() => {
-      if (currentRoom?.activeEvent !== currentEventRef.current) {
+      const eventKey = teamEvent?.eventType || null;
+      if (eventKey !== currentEventRef.current) {
         hasTriggeredClose.current = false;
         setShouldHide(false);
         setShowCloseMessage(false);
         setIsTimeUp(false);
         setImageLoaded(false);
         setImageError(false);
-        currentEventRef.current = currentRoom?.activeEvent || null;
+        currentEventRef.current = eventKey;
       }
-    }, [currentRoom?.activeEvent]);
+    }, [teamEvent?.eventType]);
 
     useEffect(() => {
-      if (!currentRoom?.eventEndTime) {
+      if (!teamEvent?.endTime) {
         setTimeLeft("");
         setIsTimeUp(false);
         return;
       }
 
       // 즉시 체크 - 이미 만료되었는지 확인
-      const initialDiff = currentRoom.eventEndTime - Date.now();
+      const initialDiff = teamEvent.endTime - Date.now();
       if (initialDiff <= 0) {
         setTimeLeft("00:00");
         setIsTimeUp(true);
@@ -277,7 +283,7 @@ const App: React.FC = () => {
 
       const timer = setInterval(() => {
         const now = Date.now();
-        const diff = currentRoom.eventEndTime! - now;
+        const diff = teamEvent.endTime! - now;
         if (diff <= 0) {
           setTimeLeft("00:00");
           setIsTimeUp(true);
@@ -287,15 +293,15 @@ const App: React.FC = () => {
           const seconds = Math.floor((diff % 60000) / 1000);
           setTimeLeft(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
         }
-      }, 500); // 더 빠른 체크 (500ms)
+      }, 500);
 
       return () => clearInterval(timer);
-    }, [currentRoom?.eventEndTime, currentRoom?.activeEvent, currentRoom?.id]);
+    }, [teamEvent?.endTime, teamEvent?.eventType]);
 
     // 닫기 버튼 클릭 핸들러
     const handleCloseClick = () => {
       // 타이머가 없는 이벤트는 닫을 수 없음
-      if (!currentRoom?.eventEndTime) {
+      if (!teamEvent?.endTime) {
         setShowCloseMessage(true);
         setTimeout(() => setShowCloseMessage(false), 3000);
         return;
@@ -304,7 +310,9 @@ const App: React.FC = () => {
       // 시간이 종료되었으면 닫기
       if (isTimeUp) {
         setShouldHide(true);
-        firebaseService.forceEndAllEvents(currentRoom.id);
+        if (currentRoom && teamId) {
+          firebaseService.endTeamEvent(currentRoom.id, teamId);
+        }
       } else {
         // 시간 종료 전이면 메시지 표시
         setShowCloseMessage(true);
@@ -317,39 +325,26 @@ const App: React.FC = () => {
       return null;
     }
 
-    // 이벤트가 없거나 NONE이면 즉시 닫기 (문자열/enum 모두 체크)
-    if (!currentRoom ||
-        currentRoom.activeEvent === EventType.NONE ||
-        currentRoom.activeEvent === 'NONE' ||
-        String(currentRoom.activeEvent) === 'NONE' ||
-        !currentRoom.activeEvent ||
-        auth.role === UserRole.ADMIN) {
+    // 관리자이거나 팀 이벤트가 없으면 표시하지 않음
+    if (!currentRoom || !teamId || !teamEvent || auth.role === UserRole.ADMIN) {
       return null;
     }
 
     // 타이머가 만료되었으면 렌더링하지 않음 (즉시)
-    if (currentRoom.eventEndTime && currentRoom.eventEndTime <= Date.now()) {
+    if (teamEvent.endTime && teamEvent.endTime <= Date.now()) {
       // 아직 종료 처리 안됐으면 강제 종료 호출
       if (!hasTriggeredClose.current) {
         hasTriggeredClose.current = true;
-        firebaseService.forceEndAllEvents(currentRoom.id);
+        firebaseService.endTeamEvent(currentRoom.id, teamId);
       }
       return null;
     }
 
-    // 팀별 이벤트 체크 - 이 팀이 대상인지 확인
-    const targetTeams = currentRoom.eventTargetTeams;
-    if (targetTeams && targetTeams !== 'all' && auth.teamId) {
-      if (!targetTeams.includes(auth.teamId)) {
-        return null; // 이 팀은 이벤트 대상이 아님
-      }
-    }
-
-    const eventInfo = EVENTS.find(e => e.type === currentRoom.activeEvent);
+    const eventInfo = EVENTS.find(e => e.type === teamEvent.eventType);
     if (!eventInfo) return null;
 
     // 타이머가 있는 이벤트인지 확인
-    const hasTimer = currentRoom.eventEndTime !== undefined;
+    const hasTimer = teamEvent.endTime !== undefined;
 
     return (
       <div className="fixed inset-0 z-[9999] bg-black/70 flex items-center justify-center p-4 animate-fadeIn">

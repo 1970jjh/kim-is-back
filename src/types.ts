@@ -112,6 +112,14 @@ export interface TeamState {
   teamReport?: TeamReport;  // R12 팀활동 결과보고서
   r11Feedback?: R11Feedback;  // R11 고객 응대 피드백
   groupPhoto?: GroupPhoto;  // R5 단체사진
+  currentEvent?: TeamEvent;  // 현재 진행 중인 이벤트 (팀별 개별 이벤트)
+}
+
+// 팀별 현재 진행 중인 이벤트
+export interface TeamEvent {
+  eventType: EventType;
+  startedAt: number;
+  endTime?: number;  // 타이머 종료 시간 (없으면 수동 종료)
 }
 
 // 이벤트 이력 (각 이벤트별로 어떤 팀에게 시행했는지 기록)
