@@ -114,6 +114,12 @@ export interface TeamState {
   groupPhoto?: GroupPhoto;  // R5 단체사진
 }
 
+// 이벤트 이력 (각 이벤트별로 어떤 팀에게 시행했는지 기록)
+export interface EventHistory {
+  targetTeams: number[] | 'all';  // 대상 팀
+  executedAt: number;  // 실행 시간
+}
+
 export interface RoomState {
   id: string;  // 방 고유 ID
   groupName: string;
@@ -128,6 +134,7 @@ export interface RoomState {
   eventTargetTeams?: number[] | 'all';  // 이벤트 대상 팀 (특정 팀 또는 전체)
   eventStartedAt?: number;  // 현재 이벤트 시작 시간 (타이머 일시정지용)
   eventPausedTotal?: number;  // 이벤트로 인해 일시정지된 총 시간 (초)
+  eventHistory?: Record<string, EventHistory>;  // 이벤트 이력 (EventType -> 마지막 실행 정보)
   teams: Record<number, TeamState>;
   createdAt: number;  // 방 생성 시간
 }

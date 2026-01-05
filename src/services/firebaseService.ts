@@ -248,6 +248,15 @@ export const firebaseService = {
       room.eventEndTime = minutes && minutes > 0 ? now + minutes * 60000 : null as any;
       room.eventTargetTeams = targetTeams || 'all';
       room.eventStartedAt = now;  // 이벤트 시작 시간 기록
+
+      // 이벤트 이력 저장
+      if (!room.eventHistory) {
+        room.eventHistory = {};
+      }
+      room.eventHistory[type] = {
+        targetTeams: targetTeams || 'all',
+        executedAt: now
+      };
     }
 
     await firebaseService.saveRoom(room);
