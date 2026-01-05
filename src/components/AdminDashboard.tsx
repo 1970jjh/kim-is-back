@@ -709,6 +709,40 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
                 {room.eventTargetTeams !== 'all' && room.eventTargetTeams && ` (${room.eventTargetTeams.join(', ')}조)`}
               </p>
             )}
+
+            {/* 이벤트 대상 팀 표시 */}
+            <div className="bg-black/30 p-3 border-2 border-white/10 mt-2">
+              <p className="text-[10px] text-gray-400 mb-2 text-center uppercase">Event Target Status</p>
+              <div className="flex justify-center items-center gap-3 flex-wrap">
+                {/* 전체 */}
+                <div className="flex flex-col items-center">
+                  <span className="text-[10px] text-gray-300 mb-1">전체</span>
+                  <span className={`text-lg ${
+                    room.activeEvent !== EventType.NONE && room.eventTargetTeams === 'all'
+                      ? 'text-yellow-400'
+                      : 'text-gray-600'
+                  }`}>
+                    {room.activeEvent !== EventType.NONE && room.eventTargetTeams === 'all' ? '●' : '○'}
+                  </span>
+                </div>
+                {/* 각 조별 */}
+                {Array.from({ length: room.totalTeams }).map((_, idx) => {
+                  const teamId = idx + 1;
+                  const isTarget = room.activeEvent !== EventType.NONE && (
+                    room.eventTargetTeams === 'all' ||
+                    (Array.isArray(room.eventTargetTeams) && room.eventTargetTeams.includes(teamId))
+                  );
+                  return (
+                    <div key={teamId} className="flex flex-col items-center">
+                      <span className="text-[10px] text-gray-300 mb-1">{teamId}조</span>
+                      <span className={`text-lg ${isTarget ? 'text-yellow-400' : 'text-gray-600'}`}>
+                        {isTarget ? '●' : '○'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </section>
 
