@@ -680,19 +680,63 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
                 <p className="text-[10px] text-gray-500 mt-1">0 입력 시 수동 종료 (타이머 없음)</p>
               </div>
             </div>
-            {/* 2x5 그리드 이벤트 버튼 */}
+            {/* 2x5 그리드 이벤트 버튼 + 이력 표시 */}
             <div className="grid grid-cols-2 gap-2">
-              {EVENTS.map((evt) => (
-                <BrutalistButton
-                  key={evt.type}
-                  variant={room.activeEvent === evt.type ? 'gold' : 'primary'}
-                  onClick={() => toggleEvent(evt.type)}
-                  className="text-sm py-2"
-                >
-                  {evt.label}
-                </BrutalistButton>
+              {EVENTS.map((evt) => {
+                const history = room.eventHistory?.[evt.type];
+                const isActive = room.activeEvent === evt.type;
+
+                return (
+                  <div key={evt.type} className="flex flex-col">
+                    <BrutalistButton
+                      variant={isActive ? 'gold' : 'primary'}
+                      onClick={() => toggleEvent(evt.type)}
+                      className="text-sm py-2"
+                    >
+                      {evt.label}
+                    </BrutalistButton>
+                    {/* 이벤트별 이력 표시 */}
+                    <div className="flex justify-center items-center gap-1 mt-1 bg-black/20 py-1 px-1 rounded">
+                      {/* 전체 */}
+                      <span
+                        className={`text-xs ${
+                          history?.targetTeams === 'all' ? 'text-yellow-400' : 'text-gray-600'
+                        }`}
+                        title="전체"
+                      >
+                        {history?.targetTeams === 'all' ? '●' : '○'}
+                      </span>
+                      {/* 각 조별 */}
+                      {Array.from({ length: room.totalTeams }).map((_, idx) => {
+                        const teamId = idx + 1;
+                        const wasTarget = history && (
+                          history.targetTeams === 'all' ||
+                          (Array.isArray(history.targetTeams) && history.targetTeams.includes(teamId))
+                        );
+                        return (
+                          <span
+                            key={teamId}
+                            className={`text-xs ${wasTarget ? 'text-yellow-400' : 'text-gray-600'}`}
+                            title={`${teamId}조`}
+                          >
+                            {wasTarget ? '●' : '○'}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* 범례 */}
+            <div className="flex justify-center items-center gap-2 text-[10px] text-gray-400 mt-1">
+              <span>전체</span>
+              {Array.from({ length: room.totalTeams }).map((_, idx) => (
+                <span key={idx + 1}>{idx + 1}조</span>
               ))}
             </div>
+
             {/* All EVENT 종료 버튼 */}
             <BrutalistButton
               variant="danger"
@@ -709,40 +753,6 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
                 {room.eventTargetTeams !== 'all' && room.eventTargetTeams && ` (${room.eventTargetTeams.join(', ')}조)`}
               </p>
             )}
-
-            {/* 이벤트 대상 팀 표시 */}
-            <div className="bg-black/30 p-3 border-2 border-white/10 mt-2">
-              <p className="text-[10px] text-gray-400 mb-2 text-center uppercase">Event Target Status</p>
-              <div className="flex justify-center items-center gap-3 flex-wrap">
-                {/* 전체 */}
-                <div className="flex flex-col items-center">
-                  <span className="text-[10px] text-gray-300 mb-1">전체</span>
-                  <span className={`text-lg ${
-                    room.activeEvent !== EventType.NONE && room.eventTargetTeams === 'all'
-                      ? 'text-yellow-400'
-                      : 'text-gray-600'
-                  }`}>
-                    {room.activeEvent !== EventType.NONE && room.eventTargetTeams === 'all' ? '●' : '○'}
-                  </span>
-                </div>
-                {/* 각 조별 */}
-                {Array.from({ length: room.totalTeams }).map((_, idx) => {
-                  const teamId = idx + 1;
-                  const isTarget = room.activeEvent !== EventType.NONE && (
-                    room.eventTargetTeams === 'all' ||
-                    (Array.isArray(room.eventTargetTeams) && room.eventTargetTeams.includes(teamId))
-                  );
-                  return (
-                    <div key={teamId} className="flex flex-col items-center">
-                      <span className="text-[10px] text-gray-300 mb-1">{teamId}조</span>
-                      <span className={`text-lg ${isTarget ? 'text-yellow-400' : 'text-gray-600'}`}>
-                        {isTarget ? '●' : '○'}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
           </div>
         </section>
 
