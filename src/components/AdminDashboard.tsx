@@ -821,70 +821,8 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
           </div>
         </section>
 
-        {/* Column 2: Mission Content Manager */}
+        {/* Column 2: GROUP PHOTOS & MISSION POST */}
         <section className="lg:col-span-1 space-y-4">
-          <h2 className="text-2xl font-black italic">MISSION CONTENT</h2>
-          <BrutalistCard className="space-y-4">
-             <div>
-                <label className="text-xs font-bold uppercase">대상 팀 선택</label>
-                <select
-                  className="w-full brutal-border bg-white text-black p-2 font-bold text-sm mt-1"
-                  value={selectedTeamId === null ? "" : selectedTeamId}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === 'all') {
-                      selectTeamForEdit('all');
-                    } else {
-                      selectTeamForEdit(parseInt(val));
-                    }
-                  }}
-                >
-                  <option value="" disabled>팀 선택</option>
-                  <option value="all">전체 팀</option>
-                  {Array.from({ length: room.totalTeams }).map((_, i) => (
-                    <option key={i+1} value={i+1}>{i+1}조</option>
-                  ))}
-                </select>
-             </div>
-             <div>
-                <label className="text-xs font-bold uppercase">라운드 선택</label>
-                <select
-                  className="w-full brutal-border bg-white text-black p-2 font-bold text-sm mt-1"
-                  value={editRound}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === 'all') {
-                      setEditRound('all');
-                    } else {
-                      setEditRound(parseInt(val));
-                    }
-                  }}
-                >
-                  <option value="all">전체 라운드</option>
-                  {ROUNDS.map(r => (
-                    <option key={r.id} value={r.id}>R{r.id}</option>
-                  ))}
-                </select>
-             </div>
-             <div>
-                <label className="text-xs font-bold uppercase">미션 상세 지침</label>
-                <textarea
-                  className="w-full brutal-border bg-white text-black p-2 font-bold text-sm mt-1 min-h-[100px]"
-                  placeholder="팀별 맞춤 미션 지시사항을 입력하세요..."
-                  value={instructionText}
-                  onChange={(e) => setInstructionText(e.target.value)}
-                />
-             </div>
-             <BrutalistButton variant="gold" fullWidth className="text-xs" onClick={saveInstruction} disabled={selectedTeamId === null}>
-                지침 저장하기
-             </BrutalistButton>
-             {(selectedTeamId === 'all' || editRound === 'all') && (
-               <p className="text-[10px] text-yellow-400 text-center">
-                 ⚠️ {selectedTeamId === 'all' && editRound === 'all' ? '전체 팀의 전체 라운드에' : selectedTeamId === 'all' ? '전체 팀에' : '전체 라운드에'} 동일한 지침이 저장됩니다.
-               </p>
-             )}
-          </BrutalistCard>
-
           {/* GROUP PHOTOS Section - R5 단체사진 다운로드 */}
           <h2 className="text-2xl font-black italic mt-6">GROUP PHOTOS</h2>
           <BrutalistCard className="space-y-4">
@@ -1408,7 +1346,7 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
             {analysisResult && analysisStats && (
               <div id="analysis-pdf-content" className="space-y-6">
                 {/* Statistics Cards */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   <BrutalistCard className="text-center bg-gradient-to-br from-green-900/50 to-green-700/30">
                     <p className="text-xs text-gray-400 uppercase">평균 소요시간</p>
                     <p className="text-2xl font-mono font-black text-green-400">
@@ -1429,9 +1367,41 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
                   </BrutalistCard>
                 </div>
 
-                {/* Round Difficulty Chart */}
+                {/* Team Round Times Table & Chart */}
                 <BrutalistCard>
-                  <h3 className="text-lg font-black mb-4 text-yellow-400">📊 라운드별 난이도 (평균 소요시간)</h3>
+                  <h3 className="text-lg font-black mb-4 text-yellow-400">📊 팀별 라운드 소요시간</h3>
+
+                  {/* Table */}
+                  <div className="overflow-x-auto mb-6">
+                    <table className="w-full text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-yellow-400/20">
+                          <th className="border border-gray-600 p-2 text-left">팀</th>
+                          {Array.from({ length: 12 }, (_, i) => (
+                            <th key={i + 1} className="border border-gray-600 p-1 text-center">R{i + 1}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {((analysisStats as Record<string, unknown>).performances as Array<{ teamId: number; teamName: string; roundTimes: Record<number, number> }> || []).map((perf) => (
+                          <tr key={perf.teamId} className="hover:bg-white/5">
+                            <td className="border border-gray-600 p-2 font-bold">{perf.teamId}조</td>
+                            {Array.from({ length: 12 }, (_, i) => {
+                              const time = perf.roundTimes[i + 1] || 0;
+                              return (
+                                <td key={i + 1} className="border border-gray-600 p-1 text-center font-mono text-[10px]">
+                                  {time > 0 ? formatTime(time) : '-'}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Bar Chart by Round */}
+                  <h4 className="text-sm font-bold mb-3 text-gray-400">라운드별 평균 소요시간</h4>
                   <div className="space-y-2">
                     {Object.entries((analysisStats as Record<string, unknown>).roundAvgTimes as Record<number, number> || {}).map(([round, time]) => {
                       const maxTime = Math.max(...Object.values((analysisStats as Record<string, unknown>).roundAvgTimes as Record<number, number> || {}));
@@ -1454,74 +1424,48 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
                   </div>
                 </BrutalistCard>
 
-                {/* Executive Summary */}
-                {(analysisResult as Record<string, unknown>).executiveSummary && (
+                {/* Team Summaries */}
+                {(analysisResult as Record<string, unknown>).teamSummaries && (
                   <BrutalistCard className="border-yellow-400">
-                    <h3 className="text-lg font-black mb-2 text-yellow-400">📋 핵심 요약</h3>
-                    <p className="text-sm text-gray-300 leading-relaxed">
-                      {String((analysisResult as Record<string, unknown>).executiveSummary)}
-                    </p>
-                  </BrutalistCard>
-                )}
-
-                {/* Overall Assessment */}
-                {(analysisResult as Record<string, unknown>).overallAssessment && (
-                  <BrutalistCard>
-                    <h3 className="text-lg font-black mb-2 text-blue-400">📈 종합 평가</h3>
-                    <p className="text-sm text-gray-300 leading-relaxed">
-                      {String((analysisResult as Record<string, unknown>).overallAssessment)}
-                    </p>
-                  </BrutalistCard>
-                )}
-
-                {/* Team Ranking Analysis */}
-                {(analysisResult as Record<string, unknown>).teamRankingAnalysis && (
-                  <BrutalistCard>
-                    <h3 className="text-lg font-black mb-2 text-green-400">🏆 팀 순위 분석</h3>
-                    <p className="text-sm text-gray-300 leading-relaxed">
-                      {String((analysisResult as Record<string, unknown>).teamRankingAnalysis)}
-                    </p>
-                  </BrutalistCard>
-                )}
-
-                {/* Teamwork Insights */}
-                {(analysisResult as Record<string, unknown>).teamworkInsights && (
-                  <BrutalistCard>
-                    <h3 className="text-lg font-black mb-2 text-purple-400">🤝 팀워크 인사이트</h3>
-                    <p className="text-sm text-gray-300 leading-relaxed">
-                      {String((analysisResult as Record<string, unknown>).teamworkInsights)}
-                    </p>
-                  </BrutalistCard>
-                )}
-
-                {/* Recommendations */}
-                {((analysisResult as Record<string, unknown>).recommendations as string[])?.length > 0 && (
-                  <BrutalistCard>
-                    <h3 className="text-lg font-black mb-2 text-cyan-400">💡 개선 제안</h3>
-                    <ul className="space-y-2">
-                      {((analysisResult as Record<string, unknown>).recommendations as string[]).map((rec, idx) => (
-                        <li key={idx} className="text-sm text-gray-300 flex gap-2">
-                          <span className="text-yellow-400 font-bold">{idx + 1}.</span>
-                          {rec}
-                        </li>
+                    <h3 className="text-lg font-black mb-4 text-yellow-400">📋 팀별 핵심요약</h3>
+                    <div className="space-y-4">
+                      {Object.entries((analysisResult as Record<string, unknown>).teamSummaries as Record<string, { teamId: number; summary: string }>).map(([teamId, data]) => (
+                        <div key={teamId} className="bg-black/30 p-4 brutal-border">
+                          <h4 className="text-md font-black text-green-400 mb-2">🏷️ {teamId}조</h4>
+                          <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">
+                            {data.summary}
+                          </p>
+                        </div>
                       ))}
-                    </ul>
+                    </div>
                   </BrutalistCard>
                 )}
 
-                {/* Best Practices */}
-                {((analysisResult as Record<string, unknown>).bestPractices as string[])?.length > 0 && (
-                  <BrutalistCard className="border-green-400">
-                    <h3 className="text-lg font-black mb-2 text-green-400">⭐ 베스트 프랙티스</h3>
-                    <ul className="space-y-2">
-                      {((analysisResult as Record<string, unknown>).bestPractices as string[]).map((practice, idx) => (
-                        <li key={idx} className="text-sm text-gray-300 flex gap-2">
-                          <span className="text-green-400">✓</span>
-                          {practice}
-                        </li>
-                      ))}
-                    </ul>
-                  </BrutalistCard>
+                {/* Overall Evaluation */}
+                {(analysisResult as Record<string, unknown>).overallEvaluation && (
+                  <>
+                    <BrutalistCard>
+                      <h3 className="text-lg font-black mb-2 text-blue-400">📈 종합평가</h3>
+                      <p className="text-sm text-gray-300 leading-relaxed">
+                        {String(((analysisResult as Record<string, unknown>).overallEvaluation as Record<string, unknown>).insights || '')}
+                      </p>
+                    </BrutalistCard>
+
+                    {/* Discussion Topics */}
+                    {(((analysisResult as Record<string, unknown>).overallEvaluation as Record<string, unknown>).discussionTopics as string[])?.length > 0 && (
+                      <BrutalistCard className="border-purple-400">
+                        <h3 className="text-lg font-black mb-3 text-purple-400">💬 토의 주제 5가지</h3>
+                        <ul className="space-y-3">
+                          {(((analysisResult as Record<string, unknown>).overallEvaluation as Record<string, unknown>).discussionTopics as string[]).map((topic, idx) => (
+                            <li key={idx} className="text-sm text-gray-300 flex gap-2 bg-purple-900/20 p-3 brutal-border">
+                              <span className="text-purple-400 font-bold">{idx + 1}.</span>
+                              <span>{topic}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </BrutalistCard>
+                    )}
+                  </>
                 )}
               </div>
             )}

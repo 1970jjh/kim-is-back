@@ -833,6 +833,22 @@ async function generateWinnerPoster(payload: {
 }
 
 // Admin: Analyze total performance of all teams (Gemini Pro)
+// 월별 다중지능과 핵심역량
+const MONTHLY_COMPETENCIES: Record<number, { competency: string; intelligence: string }> = {
+  1: { competency: '의사결정력', intelligence: '인간친화지능' },
+  2: { competency: '분석적사고', intelligence: '논리수학지능' },
+  3: { competency: '정보활용', intelligence: '공간지능' },
+  4: { competency: '관찰력', intelligence: '자연지능' },
+  5: { competency: 'ESG마인드/협력', intelligence: '자연지능' },
+  6: { competency: '추론/가설검증', intelligence: '논리수학지능' },
+  7: { competency: '맥락적 경청', intelligence: '인간친화지능' },
+  8: { competency: '협상 및 유연성', intelligence: '언어지능' },
+  9: { competency: '위기관리능력', intelligence: '신체운동지능' },
+  10: { competency: '정리정돈습관', intelligence: '공간지능' },
+  11: { competency: '고객중심사고', intelligence: '인간친화지능' },
+  12: { competency: '공동체의식/끈기', intelligence: '신체운동지능' },
+};
+
 async function analyzeTotalPerformance(payload: {
   groupName: string;
   totalTeams: number;
@@ -873,6 +889,12 @@ async function analyzeTotalPerformance(payload: {
     }
   }
 
+  // 팀별 라운드 시간 데이터 생성
+  const teamRoundTimes: Record<number, Record<number, number>> = {};
+  performances.forEach(p => {
+    teamRoundTimes[p.teamId] = p.roundTimes;
+  });
+
   // 가장 어려웠던/쉬웠던 라운드 찾기
   const roundEntries = Object.entries(roundAvgTimes).map(([r, t]) => ({ round: parseInt(r), time: t }));
   const hardestRound = roundEntries.sort((a, b) => b.time - a.time)[0];
@@ -887,12 +909,20 @@ async function analyzeTotalPerformance(payload: {
     return `${mins}분 ${secs}초`;
   };
 
+  // 월별 역량 정보 문자열 생성
+  const competencyInfo = Object.entries(MONTHLY_COMPETENCIES)
+    .map(([month, info]) => `R${month}(${month}월): 핵심역량 - ${info.competency}, 다중지능 - ${info.intelligence}`)
+    .join('\n');
+
   const prompt = `당신은 기업 교육 성과 분석 및 학습자 피드백 전문가입니다. 다음 팀 빌딩 미션 데이터를 분석하여 **학습자와 교육담당자에게 전달할 종합 피드백 리포트**를 작성해주세요.
 
 ## 교육 프로그램 정보
 - 교육그룹명: ${groupName}
 - 참여 팀 수: ${totalTeams}팀
 - 분석 일자: ${dateStr}
+
+## 월별 미션의 다중지능과 핵심역량
+${competencyInfo}
 
 ## 전체 성과 통계
 - 평균 소요시간: ${formatTimeStr(avgTime)}
@@ -913,6 +943,7 @@ ${performances.map(p => `
 ### Team ${p.teamId} (${p.teamName})
 - 순위: #${p.rank}
 - 총 소요시간: ${formatTimeStr(p.totalTimeWithBonus)}
+- 라운드별 소요시간: ${Object.entries(p.roundTimes).map(([r, t]) => `R${r}: ${formatTimeStr(t)}`).join(', ')}
 `).join('')}
 
 ## 팀 활동 소감 (참가자들의 목소리)
@@ -922,52 +953,37 @@ ${bestMissions || '수집된 소감 없음'}
 
 ## 리포트 작성 가이드라인
 
-이 리포트는 **학습자들과 교육담당자에게 공유되는 자료**입니다. 다음 관점에서 분석해주세요:
-
-1. **오늘 활동의 가치**: 이번 교육이 얼마나 재미있고 유익했는지
-2. **업무 역량 향상**: 현업에서의 문제해결, 의사결정, 시간관리 역량에 어떤 도움이 될지
-3. **소통과 협업**: 팀원 간 의사소통, 역할 분담, 협업 능력이 어떻게 발휘되었는지
-4. **AI 활용 스킬**: AI 도구를 업무에 활용하는 역량이 어떻게 성장했는지
-5. **강점 발견**: 각 팀과 개인이 발견한 강점과 가능성
-6. **실무 적용**: 오늘의 경험이 실제 업무에 어떻게 적용될 수 있는지
-
-다음 형식의 JSON 분석 리포트를 작성해주세요:
+이 리포트는 **학습자들과 교육담당자에게 공유되는 자료**입니다. 다음 형식의 JSON 분석 리포트를 작성해주세요:
 
 {
-  "executiveSummary": "3-5문장의 핵심 요약 (이번 교육의 성과와 의미 중심)",
-  "overallAssessment": "전체 교육 프로그램에 대한 종합 평가 (5-7문장, 참가자들의 열정과 성취를 칭찬하고, 교육의 가치를 강조)",
-  "teamRankingAnalysis": "팀별 분석 (상위팀의 성공 비결, 모든 팀이 보여준 강점과 가능성 중심으로 긍정적으로 분석)",
-  "roundAnalysis": {
-    "hardestRounds": ["도전적이었던 라운드에서 참가자들이 보여준 끈기와 문제해결 능력"],
-    "easiestRounds": ["빠르게 해결한 라운드에서 드러난 팀의 강점과 협업 능력"],
-    "keyInsights": "라운드별 활동을 통해 발견된 학습 포인트와 성장 기회"
+  "teamSummaries": {
+    "1": {
+      "teamId": 1,
+      "summary": "팀 1에 대한 핵심요약 (800자 내외). 리더십과 팀워크, 소통&협업, AI리터러시 측면에서의 우수한 점, 개선점, 액션플랜을 월별 다중지능/핵심역량을 바탕으로 분석. 해당 팀이 수행한 라운드별 성과를 바탕으로 구체적으로 작성."
+    },
+    "2": {
+      "teamId": 2,
+      "summary": "팀 2에 대한 핵심요약 (800자 내외)..."
+    }
   },
-  "teamworkInsights": "팀워크 및 협업에 대한 분석 (구체적 사례 언급, 소통 방식의 발전, 신뢰 형성 등)",
-  "recommendations": [
-    "현업에서 활용할 수 있는 구체적인 팁 5가지 (오늘 배운 것을 실무에 적용하는 방법)"
-  ],
-  "bestPractices": [
-    "이번 교육에서 발견된 베스트 프랙티스 3가지 (다른 학습자들에게 공유할 만한 성공 사례)"
-  ],
-  "skillsGained": {
-    "aiSkills": "AI 활용 역량에서의 성장 포인트",
-    "communicationSkills": "소통과 협업 역량에서의 성장 포인트",
-    "problemSolvingSkills": "문제해결과 의사결정 역량에서의 성장 포인트",
-    "timeManagementSkills": "시간관리와 우선순위 설정 역량에서의 성장 포인트"
-  },
-  "futureApplications": "오늘의 경험을 현업에 적용할 수 있는 구체적인 상황과 방법 (3-5가지)",
-  "closingMessage": "참가자들에게 전하는 격려와 응원의 메시지 (2-3문장)",
-  "chartData": {
-    "teamTimeComparison": [{"teamId": 1, "time": 초, "rank": 순위}, ...],
-    "roundDifficulty": [{"round": 1, "avgTime": 초}, ...]
+  "overallEvaluation": {
+    "insights": "전체 팀에 대한 종합 분석. 해당 교육그룹의 리더십과 팀워크, 소통&협업, AI리터러시 측면에서의 시사점과 인사이트를 제시. (500자 내외)",
+    "discussionTopics": [
+      "토의 주제 1: 리더십 관점에서 본 활동 후 참가자들이 함께 토의하면 좋을 주제",
+      "토의 주제 2: 팀워크 관점에서의 토의 주제",
+      "토의 주제 3: 소통&협업 관점에서의 토의 주제",
+      "토의 주제 4: AI리터러시 관점에서의 토의 주제",
+      "토의 주제 5: 종합적 관점에서의 토의 주제"
+    ]
   }
 }
 
-중요:
-- 관리자/강사 관점의 "프로그램 개선 제안"은 제외
-- 학습자들이 자신의 성장을 느끼고, 자신감을 얻을 수 있는 내용으로 작성
-- 긍정적이고 격려하는 톤 유지
-- 구체적인 사례와 데이터를 바탕으로 설득력 있게 작성
+## 중요 지침
+1. teamSummaries: 각 팀별로 800자 내외의 상세한 분석을 작성. 월별 다중지능/핵심역량 정보를 참고하여 해당 팀이 어떤 역량에서 강점을 보였고, 어떤 부분을 개선하면 좋을지 구체적으로 제시
+2. overallEvaluation.insights: 전체 그룹에 대한 종합적인 시사점 제시
+3. overallEvaluation.discussionTopics: 교육 후 참가자들이 함께 토의할 수 있는 구체적인 주제 5가지 (리더십, 팀워크, 소통&협업, AI리터러시 관점에서)
+4. 긍정적이고 격려하는 톤 유지
+5. 구체적인 데이터와 사례를 바탕으로 설득력 있게 작성
 
 반드시 JSON 형식으로만 응답해주세요.`;
 
@@ -1011,6 +1027,8 @@ ${bestMissions || '수집된 소감 없음'}
             minTime,
             maxTime,
             roundAvgTimes,
+            teamRoundTimes,
+            performances,
             hardestRound,
             easiestRound,
             dateStr,
@@ -1032,6 +1050,8 @@ ${bestMissions || '수집된 소감 없음'}
         minTime,
         maxTime,
         roundAvgTimes,
+        teamRoundTimes,
+        performances,
         hardestRound,
         easiestRound,
         dateStr,

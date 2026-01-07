@@ -535,8 +535,8 @@ export const firebaseService = {
       const pausedSeconds = Math.floor((now - team.currentEvent.startedAt) / 1000);
       room.eventPausedTotal = (room.eventPausedTotal || 0) + pausedSeconds;
 
-      // 이벤트 종료
-      team.currentEvent = undefined;
+      // 이벤트 종료 (Firebase에서 삭제하려면 null 사용)
+      team.currentEvent = null as any;
     }
 
     await firebaseService.saveRoom(room);
@@ -583,14 +583,14 @@ export const firebaseService = {
 
     const now = Date.now();
 
-    // 모든 팀의 이벤트 종료
+    // 모든 팀의 이벤트 종료 (Firebase에서 삭제하려면 null 사용)
     Object.keys(room.teams).forEach(teamIdStr => {
       const teamId = parseInt(teamIdStr);
       const team = room.teams[teamId];
       if (team.currentEvent) {
         const pausedSeconds = Math.floor((now - team.currentEvent.startedAt) / 1000);
         room.eventPausedTotal = (room.eventPausedTotal || 0) + pausedSeconds;
-        team.currentEvent = undefined;
+        team.currentEvent = null as any;
       }
     });
 

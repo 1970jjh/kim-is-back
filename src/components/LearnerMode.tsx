@@ -1069,12 +1069,13 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
       setR11MoodLevel(result.moodLevel);
       setR11EvaluationScores(result.evaluationScores);
 
-      // 80점 이상이면 클리어
+      // 80점 이상이면 대화 자동 종료 및 클리어
       if (result.satisfactionScore >= 80 && r11StartTime) {
         const elapsed = Math.floor((Date.now() - r11StartTime) / 1000);
         const mins = Math.floor(elapsed / 60);
         const secs = elapsed % 60;
         setR11CompletionTime(`${mins}분 ${secs}초`);
+        setR11ChatEnded(true);  // 대화 자동 종료
         setR11Cleared(true);
       }
     } catch (error) {
@@ -3064,7 +3065,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
                 ))}
               </BrutalistCard>
 
-              <BrutalistButton variant="gold" fullWidth className="text-2xl" onClick={handleR11Clear}>월 업무 마감하기(클릭)</BrutalistButton>
+              <BrutalistButton variant="gold" fullWidth className="text-2xl" onClick={handleR11Clear}>미션 성공, 다음라운드로 →</BrutalistButton>
             </div>
           ) : isR11Completed ? (
             <div className="space-y-6">
@@ -3104,40 +3105,49 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
 
               {/* 입력 영역 */}
               {!r11ChatEnded ? (
-                <div className="flex gap-2 items-end">
-                  <BrutalistTextarea
-                    ref={r11InputRef}
-                    fullWidth
-                    rows={2}
-                    placeholder="고객에게 응대할 내용을 입력하세요... (Shift+Enter: 줄바꿈)"
-                    value={r11UserInput}
-                    onChange={(e) => setR11UserInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleR11SendMessage();
-                      }
-                    }}
-                    disabled={r11Sending}
-                  />
-                  <button
-                    onClick={() => setR11ShowManual(true)}
-                    className="h-fit px-3 py-2 bg-blue-600 text-white text-xs font-bold brutal-border hover:bg-blue-500 transition-colors whitespace-nowrap"
-                    title="응대 팁 보기"
-                  >
-                    📖 매뉴얼
-                  </button>
-                  <BrutalistButton variant="gold" onClick={handleR11SendMessage} disabled={r11Sending || !r11UserInput.trim()} className="h-fit">전송</BrutalistButton>
-                  {r11SatisfactionScore >= 70 && (
-                    <BrutalistButton
-                      variant="primary"
-                      onClick={handleR11EndChat}
-                      disabled={r11FeedbackLoading}
-                      className="h-fit whitespace-nowrap"
-                    >
-                      {r11FeedbackLoading ? '분석중...' : '대화 종료'}
-                    </BrutalistButton>
-                  )}
+                <div className="space-y-2">
+                  <div className="flex gap-2 items-end">
+                    <BrutalistTextarea
+                      ref={r11InputRef}
+                      fullWidth
+                      rows={2}
+                      placeholder="고객에게 응대할 내용을 입력하세요... (Shift+Enter: 줄바꿈)"
+                      value={r11UserInput}
+                      onChange={(e) => setR11UserInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleR11SendMessage();
+                        }
+                      }}
+                      disabled={r11Sending}
+                    />
+                    <div className="flex flex-col gap-1">
+                      <button
+                        onClick={() => {
+                          setR11ChatHistory([]);
+                          setR11SatisfactionScore(0);
+                          setR11MoodLevel(1);
+                          setR11StartTime(Date.now());
+                          const industryType = room.industryType || IndustryType.IT_SOLUTION;
+                          const scenario = R11_SCENARIOS[industryType];
+                          setR11ChatHistory([{ role: 'assistant', content: scenario.scenario }]);
+                        }}
+                        className="h-fit px-3 py-2 bg-red-600 text-white text-xs font-bold brutal-border hover:bg-red-500 transition-colors whitespace-nowrap"
+                        title="처음부터 다시 시작"
+                      >
+                        🔄 다시 시작
+                      </button>
+                      <button
+                        onClick={() => setR11ShowManual(true)}
+                        className="h-fit px-3 py-2 bg-blue-600 text-white text-xs font-bold brutal-border hover:bg-blue-500 transition-colors whitespace-nowrap"
+                        title="응대 팁 보기"
+                      >
+                        📖 매뉴얼
+                      </button>
+                    </div>
+                    <BrutalistButton variant="gold" onClick={handleR11SendMessage} disabled={r11Sending || !r11UserInput.trim()} className="h-fit">전송</BrutalistButton>
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-4">
