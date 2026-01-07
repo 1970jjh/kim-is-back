@@ -131,6 +131,20 @@ export const firebaseService = {
     await firebaseService.saveRoom(room);
   },
 
+  // 전체 미션 종료
+  endMission: async (roomId: string): Promise<void> => {
+    const room = await firebaseService.getRoom(roomId);
+    if (!room) return;
+
+    room.missionStarted = false;
+    room.missionStartTime = null as any;
+    room.eventPausedTotal = 0;
+    room.activeEvent = EventType.NONE;
+    room.eventStartedAt = null as any;
+
+    await firebaseService.saveRoom(room);
+  },
+
   // 미션 타이머 설정
   setMissionTimer: async (roomId: string, minutes: number): Promise<void> => {
     const room = await firebaseService.getRoom(roomId);

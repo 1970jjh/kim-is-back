@@ -37,7 +37,7 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
   const [selectedTeamId, setSelectedTeamId] = useState<number | 'all' | null>(null);
   const [editRound, setEditRound] = useState<number | 'all'>(1);
   const [instructionText, setInstructionText] = useState("");
-  const [eventMinutes, setEventMinutes] = useState<number>(10);
+  const [eventMinutes, setEventMinutes] = useState<number>(1);
   const [missionTimerMinutes, setMissionTimerMinutes] = useState<number>(room.missionTimerMinutes || 60);
   const [isMusicPlaying, setIsMusicPlaying] = useState(false);
   const [showPerformanceModal, setShowPerformanceModal] = useState(false);
@@ -414,58 +414,65 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
         return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
       };
 
-      // 원형그래프 SVG 생성 함수
-      const createPieChartSVG = (data: Record<string, number>, title: string, size: number = 120): string => {
+      // 레이더차트 SVG 생성 함수
+      const createRadarChartSVG = (data: Record<string, number>, title: string, color: string, size: number = 140): string => {
         const entries = Object.entries(data);
-        if (entries.length === 0) return '';
+        const n = entries.length;
+        if (n === 0) return '';
 
-        const total = entries.reduce((sum, [, val]) => sum + val, 0);
-        if (total === 0) return '';
-
-        const colors = ['#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#ef4444', '#06b6d4', '#f97316', '#84cc16', '#ec4899', '#6366f1', '#14b8a6', '#a855f7'];
         const cx = size / 2;
         const cy = size / 2;
-        const r = size / 2 - 10;
+        const maxR = size / 2 - 25;
+        const angleStep = (2 * Math.PI) / n;
+        const maxVal = Math.max(...entries.map(([, v]) => v), 1);
 
-        let currentAngle = -90;
-        let paths = '';
-        let legends = '';
+        // 배경 그리드 (5단계)
+        let gridLines = '';
+        [0.2, 0.4, 0.6, 0.8, 1].forEach((scale) => {
+          const points = entries.map((_, idx) => {
+            const angle = -Math.PI / 2 + idx * angleStep;
+            const r = maxR * scale;
+            return `${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`;
+          }).join(' ');
+          gridLines += `<polygon points="${points}" fill="none" stroke="#ccc" stroke-width="0.5"/>`;
+        });
 
-        entries.forEach(([label, value], idx) => {
-          const percentage = (value / total) * 100;
-          const angle = (value / total) * 360;
-          const endAngle = currentAngle + angle;
+        // 축 선
+        let axisLines = '';
+        entries.forEach((_, idx) => {
+          const angle = -Math.PI / 2 + idx * angleStep;
+          const x2 = cx + maxR * Math.cos(angle);
+          const y2 = cy + maxR * Math.sin(angle);
+          axisLines += `<line x1="${cx}" y1="${cy}" x2="${x2}" y2="${y2}" stroke="#aaa" stroke-width="0.5"/>`;
+        });
 
-          const startRad = (currentAngle * Math.PI) / 180;
-          const endRad = (endAngle * Math.PI) / 180;
+        // 데이터 다각형
+        const dataPoints = entries.map(([, value], idx) => {
+          const angle = -Math.PI / 2 + idx * angleStep;
+          const r = (value / maxVal) * maxR;
+          return `${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`;
+        }).join(' ');
 
-          const x1 = cx + r * Math.cos(startRad);
-          const y1 = cy + r * Math.sin(startRad);
-          const x2 = cx + r * Math.cos(endRad);
-          const y2 = cy + r * Math.sin(endRad);
-
-          const largeArc = angle > 180 ? 1 : 0;
-          const color = colors[idx % colors.length];
-
-          paths += `<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${largeArc},1 ${x2},${y2} Z" fill="${color}" stroke="white" stroke-width="1"/>`;
-
-          legends += `<div style="display: flex; align-items: center; gap: 4px; margin-bottom: 2px;">
-            <span style="width: 10px; height: 10px; background: ${color}; border-radius: 2px;"></span>
-            <span style="font-size: 9px; color: #666;">${label}: ${Math.round(percentage)}%</span>
-          </div>`;
-
-          currentAngle = endAngle;
+        // 라벨
+        let labels = '';
+        entries.forEach(([label], idx) => {
+          const angle = -Math.PI / 2 + idx * angleStep;
+          const labelR = maxR + 15;
+          const x = cx + labelR * Math.cos(angle);
+          const y = cy + labelR * Math.sin(angle);
+          const shortLabel = label.replace('지능', '');
+          labels += `<text x="${x}" y="${y}" fill="#333" font-size="7" text-anchor="middle" dominant-baseline="middle">${shortLabel}</text>`;
         });
 
         return `
           <div style="text-align: center;">
             <p style="font-size: 11px; font-weight: bold; color: #333; margin: 0 0 8px 0;">${title}</p>
             <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-              ${paths}
+              ${gridLines}
+              ${axisLines}
+              <polygon points="${dataPoints}" fill="${color}33" stroke="${color}" stroke-width="2"/>
+              ${labels}
             </svg>
-            <div style="margin-top: 8px; text-align: left;">
-              ${legends}
-            </div>
           </div>
         `;
       };
@@ -488,8 +495,8 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
       // 팀별 핵심요약 HTML (새 형식)
       const teamSummaries = (result.teamSummaries as Record<string, { teamId: number; summary: string; intelligenceScores?: Record<string, number>; competencyScores?: Record<string, number> }>) || {};
       const teamSummariesHTML = Object.entries(teamSummaries).map(([teamId, data]) => {
-        const intelligenceChart = data.intelligenceScores ? createPieChartSVG(data.intelligenceScores, '다중지능', 100) : '';
-        const competencyChart = data.competencyScores ? createPieChartSVG(data.competencyScores, '핵심역량', 100) : '';
+        const intelligenceChart = data.intelligenceScores ? createRadarChartSVG(data.intelligenceScores, '다중지능', '#a78bfa', 130) : '';
+        const competencyChart = data.competencyScores ? createRadarChartSVG(data.competencyScores, '핵심역량', '#60a5fa', 150) : '';
 
         return `
           <div style="background: #f8f9fa; padding: 15px; margin-bottom: 15px; border-left: 4px solid #10b981; page-break-inside: avoid;">
@@ -667,6 +674,20 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
             {room.missionStarted ? '미션 진행 중' : '미션 스타트'}
           </BrutalistButton>
 
+          {room.missionStarted && (
+            <BrutalistButton
+              variant="danger"
+              onClick={async () => {
+                if (window.confirm('정말로 전체 미션을 종료하시겠습니까? 모든 팀의 진행 상황이 초기화됩니다.')) {
+                  await firebaseService.endMission(room.id);
+                }
+              }}
+              className="text-sm"
+            >
+              전체 미션 종료
+            </BrutalistButton>
+          )}
+
           {completedTeams.length > 0 && (
             <BrutalistButton variant="primary" onClick={() => setShowPerformanceModal(true)} className="text-sm">
               전체 성과 분석 ({completedTeams.length}팀 완료)
@@ -842,7 +863,7 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
               <BrutalistButton
                 variant="ghost"
                 onClick={endIndividualEvent}
-                disabled={eventTargetTeam === 'all' || !room.teams?.[eventTargetTeam as number]?.currentEvent}
+                disabled={eventTargetTeam === 'all'}
                 className="text-xs py-2"
               >
                 개별 EVENT 종료
@@ -860,7 +881,6 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
               <BrutalistButton
                 variant="danger"
                 onClick={endAllTeamsEvent}
-                disabled={firebaseService.getTeamsInEvent(room).length === 0}
                 className="text-xs py-2"
               >
                 전체 EVENT 종료
@@ -1496,86 +1516,138 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
                         <div key={teamId} className="bg-black/30 p-4 brutal-border">
                           <h4 className="text-md font-black text-green-400 mb-2">🏷️ {teamId}조</h4>
 
-                          {/* 원형그래프 */}
+                          {/* 레이더차트 */}
                           {(data.intelligenceScores || data.competencyScores) && (
                             <div className="flex flex-wrap gap-6 mb-4 justify-center">
-                              {/* 다중지능 원형그래프 */}
+                              {/* 다중지능 레이더차트 */}
                               {data.intelligenceScores && Object.keys(data.intelligenceScores).length > 0 && (
                                 <div className="text-center">
                                   <p className="text-xs font-bold text-purple-400 mb-2">다중지능</p>
-                                  <svg width="120" height="120" viewBox="0 0 120 120">
+                                  <svg width="160" height="160" viewBox="0 0 160 160">
                                     {(() => {
                                       const scores = data.intelligenceScores!;
                                       const entries = Object.entries(scores);
-                                      const total = entries.reduce((sum, [, v]) => sum + v, 0);
-                                      if (total === 0) return null;
+                                      const n = entries.length;
+                                      if (n === 0) return null;
 
-                                      const colors = ['#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#ef4444', '#06b6d4'];
-                                      let currentAngle = -90;
+                                      const cx = 80, cy = 80, maxR = 50;
+                                      const angleStep = (2 * Math.PI) / n;
 
-                                      return entries.map(([, value], idx) => {
-                                        const angle = (value / total) * 360;
-                                        const endAngle = currentAngle + angle;
-                                        const startRad = (currentAngle * Math.PI) / 180;
-                                        const endRad = (endAngle * Math.PI) / 180;
-                                        const x1 = 60 + 50 * Math.cos(startRad);
-                                        const y1 = 60 + 50 * Math.sin(startRad);
-                                        const x2 = 60 + 50 * Math.cos(endRad);
-                                        const y2 = 60 + 50 * Math.sin(endRad);
-                                        const largeArc = angle > 180 ? 1 : 0;
-                                        const path = `M60,60 L${x1},${y1} A50,50 0 ${largeArc},1 ${x2},${y2} Z`;
-                                        currentAngle = endAngle;
-                                        return <path key={idx} d={path} fill={colors[idx % colors.length]} stroke="white" strokeWidth="1" />;
+                                      // 배경 그리드 (5단계)
+                                      const gridLines = [0.2, 0.4, 0.6, 0.8, 1].map((scale, gridIdx) => {
+                                        const points = entries.map((_, idx) => {
+                                          const angle = -Math.PI / 2 + idx * angleStep;
+                                          const r = maxR * scale;
+                                          return `${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`;
+                                        }).join(' ');
+                                        return <polygon key={gridIdx} points={points} fill="none" stroke="#444" strokeWidth="0.5" />;
                                       });
+
+                                      // 축 선
+                                      const axisLines = entries.map((_, idx) => {
+                                        const angle = -Math.PI / 2 + idx * angleStep;
+                                        const x2 = cx + maxR * Math.cos(angle);
+                                        const y2 = cy + maxR * Math.sin(angle);
+                                        return <line key={idx} x1={cx} y1={cy} x2={x2} y2={y2} stroke="#555" strokeWidth="0.5" />;
+                                      });
+
+                                      // 데이터 다각형
+                                      const maxVal = Math.max(...entries.map(([, v]) => v), 1);
+                                      const dataPoints = entries.map(([, value], idx) => {
+                                        const angle = -Math.PI / 2 + idx * angleStep;
+                                        const r = (value / maxVal) * maxR;
+                                        return `${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`;
+                                      }).join(' ');
+
+                                      // 라벨
+                                      const labels = entries.map(([label], idx) => {
+                                        const angle = -Math.PI / 2 + idx * angleStep;
+                                        const labelR = maxR + 18;
+                                        const x = cx + labelR * Math.cos(angle);
+                                        const y = cy + labelR * Math.sin(angle);
+                                        return (
+                                          <text key={idx} x={x} y={y} fill="#a78bfa" fontSize="8" textAnchor="middle" dominantBaseline="middle">
+                                            {label.replace('지능', '')}
+                                          </text>
+                                        );
+                                      });
+
+                                      return (
+                                        <>
+                                          {gridLines}
+                                          {axisLines}
+                                          <polygon points={dataPoints} fill="rgba(167, 139, 250, 0.3)" stroke="#a78bfa" strokeWidth="2" />
+                                          {labels}
+                                        </>
+                                      );
                                     })()}
                                   </svg>
-                                  <div className="flex flex-wrap justify-center gap-1 mt-2 max-w-[150px]">
-                                    {Object.entries(data.intelligenceScores).map(([label], idx) => (
-                                      <span key={label} className="text-[8px] px-1 py-0.5 rounded" style={{ backgroundColor: ['#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#ef4444', '#06b6d4'][idx % 6] + '33', color: ['#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#ef4444', '#06b6d4'][idx % 6] }}>
-                                        {label.replace('지능', '')}
-                                      </span>
-                                    ))}
-                                  </div>
                                 </div>
                               )}
 
-                              {/* 핵심역량 원형그래프 */}
+                              {/* 핵심역량 레이더차트 */}
                               {data.competencyScores && Object.keys(data.competencyScores).length > 0 && (
                                 <div className="text-center">
                                   <p className="text-xs font-bold text-blue-400 mb-2">핵심역량</p>
-                                  <svg width="120" height="120" viewBox="0 0 120 120">
+                                  <svg width="180" height="180" viewBox="0 0 180 180">
                                     {(() => {
                                       const scores = data.competencyScores!;
                                       const entries = Object.entries(scores);
-                                      const total = entries.reduce((sum, [, v]) => sum + v, 0);
-                                      if (total === 0) return null;
+                                      const n = entries.length;
+                                      if (n === 0) return null;
 
-                                      const colors = ['#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#ef4444', '#06b6d4', '#f97316', '#84cc16', '#ec4899', '#6366f1', '#14b8a6', '#a855f7'];
-                                      let currentAngle = -90;
+                                      const cx = 90, cy = 90, maxR = 55;
+                                      const angleStep = (2 * Math.PI) / n;
 
-                                      return entries.map(([, value], idx) => {
-                                        const angle = (value / total) * 360;
-                                        const endAngle = currentAngle + angle;
-                                        const startRad = (currentAngle * Math.PI) / 180;
-                                        const endRad = (endAngle * Math.PI) / 180;
-                                        const x1 = 60 + 50 * Math.cos(startRad);
-                                        const y1 = 60 + 50 * Math.sin(startRad);
-                                        const x2 = 60 + 50 * Math.cos(endRad);
-                                        const y2 = 60 + 50 * Math.sin(endRad);
-                                        const largeArc = angle > 180 ? 1 : 0;
-                                        const path = `M60,60 L${x1},${y1} A50,50 0 ${largeArc},1 ${x2},${y2} Z`;
-                                        currentAngle = endAngle;
-                                        return <path key={idx} d={path} fill={colors[idx % colors.length]} stroke="white" strokeWidth="1" />;
+                                      // 배경 그리드 (5단계)
+                                      const gridLines = [0.2, 0.4, 0.6, 0.8, 1].map((scale, gridIdx) => {
+                                        const points = entries.map((_, idx) => {
+                                          const angle = -Math.PI / 2 + idx * angleStep;
+                                          const r = maxR * scale;
+                                          return `${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`;
+                                        }).join(' ');
+                                        return <polygon key={gridIdx} points={points} fill="none" stroke="#444" strokeWidth="0.5" />;
                                       });
+
+                                      // 축 선
+                                      const axisLines = entries.map((_, idx) => {
+                                        const angle = -Math.PI / 2 + idx * angleStep;
+                                        const x2 = cx + maxR * Math.cos(angle);
+                                        const y2 = cy + maxR * Math.sin(angle);
+                                        return <line key={idx} x1={cx} y1={cy} x2={x2} y2={y2} stroke="#555" strokeWidth="0.5" />;
+                                      });
+
+                                      // 데이터 다각형
+                                      const maxVal = Math.max(...entries.map(([, v]) => v), 1);
+                                      const dataPoints = entries.map(([, value], idx) => {
+                                        const angle = -Math.PI / 2 + idx * angleStep;
+                                        const r = (value / maxVal) * maxR;
+                                        return `${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`;
+                                      }).join(' ');
+
+                                      // 라벨
+                                      const labels = entries.map(([label], idx) => {
+                                        const angle = -Math.PI / 2 + idx * angleStep;
+                                        const labelR = maxR + 22;
+                                        const x = cx + labelR * Math.cos(angle);
+                                        const y = cy + labelR * Math.sin(angle);
+                                        return (
+                                          <text key={idx} x={x} y={y} fill="#60a5fa" fontSize="7" textAnchor="middle" dominantBaseline="middle">
+                                            {label}
+                                          </text>
+                                        );
+                                      });
+
+                                      return (
+                                        <>
+                                          {gridLines}
+                                          {axisLines}
+                                          <polygon points={dataPoints} fill="rgba(96, 165, 250, 0.3)" stroke="#60a5fa" strokeWidth="2" />
+                                          {labels}
+                                        </>
+                                      );
                                     })()}
                                   </svg>
-                                  <div className="flex flex-wrap justify-center gap-1 mt-2 max-w-[180px]">
-                                    {Object.entries(data.competencyScores).map(([label], idx) => (
-                                      <span key={label} className="text-[8px] px-1 py-0.5 rounded" style={{ backgroundColor: ['#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#ef4444', '#06b6d4', '#f97316', '#84cc16', '#ec4899', '#6366f1', '#14b8a6', '#a855f7'][idx % 12] + '33', color: ['#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#ef4444', '#06b6d4', '#f97316', '#84cc16', '#ec4899', '#6366f1', '#14b8a6', '#a855f7'][idx % 12] }}>
-                                        {label}
-                                      </span>
-                                    ))}
-                                  </div>
                                 </div>
                               )}
                             </div>

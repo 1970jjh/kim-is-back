@@ -296,6 +296,10 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
   const [team, setTeam] = useState<TeamState | undefined>(room.teams?.[auth.teamId]);
   const [viewState, setViewState] = useState<ViewState>('waiting');
   const [remainingTime, setRemainingTime] = useState<string>("");
+  const [showFullCalendar, setShowFullCalendar] = useState<boolean>(() => {
+    const stored = localStorage.getItem('showFullCalendar');
+    return stored === 'true';
+  });
 
   // R1 신입사원 채용 미션 상태 (1월)
   const [r1Answer, setR1Answer] = useState('');
@@ -488,6 +492,13 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
 
     return () => clearInterval(timer);
   }, [room.missionStarted, room.missionStartTime, room.missionTimerMinutes, team?.totalBonusTime, room.eventPausedTotal, room.activeEvent, room.eventStartedAt]);
+
+  // 전체보기 모드: 페이지 로드 시 달력 화면으로 자동 이동
+  useEffect(() => {
+    if (showFullCalendar && room.missionStarted && team?.isJoined && viewState === 'waiting') {
+      setViewState('factory');
+    }
+  }, [showFullCalendar, room.missionStarted, team?.isJoined, viewState]);
 
   const completeRound = async () => {
     if (!team) return;
@@ -1646,9 +1657,25 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
 
           {/* 연간 달력 카드 */}
           <BrutalistCard className="bg-black/80 space-y-6">
-            <h3 className="text-2xl font-black text-center text-yellow-400">
-              {isMissionComplete ? '🎉 모든 미션 완료!' : '김부장의 연간 미션 달력'}
-            </h3>
+            <div className="flex justify-between items-center">
+              <h3 className="text-2xl font-black text-yellow-400">
+                {isMissionComplete ? '🎉 모든 미션 완료!' : '김부장의 연간 미션 달력'}
+              </h3>
+              <button
+                onClick={() => {
+                  const newValue = !showFullCalendar;
+                  setShowFullCalendar(newValue);
+                  localStorage.setItem('showFullCalendar', String(newValue));
+                }}
+                className={`px-3 py-1 text-xs font-bold brutal-border transition-all ${
+                  showFullCalendar
+                    ? 'bg-yellow-400 text-black'
+                    : 'bg-white/10 text-white hover:bg-white/20'
+                }`}
+              >
+                {showFullCalendar ? '📅 전체보기 ON' : '📅 전체보기'}
+              </button>
+            </div>
 
             {/* 연간 달력 그리드 */}
             <div className="grid grid-cols-4 gap-3">
