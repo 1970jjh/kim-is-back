@@ -520,7 +520,7 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
 
       // PDF용 깔끔한 HTML 생성
       const container = document.createElement('div');
-      container.style.cssText = `position: fixed; left: -9999px; top: 0; width: 794px; background: white; padding: 30px; font-family: 'Noto Sans KR', 'Malgun Gothic', sans-serif; color: #333;`;
+      container.style.cssText = `position: absolute; left: 0; top: 0; width: 794px; background: white; padding: 30px; font-family: 'Noto Sans KR', 'Malgun Gothic', sans-serif; color: #333; z-index: -1; opacity: 0; pointer-events: none;`;
 
       container.innerHTML = `
         <div style="text-align: center; margin-bottom: 25px; border-bottom: 3px solid #f59e0b; padding-bottom: 15px;">
@@ -578,7 +578,13 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
         useCORS: true,
         backgroundColor: '#ffffff',
         logging: false,
-        allowTaint: true
+        allowTaint: true,
+        onclone: (clonedDoc, element) => {
+          // 클론된 요소를 visible하게 설정
+          element.style.opacity = '1';
+          element.style.position = 'static';
+          element.style.zIndex = 'auto';
+        }
       });
 
       document.body.removeChild(container);

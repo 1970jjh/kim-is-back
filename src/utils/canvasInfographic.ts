@@ -215,13 +215,16 @@ export async function generateResultPDF(
   // HTML 컨텐츠 생성
   const container = document.createElement('div');
   container.style.cssText = `
-    position: fixed;
-    left: -9999px;
+    position: absolute;
+    left: 0;
     top: 0;
     width: 794px;
     background: white;
     padding: 40px;
     font-family: 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+    z-index: -1;
+    opacity: 0;
+    pointer-events: none;
   `;
 
   // 라운드 시간 HTML 생성
@@ -279,7 +282,13 @@ export async function generateResultPDF(
       useCORS: true,
       allowTaint: true,
       backgroundColor: '#ffffff',
-      logging: false
+      logging: false,
+      onclone: (_clonedDoc, element) => {
+        // 클론된 요소를 visible하게 설정
+        element.style.opacity = '1';
+        element.style.position = 'static';
+        element.style.zIndex = 'auto';
+      }
     });
 
     const pdf = new jsPDF({

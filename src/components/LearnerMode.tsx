@@ -128,17 +128,17 @@ const R1_PROFILES = [
   {
     id: 1,
     name: '지원자 A',
-    image: 'https://i.ibb.co/G3tPykrx/1.jpg',
+    image: 'https://i.ibb.co/ZzGbJ95W/1.jpg',
   },
   {
     id: 2,
     name: '지원자 B',
-    image: 'https://i.ibb.co/kn3X0T4/2.jpg',
+    image: 'https://i.ibb.co/jkhyckN9/2.jpg',
   },
   {
     id: 3,
     name: '지원자 C',
-    image: 'https://i.ibb.co/HpbZt1BZ/3.jpg',
+    image: 'https://i.ibb.co/xq1pdjFB/3.jpg',
   }
 ];
 const R1_CORRECT_ANSWER = '박낙하';
@@ -147,14 +147,14 @@ const R1_CORRECT_ANSWER = '박낙하';
 const R2_STORY = `1월 신입 채용을 마친 2월의 영업팀, 강화된 보안 규정 탓에 급하게 바꾼 노트북 비밀번호가 도무지 떠오르지 않는다.
 짜증을 내며 책상 위를 보니, 급하게 휘갈긴 메모와 찢겨진 다이어리 조각만이 덩그러니 놓여 있다.
 모두 함께 단서들을 조합해 김부장의 노트북 비밀번호를 알아내야 한다!`;
-const R2_IMAGE = 'https://i.ibb.co/yBcTW4dg/image.jpg';
+const R2_IMAGE = 'https://i.ibb.co/ZzysrM69/R2.jpg';
 const R2_CORRECT_ANSWER = '4035';
 
 // R3 공장 위치 퀴즈 이미지 및 정답 (3월) - 기존 R1
 const R3_STORY = `간신히 로그인에 성공하자 화면을 가득 채운 건 승진 명단이 아닌, [충청남도 아산 공장 발령] 통지서였다.
 "내가... 지방 공장으로 좌천이라고?" 현실을 부정할 새도 없이, 당장 오늘까지 그곳으로 출근해야만 한다.
 이제 서울 생활은 끝났다. 아래 이미지를 터치하여, 지도에서 유배지나 다름없는 그 공장의 정확한 위치를 찾아라!`;
-const R3_QUIZ_IMAGE = 'https://i.imgur.com/nswRxmdl.jpeg';
+const R3_QUIZ_IMAGE = 'https://i.ibb.co/995Fmy4d/R3.jpg';
 const R3_PADLET_LINK = 'https://padlet.com/ksajhjeon/kim-s-back-idnyc8suzfsy502s';
 const R3_CORRECT_ANSWERS = [
   '010-4454-2252',
@@ -196,13 +196,13 @@ const R4_GAME_DATA = [
 const R4_STORY = "본사 복귀를 꿈꾼다면, 먼저 이 낯선 현장의 공기부터 완벽하게 파악해야 한다. 공장 내외부와 그곳을 지키는 강아지 한 마리의 그림 속에 복귀의 실마리가 숨겨져 있다. 당신의 '서울 본사급' 엘리트 눈썰미를 증명할 시간, 두 그림 사이의 미묘한 틀린 부분을 모두 찾아내라!";
 
 // R5 팀 단체사진 (5월) - 이미지 최적화
-const R5_SAMPLE_IMAGE = 'https://i.imgur.com/TlJe72Bl.jpeg';
+const R5_SAMPLE_IMAGE = 'https://i.ibb.co/BHNttT6M/R5.png';
 const R5_STORY = "삭막했던 공장 주변에도 어느덧 5월의 신록이 우거졌다. '자연과 하나 된 조직만이 살아남는다!'는 공장장의 뜬금없는 지령, 이것도 본사 복귀 고과에 반영되는 건가? 지금 당장 밖으로 나가 푸른 나무나 식물을 배경으로, 팀원들과 함께 '완벽한 원팀' 인증샷을 찍어오라!";
 
 // R6 사진 퀴즈 (6월)
 const R6_CORRECT_ANSWER = 'BERLIN';
 const R6_STORY = "무더위가 시작되는 6월, 당신의 인사권을 쥔 본사 임원이 극비리에 출장을 떠났다는 첩보가 입수됐다. 그가 머무는 곳을 알아내 줄을 댈 수 있는 천재일우의 기회, 이 동아줄을 반드시 잡아야 한다! 남겨진 단서들을 조합해, 상무님이 머물고 있는 출장지를 정확히 추적하라.";
-const R6_MISSION_IMAGE = 'https://i.ibb.co/dsrs3Pzm/image.jpg';
+const R6_MISSION_IMAGE = 'https://i.ibb.co/sdWqMLCf/6R.jpg';
 
 // R7 영상 퀴즈 (7월)
 const R7_VIDEO_URL = 'https://1970jjh.github.io/kim-is-back/7R.mp4';
@@ -211,17 +211,17 @@ const R7_STORY = "베를린 첩보가 통한 걸까? 7월의 폭염을 뚫고 �
 // R8 문신 퀴즈 (8월)
 const R8_CORRECT_ANSWER = 'STAR';
 const R8_STORY = "앞선 현장 위기 관리 미션을 완벽하게 수행해낸 당신, 그 능력이 본사까지 전해진 걸까? 그룹의 핵심 실세인 전무님이 극비리에 공장을 방문했다는 첩보가 들어왔다. 그를 식별할 유일한 단서는 전무님 팔뚝의 문신 뿐!! 당신의 유려한 화술로 그가 스스로 소매를 걷게 만들어 문신의 문양을 확인하라!";
-const R8_MISSION_IMAGE = 'https://i.ibb.co/WpPXDVch/image.jpg';
+const R8_MISSION_IMAGE = 'https://i.ibb.co/N2B8HLbw/8R.png';
 
 // R9 심폐소생술 게임 (9월)
 const R9_STORY = "전무에게 확실한 눈도장을 찍으며 승승장구하던 찰나, 현장에서 \"쿵!\" 하는 소리와 함께 다급한 비명이 들려온다. \"사람이 쓰러졌습니다!\" 골든타임은 단 4분, 안전관리팀장으로서 동료의 생명을 구할 절체절명의 순간이다. 당신의 두 손에 모든 것이 달렸다. 흐트러짐 없는 박자와 정확한 속도로 심폐소생술을 실시해, 멈춰버린 심장을 다시 뛰게 하라!";
 
 // R10 팀워크 미션 (10월)
 const R10_STORY = "김부장의 눈부신 CPR 실력으로 쓰러졌던 직원은 다행히 의식을 찾았지만, 그 과정에서 공장 내부는 태풍이 휩쓸고 간 듯 자재들이 뒤엉켜 아수라장이 되었다. \"이 상태로 10월 정기 감사가 나오면 끝장이다!\" 흩어진 자재들을 제자리에 완벽하게 끼워 맞추는 대대적인 '현장 정상화(5S)'가 시급하다. 팀원 모두가 앞으로 나와서 제한 시간 내에 어수선한 공장의 질서를 바로잡고, 칼 같은 정리 정돈 능력을 보여줘라!";
-const R10_MISSION_IMAGE = 'https://i.ibb.co/Xxh8xWrp/image.jpg';
+const R10_MISSION_IMAGE = 'https://i.ibb.co/mrBMdWQ7/R10.jpg';
 
 // R11 고객 응대 시뮬레이션 (11월)
-const R11_STORY = "본사 복귀의 마지막 관문! 당신의 고객 응대 스킬을 증명할 시간이다. 화가 난 고객이 클레임을 걸어왔다. 경청하고, 공감하고, 해결책을 제시하라. AI가 당신의 응대를 10가지 항목으로 평가한다. 고객 만족도 80점 이상을 달성하고, 진정한 프로페셔널의 자격을 완성하라!";
+const R11_STORY = "공장이 안정을 되찾자마자, 적막을 깨는 요란한 전화벨 소리! 수화기 너머 들려오는 건 본사 시절 당신이 담당했던 VIP 고객의 불호령이다. 하지만 위기는 곧 기회, 뿔난 고객의 마음을 돌려세우는 자가 진정한 영업의 신(神)이다. 변명은 통하지 않는다. AI가 실시간으로 분석하는 고객의 감정 온도계가 '위험'을 가리키고 있다. 차갑게 식어버린 고객의 마음을 진심 어린 공감과 경청으로 녹여, 공감 점수 80점을 돌파하고 녹슬지 않은 비즈니스 감각을 증명하라!";
 
 // 산업군별 고객 시나리오
 const CUSTOMER_SCENARIOS: Record<IndustryType, { title: string; scenario: string; customerName: string }> = {
