@@ -86,5 +86,5 @@ export const ROUNDS = [
   { id: 9, title: 'ROUND 9', description: '9월: 심폐소생술' },
   { id: 10, title: 'ROUND 10', description: '10월: 현장 정상화(5S)' },
   { id: 11, title: 'ROUND 11', description: '11월: 공감대화' },
-  { id: 12, title: 'ROUND 12', description: '12월: 최종 보고서' },
+  { id: 12, title: 'ROUND 12', description: '12월: 팀 제기차기' },
 ];

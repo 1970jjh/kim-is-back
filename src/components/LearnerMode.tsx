@@ -277,8 +277,8 @@ const CUSTOMER_SCENARIOS: Record<IndustryType, { title: string; scenario: string
   }
 };
 
-// R12 릴레이 레이싱 (12월) - 본사 복귀
-const R12_STORY = "드디어 해냈다! 11개월간의 미션을 완수하고 [본사 복귀 확정] 통지서가 도착했다. 하지만 마지막 관문이 남았다. 본사까지의 험난한 길을 6명의 팀원이 릴레이로 주행해야 한다! 조직의 부정적 요소들(비꼬기, 책임회피, 꼰대문화...)을 피하고, 긍정 에너지(협업 파워, 팀워크, 시너지...)를 모아라. 제한 시간 내에 본사에 도착하면 김 부장의 화려한 복귀가 완성된다!";
+// R12 팀 제기차기 (12월) - 본사 복귀
+const R12_STORY = "고객 리스크까지 해결하며 본사 복귀 9부 능선을 넘었다. 이제 남은 건 몸으로 증명하는 완벽한 '원팀(One-Team)'의 팀워크다! '팀원과 발을 맞추지 못하는 리더는 필요 없다.' 떨어지는 제기는 곧 당신의 인사고과, 단 한 번의 실수도 용납되지 않는다. 살을 에는 12월의 추위를 뚫고, 팀원 전원이 하나 되어 제기를 손 또는 발로 차올리며 지난 1년의 대장정을 유쾌한 라스트 댄스로 마무리하라!";
 
 // 월별 이름 (라운드와 매핑: R1=1월, R2=2월, ... R12=12월)
 const MONTHS = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
@@ -296,6 +296,10 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
   const [team, setTeam] = useState<TeamState | undefined>(room.teams?.[auth.teamId]);
   const [viewState, setViewState] = useState<ViewState>('waiting');
   const [remainingTime, setRemainingTime] = useState<string>("");
+  const [showFullCalendar, setShowFullCalendar] = useState<boolean>(() => {
+    const stored = localStorage.getItem('showFullCalendar');
+    return stored === 'true';
+  });
 
   // R1 신입사원 채용 미션 상태 (1월)
   const [r1Answer, setR1Answer] = useState('');
@@ -404,10 +408,11 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
   const [r11FeedbackLoading, setR11FeedbackLoading] = useState(false);
   const [r11ChatEnded, setR11ChatEnded] = useState(false);
 
-  // R12 릴레이 레이싱 게임 상태 (12월)
+  // R12 팀 제기차기 상태 (12월)
   const [r12GameStarted, setR12GameStarted] = useState(false);
   const [r12Cleared, setR12Cleared] = useState(false);
   const [r12CompletionTime, setR12CompletionTime] = useState('');
+  const [r12StartTime, setR12StartTime] = useState<number | null>(null);
   const [r12GameStats, setR12GameStats] = useState<{
     round: number;
     totalDistance: number;
@@ -430,6 +435,8 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
   const [r12ValidationResult, setR12ValidationResult] = useState<{ pass: boolean; message: string } | null>(null);
   const [r12Generating, setR12Generating] = useState(false);
   const [r12InfographicUrl, setR12InfographicUrl] = useState<string | null>(null);
+  const [r12JegiAnswer, setR12JegiAnswer] = useState('');
+  const [r12JegiError, setR12JegiError] = useState('');
 
   useEffect(() => {
     setTeam(room.teams?.[auth.teamId]);
@@ -488,6 +495,13 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
 
     return () => clearInterval(timer);
   }, [room.missionStarted, room.missionStartTime, room.missionTimerMinutes, team?.totalBonusTime, room.eventPausedTotal, room.activeEvent, room.eventStartedAt]);
+
+  // 전체보기 모드: 페이지 로드 시 달력 화면으로 자동 이동
+  useEffect(() => {
+    if (showFullCalendar && room.missionStarted && team?.isJoined && viewState === 'waiting') {
+      setViewState('factory');
+    }
+  }, [showFullCalendar, room.missionStarted, team?.isJoined, viewState]);
 
   const completeRound = async () => {
     if (!team) return;
@@ -1065,16 +1079,18 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
 
       // AI 응답 추가
       setR11ChatHistory([...newHistory, { role: 'assistant', content: result.response }]);
-      setR11SatisfactionScore(result.satisfactionScore);
+      // 점수가 절대 깎이지 않도록 보장 (이전 점수보다 높을 때만 업데이트)
+      setR11SatisfactionScore(prev => Math.max(prev, result.satisfactionScore));
       setR11MoodLevel(result.moodLevel);
       setR11EvaluationScores(result.evaluationScores);
 
-      // 80점 이상이면 클리어
+      // 80점 이상이면 대화 자동 종료 및 클리어
       if (result.satisfactionScore >= 80 && r11StartTime) {
         const elapsed = Math.floor((Date.now() - r11StartTime) / 1000);
         const mins = Math.floor(elapsed / 60);
         const secs = elapsed % 60;
         setR11CompletionTime(`${mins}분 ${secs}초`);
+        setR11ChatEnded(true);  // 대화 자동 종료
         setR11Cleared(true);
       }
     } catch (error) {
@@ -1645,9 +1661,25 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
 
           {/* 연간 달력 카드 */}
           <BrutalistCard className="bg-black/80 space-y-6">
-            <h3 className="text-2xl font-black text-center text-yellow-400">
-              {isMissionComplete ? '🎉 모든 미션 완료!' : '김부장의 연간 미션 달력'}
-            </h3>
+            <div className="flex justify-between items-center">
+              <h3 className="text-2xl font-black text-yellow-400">
+                {isMissionComplete ? '🎉 모든 미션 완료!' : '김부장의 연간 미션 달력'}
+              </h3>
+              <button
+                onClick={() => {
+                  const newValue = !showFullCalendar;
+                  setShowFullCalendar(newValue);
+                  localStorage.setItem('showFullCalendar', String(newValue));
+                }}
+                className={`px-3 py-1 text-xs font-bold brutal-border transition-all ${
+                  showFullCalendar
+                    ? 'bg-yellow-400 text-black'
+                    : 'bg-white/10 text-white hover:bg-white/20'
+                }`}
+              >
+                {showFullCalendar ? '📅 전체보기 ON' : '📅 전체보기'}
+              </button>
+            </div>
 
             {/* 연간 달력 그리드 */}
             <div className="grid grid-cols-4 gap-3">
@@ -3064,7 +3096,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
                 ))}
               </BrutalistCard>
 
-              <BrutalistButton variant="gold" fullWidth className="text-2xl" onClick={handleR11Clear}>월 업무 마감하기(클릭)</BrutalistButton>
+              <BrutalistButton variant="gold" fullWidth className="text-2xl" onClick={handleR11Clear}>미션 성공, 다음라운드로 →</BrutalistButton>
             </div>
           ) : isR11Completed ? (
             <div className="space-y-6">
@@ -3104,40 +3136,49 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
 
               {/* 입력 영역 */}
               {!r11ChatEnded ? (
-                <div className="flex gap-2 items-end">
-                  <BrutalistTextarea
-                    ref={r11InputRef}
-                    fullWidth
-                    rows={2}
-                    placeholder="고객에게 응대할 내용을 입력하세요... (Shift+Enter: 줄바꿈)"
-                    value={r11UserInput}
-                    onChange={(e) => setR11UserInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleR11SendMessage();
-                      }
-                    }}
-                    disabled={r11Sending}
-                  />
-                  <button
-                    onClick={() => setR11ShowManual(true)}
-                    className="h-fit px-3 py-2 bg-blue-600 text-white text-xs font-bold brutal-border hover:bg-blue-500 transition-colors whitespace-nowrap"
-                    title="응대 팁 보기"
-                  >
-                    📖 매뉴얼
-                  </button>
-                  <BrutalistButton variant="gold" onClick={handleR11SendMessage} disabled={r11Sending || !r11UserInput.trim()} className="h-fit">전송</BrutalistButton>
-                  {r11SatisfactionScore >= 70 && (
-                    <BrutalistButton
-                      variant="primary"
-                      onClick={handleR11EndChat}
-                      disabled={r11FeedbackLoading}
-                      className="h-fit whitespace-nowrap"
-                    >
-                      {r11FeedbackLoading ? '분석중...' : '대화 종료'}
-                    </BrutalistButton>
-                  )}
+                <div className="space-y-2">
+                  <div className="flex gap-2 items-end">
+                    <BrutalistTextarea
+                      ref={r11InputRef}
+                      fullWidth
+                      rows={2}
+                      placeholder="고객에게 응대할 내용을 입력하세요... (Shift+Enter: 줄바꿈)"
+                      value={r11UserInput}
+                      onChange={(e) => setR11UserInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleR11SendMessage();
+                        }
+                      }}
+                      disabled={r11Sending}
+                    />
+                    <div className="flex flex-col gap-1">
+                      <button
+                        onClick={() => {
+                          setR11ChatHistory([]);
+                          setR11SatisfactionScore(0);
+                          setR11MoodLevel(1);
+                          setR11StartTime(Date.now());
+                          const industryType = room.industryType || IndustryType.IT_SOLUTION;
+                          const scenario = R11_SCENARIOS[industryType];
+                          setR11ChatHistory([{ role: 'assistant', content: scenario.scenario }]);
+                        }}
+                        className="h-fit px-3 py-2 bg-red-600 text-white text-xs font-bold brutal-border hover:bg-red-500 transition-colors whitespace-nowrap"
+                        title="처음부터 다시 시작"
+                      >
+                        🔄 다시 시작
+                      </button>
+                      <button
+                        onClick={() => setR11ShowManual(true)}
+                        className="h-fit px-3 py-2 bg-blue-600 text-white text-xs font-bold brutal-border hover:bg-blue-500 transition-colors whitespace-nowrap"
+                        title="응대 팁 보기"
+                      >
+                        📖 매뉴얼
+                      </button>
+                    </div>
+                    <BrutalistButton variant="gold" onClick={handleR11SendMessage} disabled={r11Sending || !r11UserInput.trim()} className="h-fit">전송</BrutalistButton>
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -3344,8 +3385,30 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
     );
   }
 
-  // R12 릴레이 레이싱 (12월)
+  // R12 팀 제기차기 (12월)
   if (isR12) {
+    const handleR12JegiSubmit = async () => {
+      const num = parseInt(r12JegiAnswer.trim());
+      if (isNaN(num) || num < 0) {
+        setR12JegiError('숫자를 입력해주세요.');
+        return;
+      }
+      if (num < 10) {
+        setR12JegiError('10개 이상 차야 통과입니다! 다시 도전하세요.');
+        return;
+      }
+      // 통과!
+      setR12JegiError('');
+      const now = Date.now();
+      if (r12StartTime) {
+        const elapsed = Math.floor((now - r12StartTime) / 1000);
+        const mins = Math.floor(elapsed / 60);
+        const secs = elapsed % 60;
+        setR12CompletionTime(`${mins}분 ${secs}초`);
+      }
+      setR12Cleared(true);
+    };
+
     return (
       <div className="max-w-4xl mx-auto p-4 space-y-6 pb-24">
         <header className="flex justify-between items-center border-b-4 border-white pb-4">
@@ -3367,7 +3430,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
         )}
 
         <div className="space-y-6">
-          <h3 className="text-3xl font-black uppercase tracking-tighter text-center">ROUND 12: 12월 미션 - 본사 복귀 릴레이</h3>
+          <h3 className="text-3xl font-black uppercase tracking-tighter text-center">ROUND 12: 12월 미션 - 팀 제기차기</h3>
 
           <BrutalistCard className="bg-yellow-400/10 border-yellow-400">
             <p className="text-xl font-bold italic text-center">"{R12_STORY}"</p>
@@ -3377,23 +3440,8 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
             <div className="space-y-6 animate-fadeIn">
               <div className="bg-green-600 text-white p-8 brutal-border brutalist-shadow text-center">
                 <h2 className="text-4xl font-black mb-4">🏆 KIM IS BACK!</h2>
-                <p className="text-xl mb-4">축하합니다! 본사에 도착했습니다!</p>
-                {r12GameStats && (
-                  <div className="grid grid-cols-3 gap-4 mt-4 text-sm">
-                    <div className="bg-black/30 p-3 rounded">
-                      <p className="text-gray-300">완주 인원</p>
-                      <p className="text-2xl font-black">{r12GameStats.round}/6</p>
-                    </div>
-                    <div className="bg-black/30 p-3 rounded">
-                      <p className="text-gray-300">장애물 회피</p>
-                      <p className="text-2xl font-black text-green-400">{r12GameStats.obstaclesAvoided}</p>
-                    </div>
-                    <div className="bg-black/30 p-3 rounded">
-                      <p className="text-gray-300">에너지 획득</p>
-                      <p className="text-2xl font-black text-yellow-400">{r12GameStats.fuelItemsCollected}</p>
-                    </div>
-                  </div>
-                )}
+                <p className="text-xl mb-4">축하합니다! 팀 제기차기 미션 완료!</p>
+                <p className="text-3xl font-black text-yellow-300">🎯 {r12JegiAnswer}개 성공!</p>
                 <p className="text-gray-300 mt-4">완료 시간: {r12CompletionTime}</p>
               </div>
               <BrutalistButton variant="gold" fullWidth className="text-2xl" onClick={handleR12Clear}>미션 최종 완료</BrutalistButton>
@@ -3407,48 +3455,50 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
             </div>
           ) : (
             <div className="space-y-4">
-              <BrutalistCard className="space-y-5 text-center">
-                <div className="text-6xl mb-4">🏎️</div>
-                <h4 className="text-2xl font-black text-yellow-400 uppercase">THE LAST MILE</h4>
-                <p className="text-gray-300">6명의 팀원이 릴레이로 본사까지 레이싱합니다!</p>
-                <div className="grid grid-cols-2 gap-4 text-sm mt-4">
-                  <div className="bg-red-600/20 p-3 rounded border border-red-500">
-                    <p className="font-bold text-red-400">🚫 피해야 할 것</p>
-                    <p className="text-gray-400">비꼬기, 책임회피, 꼰대문화</p>
-                  </div>
-                  <div className="bg-green-600/20 p-3 rounded border border-green-500">
-                    <p className="font-bold text-green-400">⚡ 획득할 것</p>
-                    <p className="text-gray-400">팀워크, 시너지, 협업 파워</p>
-                  </div>
+              <BrutalistCard className="space-y-5">
+                <div className="text-center">
+                  <div className="text-6xl mb-4">🪶</div>
+                  <h4 className="text-2xl font-black text-yellow-400 uppercase">팀 제기차기 챌린지</h4>
                 </div>
-                <BrutalistButton variant="gold" fullWidth className="text-xl mt-6" onClick={startR12Game}>
-                  🏁 레이싱 시작!
-                </BrutalistButton>
+
+                <div className="bg-black/30 p-4 rounded space-y-3 text-sm">
+                  <p className="font-bold text-yellow-400">📋 미션 규칙</p>
+                  <ul className="space-y-2 text-gray-300 list-disc list-inside">
+                    <li>팀원 모두가 앞으로 나와서 함께 제기를 차세요</li>
+                    <li><span className="text-green-400 font-bold">손과 발 모두 사용 가능</span>합니다</li>
+                    <li>제기를 바닥에 떨어뜨리면 자리에 앉았다가 다시 나와야 합니다</li>
+                    <li>한 사람은 <span className="text-red-400 font-bold">최대 두 번</span>까지만 터치할 수 있습니다</li>
+                    <li><span className="text-yellow-400 font-bold">10개 이상</span> 차야 통과!</li>
+                  </ul>
+                </div>
+
+                <div className="space-y-3">
+                  <label className="text-lg font-bold text-yellow-400 block">🎯 종합 제기차기 개수 입력</label>
+                  <BrutalistInput
+                    fullWidth
+                    type="number"
+                    placeholder="예: 15"
+                    value={r12JegiAnswer}
+                    onChange={(e) => { setR12JegiAnswer(e.target.value); setR12JegiError(''); }}
+                  />
+                  {r12JegiError && (
+                    <p className="text-red-400 text-sm font-bold">{r12JegiError}</p>
+                  )}
+                  <BrutalistButton variant="gold" fullWidth onClick={() => { if (!r12StartTime) setR12StartTime(Date.now()); handleR12JegiSubmit(); }}>
+                    확인
+                  </BrutalistButton>
+                </div>
               </BrutalistCard>
               <BrutalistButton variant="ghost" onClick={() => setViewState('factory')}>← 달력보기 돌아가기</BrutalistButton>
             </div>
           )}
         </div>
 
-        {/* R12 릴레이 레이싱 게임 팝업 - 전체화면 (z-index 최상위) */}
-        {r12GameStarted && (
-          <div className="fixed inset-0 z-[100] bg-black">
-            <RelayRacingGame
-              teamMembers={team?.members || []}
-              onComplete={handleR12GameComplete}
-              onCancel={() => setR12GameStarted(false)}
-            />
-          </div>
-        )}
-
-        {/* 게임 중이 아닐 때만 대시보드 버튼 표시 */}
-        {!r12GameStarted && (
-          <div className="fixed bottom-4 right-4 z-40">
-            <button onClick={() => setViewState('factory')} className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow">
-              ← 달력보기
-            </button>
-          </div>
-        )}
+        <div className="fixed bottom-4 right-4 z-40">
+          <button onClick={() => setViewState('factory')} className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow">
+            ← 달력보기
+          </button>
+        </div>
       </div>
     );
   }

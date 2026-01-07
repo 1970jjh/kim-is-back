@@ -117,6 +117,12 @@ const CPRGame: React.FC<CPRGameProps> = ({ onComplete, onClose }) => {
     if (!isPlaying) return;
 
     const now = Date.now();
+
+    // 태블릿 터치 이슈 방지: 최소 150ms 간격 필요 (400 BPM 제한)
+    if (lastClickTime.current !== 0 && now - lastClickTime.current < 150) {
+      return; // 너무 빠른 연속 터치 무시
+    }
+
     setHeartBeat(true);
     setTimeout(() => setHeartBeat(false), 150);
 
@@ -302,11 +308,14 @@ const CPRGame: React.FC<CPRGameProps> = ({ onComplete, onClose }) => {
               </div>
               <p className="text-center text-cyan-400 font-bold text-lg">BPM: {bpm}</p>
 
-              {/* Click area */}
+              {/* Click area - 태블릿/모바일 터치 최적화 */}
               <button
-                onClick={handleCompression}
-                onTouchStart={(e) => { e.preventDefault(); handleCompression(); }}
-                className="w-full py-8 bg-white/10 rounded-xl text-white font-bold text-xl border border-white/20 hover:bg-white/20 active:scale-95 transition-all"
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  handleCompression();
+                }}
+                className="w-full py-8 bg-white/10 rounded-xl text-white font-bold text-xl border border-white/20 hover:bg-white/20 active:scale-95 transition-all touch-manipulation select-none"
+                style={{ touchAction: 'manipulation', WebkitTouchCallout: 'none', WebkitUserSelect: 'none' }}
               >
                 여기를 탭하세요!
               </button>

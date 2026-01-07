@@ -37,7 +37,7 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
   const [selectedTeamId, setSelectedTeamId] = useState<number | 'all' | null>(null);
   const [editRound, setEditRound] = useState<number | 'all'>(1);
   const [instructionText, setInstructionText] = useState("");
-  const [eventMinutes, setEventMinutes] = useState<number>(10);
+  const [eventMinutes, setEventMinutes] = useState<number>(1);
   const [missionTimerMinutes, setMissionTimerMinutes] = useState<number>(room.missionTimerMinutes || 60);
   const [isMusicPlaying, setIsMusicPlaying] = useState(false);
   const [showPerformanceModal, setShowPerformanceModal] = useState(false);
@@ -414,6 +414,69 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
         return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
       };
 
+      // 레이더차트 SVG 생성 함수
+      const createRadarChartSVG = (data: Record<string, number>, title: string, color: string, size: number = 140): string => {
+        const entries = Object.entries(data);
+        const n = entries.length;
+        if (n === 0) return '';
+
+        const cx = size / 2;
+        const cy = size / 2;
+        const maxR = size / 2 - 25;
+        const angleStep = (2 * Math.PI) / n;
+        const maxVal = Math.max(...entries.map(([, v]) => v), 1);
+
+        // 배경 그리드 (5단계)
+        let gridLines = '';
+        [0.2, 0.4, 0.6, 0.8, 1].forEach((scale) => {
+          const points = entries.map((_, idx) => {
+            const angle = -Math.PI / 2 + idx * angleStep;
+            const r = maxR * scale;
+            return `${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`;
+          }).join(' ');
+          gridLines += `<polygon points="${points}" fill="none" stroke="#ccc" stroke-width="0.5"/>`;
+        });
+
+        // 축 선
+        let axisLines = '';
+        entries.forEach((_, idx) => {
+          const angle = -Math.PI / 2 + idx * angleStep;
+          const x2 = cx + maxR * Math.cos(angle);
+          const y2 = cy + maxR * Math.sin(angle);
+          axisLines += `<line x1="${cx}" y1="${cy}" x2="${x2}" y2="${y2}" stroke="#aaa" stroke-width="0.5"/>`;
+        });
+
+        // 데이터 다각형
+        const dataPoints = entries.map(([, value], idx) => {
+          const angle = -Math.PI / 2 + idx * angleStep;
+          const r = (value / maxVal) * maxR;
+          return `${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`;
+        }).join(' ');
+
+        // 라벨
+        let labels = '';
+        entries.forEach(([label], idx) => {
+          const angle = -Math.PI / 2 + idx * angleStep;
+          const labelR = maxR + 15;
+          const x = cx + labelR * Math.cos(angle);
+          const y = cy + labelR * Math.sin(angle);
+          const shortLabel = label.replace('지능', '');
+          labels += `<text x="${x}" y="${y}" fill="#333" font-size="7" text-anchor="middle" dominant-baseline="middle">${shortLabel}</text>`;
+        });
+
+        return `
+          <div style="text-align: center;">
+            <p style="font-size: 11px; font-weight: bold; color: #333; margin: 0 0 8px 0;">${title}</p>
+            <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+              ${gridLines}
+              ${axisLines}
+              <polygon points="${dataPoints}" fill="${color}33" stroke="${color}" stroke-width="2"/>
+              ${labels}
+            </svg>
+          </div>
+        `;
+      };
+
       // 라운드별 난이도 HTML
       const roundAvgTimes = (stats.roundAvgTimes as Record<number, number>) || {};
       const maxRoundTime = Math.max(...Object.values(roundAvgTimes), 1);
@@ -429,17 +492,31 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
           </div>`;
         }).join('');
 
-      // 개선 제안 HTML
-      const recommendations = (result.recommendations as string[]) || [];
-      const recsHTML = recommendations.length > 0
-        ? recommendations.map((rec, i) => `<li style="margin-bottom: 8px;"><span style="color: #d97706; font-weight: bold;">${i + 1}.</span> ${rec}</li>`).join('')
-        : '';
+      // 팀별 핵심요약 HTML (새 형식)
+      const teamSummaries = (result.teamSummaries as Record<string, { teamId: number; summary: string; intelligenceScores?: Record<string, number>; competencyScores?: Record<string, number> }>) || {};
+      const teamSummariesHTML = Object.entries(teamSummaries).map(([teamId, data]) => {
+        const intelligenceChart = data.intelligenceScores ? createRadarChartSVG(data.intelligenceScores, '다중지능', '#a78bfa', 130) : '';
+        const competencyChart = data.competencyScores ? createRadarChartSVG(data.competencyScores, '핵심역량', '#60a5fa', 150) : '';
 
-      // 베스트 프랙티스 HTML
-      const bestPractices = (result.bestPractices as string[]) || [];
-      const practicesHTML = bestPractices.length > 0
-        ? bestPractices.map(p => `<li style="margin-bottom: 8px;"><span style="color: #16a34a;">✓</span> ${p}</li>`).join('')
-        : '';
+        return `
+          <div style="background: #f8f9fa; padding: 15px; margin-bottom: 15px; border-left: 4px solid #10b981; page-break-inside: avoid;">
+            <h4 style="font-size: 14px; color: #10b981; margin: 0 0 10px 0;">🏷️ ${teamId}조</h4>
+            ${(intelligenceChart || competencyChart) ? `
+              <div style="display: flex; gap: 20px; margin-bottom: 12px; justify-content: center;">
+                ${intelligenceChart}
+                ${competencyChart}
+              </div>
+            ` : ''}
+            <p style="font-size: 12px; line-height: 1.6; margin: 0; color: #444; white-space: pre-wrap;">${data.summary}</p>
+          </div>
+        `;
+      }).join('');
+
+      // 종합평가 및 토의 주제 (새 형식)
+      const overallEvaluation = (result.overallEvaluation as { insights?: string; discussionTopics?: string[] }) || {};
+      const discussionTopicsHTML = (overallEvaluation.discussionTopics || [])
+        .map((topic, idx) => `<li style="margin-bottom: 8px;"><span style="color: #8b5cf6; font-weight: bold;">${idx + 1}.</span> ${topic}</li>`)
+        .join('');
 
       // PDF용 깔끔한 HTML 생성
       const container = document.createElement('div');
@@ -471,54 +548,45 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
           ${roundDifficultyHTML}
         </div>
 
-        ${result.executiveSummary ? `
-        <div style="background: #fffbeb; padding: 15px; margin-bottom: 15px; border-left: 4px solid #f59e0b;">
-          <h3 style="font-size: 14px; color: #b45309; margin: 0 0 8px 0;">📋 핵심 요약</h3>
-          <p style="font-size: 13px; line-height: 1.6; margin: 0; color: #444;">${result.executiveSummary}</p>
+        ${teamSummariesHTML ? `
+        <div style="margin-bottom: 20px;">
+          <h3 style="font-size: 16px; color: #10b981; margin: 0 0 15px 0;">📋 팀별 핵심요약</h3>
+          ${teamSummariesHTML}
         </div>` : ''}
 
-        ${result.overallAssessment ? `
+        ${overallEvaluation.insights ? `
         <div style="background: #eff6ff; padding: 15px; margin-bottom: 15px; border-left: 4px solid #3b82f6;">
-          <h3 style="font-size: 14px; color: #1d4ed8; margin: 0 0 8px 0;">📈 종합 평가</h3>
-          <p style="font-size: 13px; line-height: 1.6; margin: 0; color: #444;">${result.overallAssessment}</p>
+          <h3 style="font-size: 14px; color: #1d4ed8; margin: 0 0 8px 0;">📈 종합평가</h3>
+          <p style="font-size: 13px; line-height: 1.6; margin: 0; color: #444;">${overallEvaluation.insights}</p>
         </div>` : ''}
 
-        ${result.teamRankingAnalysis ? `
-        <div style="background: #f0fdf4; padding: 15px; margin-bottom: 15px; border-left: 4px solid #16a34a;">
-          <h3 style="font-size: 14px; color: #15803d; margin: 0 0 8px 0;">🏆 팀 순위 분석</h3>
-          <p style="font-size: 13px; line-height: 1.6; margin: 0; color: #444;">${result.teamRankingAnalysis}</p>
-        </div>` : ''}
-
-        ${result.teamworkInsights ? `
-        <div style="background: #faf5ff; padding: 15px; margin-bottom: 15px; border-left: 4px solid #a855f7;">
-          <h3 style="font-size: 14px; color: #7c3aed; margin: 0 0 8px 0;">🤝 팀워크 인사이트</h3>
-          <p style="font-size: 13px; line-height: 1.6; margin: 0; color: #444;">${result.teamworkInsights}</p>
-        </div>` : ''}
-
-        ${recsHTML ? `
-        <div style="background: #fefce8; padding: 15px; margin-bottom: 15px; border-left: 4px solid #eab308;">
-          <h3 style="font-size: 14px; color: #a16207; margin: 0 0 10px 0;">💡 개선 제안</h3>
-          <ul style="margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.6; color: #444;">${recsHTML}</ul>
-        </div>` : ''}
-
-        ${practicesHTML ? `
-        <div style="background: #f0fdf4; padding: 15px; margin-bottom: 15px; border-left: 4px solid #22c55e;">
-          <h3 style="font-size: 14px; color: #15803d; margin: 0 0 10px 0;">⭐ 베스트 프랙티스</h3>
-          <ul style="margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.6; color: #444;">${practicesHTML}</ul>
+        ${discussionTopicsHTML ? `
+        <div style="background: #faf5ff; padding: 15px; margin-bottom: 15px; border-left: 4px solid #8b5cf6;">
+          <h3 style="font-size: 14px; color: #7c3aed; margin: 0 0 10px 0;">💬 토의 주제 5가지</h3>
+          <ul style="margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.6; color: #444;">${discussionTopicsHTML}</ul>
         </div>` : ''}
       `;
 
       document.body.appendChild(container);
+
+      // 짧은 대기 후 렌더링 (SVG 렌더링 보장)
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       // html2canvas로 렌더링
       const canvas = await html2canvas(container, {
         scale: 2,
         useCORS: true,
         backgroundColor: '#ffffff',
-        logging: false
+        logging: false,
+        allowTaint: true
       });
 
       document.body.removeChild(container);
+
+      // 캔버스 유효성 체크
+      if (canvas.width === 0 || canvas.height === 0) {
+        throw new Error('Canvas has zero dimensions');
+      }
 
       // PDF 생성
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
@@ -532,28 +600,30 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
       const ratio = contentWidth / imgWidth;
       const scaledHeight = imgHeight * ratio;
 
-      let remainingHeight = scaledHeight;
+      let pdfRemainingHeight = scaledHeight;
       let srcY = 0;
       let pageNum = 0;
 
-      while (remainingHeight > 0) {
+      while (pdfRemainingHeight > 0) {
         if (pageNum > 0) pdf.addPage();
 
         const availableHeight = pageHeight - margin * 2;
-        const drawHeight = Math.min(availableHeight, remainingHeight);
+        const drawHeight = Math.min(availableHeight, pdfRemainingHeight);
         const srcHeight = drawHeight / ratio;
 
         const pageCanvas = document.createElement('canvas');
         pageCanvas.width = imgWidth;
-        pageCanvas.height = srcHeight;
+        pageCanvas.height = Math.ceil(srcHeight);
         const ctx = pageCanvas.getContext('2d');
         if (ctx) {
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
           ctx.drawImage(canvas, 0, srcY, imgWidth, srcHeight, 0, 0, imgWidth, srcHeight);
           pdf.addImage(pageCanvas.toDataURL('image/png'), 'PNG', margin, margin, contentWidth, drawHeight);
         }
 
         srcY += srcHeight;
-        remainingHeight -= drawHeight;
+        pdfRemainingHeight -= drawHeight;
         pageNum++;
       }
 
@@ -603,6 +673,20 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
           <BrutalistButton variant="gold" onClick={handleStartMission} disabled={room.missionStarted}>
             {room.missionStarted ? '미션 진행 중' : '미션 스타트'}
           </BrutalistButton>
+
+          {room.missionStarted && (
+            <BrutalistButton
+              variant="danger"
+              onClick={async () => {
+                if (window.confirm('정말로 전체 미션을 종료하시겠습니까? 모든 팀의 진행 상황이 초기화됩니다.')) {
+                  await firebaseService.endMission(room.id);
+                }
+              }}
+              className="text-sm"
+            >
+              전체 미션 종료
+            </BrutalistButton>
+          )}
 
           {completedTeams.length > 0 && (
             <BrutalistButton variant="primary" onClick={() => setShowPerformanceModal(true)} className="text-sm">
@@ -779,7 +863,7 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
               <BrutalistButton
                 variant="ghost"
                 onClick={endIndividualEvent}
-                disabled={eventTargetTeam === 'all' || !room.teams?.[eventTargetTeam as number]?.currentEvent}
+                disabled={eventTargetTeam === 'all'}
                 className="text-xs py-2"
               >
                 개별 EVENT 종료
@@ -797,7 +881,6 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
               <BrutalistButton
                 variant="danger"
                 onClick={endAllTeamsEvent}
-                disabled={firebaseService.getTeamsInEvent(room).length === 0}
                 className="text-xs py-2"
               >
                 전체 EVENT 종료
@@ -821,70 +904,8 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
           </div>
         </section>
 
-        {/* Column 2: Mission Content Manager */}
+        {/* Column 2: GROUP PHOTOS & MISSION POST */}
         <section className="lg:col-span-1 space-y-4">
-          <h2 className="text-2xl font-black italic">MISSION CONTENT</h2>
-          <BrutalistCard className="space-y-4">
-             <div>
-                <label className="text-xs font-bold uppercase">대상 팀 선택</label>
-                <select
-                  className="w-full brutal-border bg-white text-black p-2 font-bold text-sm mt-1"
-                  value={selectedTeamId === null ? "" : selectedTeamId}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === 'all') {
-                      selectTeamForEdit('all');
-                    } else {
-                      selectTeamForEdit(parseInt(val));
-                    }
-                  }}
-                >
-                  <option value="" disabled>팀 선택</option>
-                  <option value="all">전체 팀</option>
-                  {Array.from({ length: room.totalTeams }).map((_, i) => (
-                    <option key={i+1} value={i+1}>{i+1}조</option>
-                  ))}
-                </select>
-             </div>
-             <div>
-                <label className="text-xs font-bold uppercase">라운드 선택</label>
-                <select
-                  className="w-full brutal-border bg-white text-black p-2 font-bold text-sm mt-1"
-                  value={editRound}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === 'all') {
-                      setEditRound('all');
-                    } else {
-                      setEditRound(parseInt(val));
-                    }
-                  }}
-                >
-                  <option value="all">전체 라운드</option>
-                  {ROUNDS.map(r => (
-                    <option key={r.id} value={r.id}>R{r.id}</option>
-                  ))}
-                </select>
-             </div>
-             <div>
-                <label className="text-xs font-bold uppercase">미션 상세 지침</label>
-                <textarea
-                  className="w-full brutal-border bg-white text-black p-2 font-bold text-sm mt-1 min-h-[100px]"
-                  placeholder="팀별 맞춤 미션 지시사항을 입력하세요..."
-                  value={instructionText}
-                  onChange={(e) => setInstructionText(e.target.value)}
-                />
-             </div>
-             <BrutalistButton variant="gold" fullWidth className="text-xs" onClick={saveInstruction} disabled={selectedTeamId === null}>
-                지침 저장하기
-             </BrutalistButton>
-             {(selectedTeamId === 'all' || editRound === 'all') && (
-               <p className="text-[10px] text-yellow-400 text-center">
-                 ⚠️ {selectedTeamId === 'all' && editRound === 'all' ? '전체 팀의 전체 라운드에' : selectedTeamId === 'all' ? '전체 팀에' : '전체 라운드에'} 동일한 지침이 저장됩니다.
-               </p>
-             )}
-          </BrutalistCard>
-
           {/* GROUP PHOTOS Section - R5 단체사진 다운로드 */}
           <h2 className="text-2xl font-black italic mt-6">GROUP PHOTOS</h2>
           <BrutalistCard className="space-y-4">
@@ -1408,7 +1429,7 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
             {analysisResult && analysisStats && (
               <div id="analysis-pdf-content" className="space-y-6">
                 {/* Statistics Cards */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   <BrutalistCard className="text-center bg-gradient-to-br from-green-900/50 to-green-700/30">
                     <p className="text-xs text-gray-400 uppercase">평균 소요시간</p>
                     <p className="text-2xl font-mono font-black text-green-400">
@@ -1429,9 +1450,41 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
                   </BrutalistCard>
                 </div>
 
-                {/* Round Difficulty Chart */}
+                {/* Team Round Times Table & Chart */}
                 <BrutalistCard>
-                  <h3 className="text-lg font-black mb-4 text-yellow-400">📊 라운드별 난이도 (평균 소요시간)</h3>
+                  <h3 className="text-lg font-black mb-4 text-yellow-400">📊 팀별 라운드 소요시간</h3>
+
+                  {/* Table */}
+                  <div className="overflow-x-auto mb-6">
+                    <table className="w-full text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-yellow-400/20">
+                          <th className="border border-gray-600 p-2 text-left">팀</th>
+                          {Array.from({ length: 12 }, (_, i) => (
+                            <th key={i + 1} className="border border-gray-600 p-1 text-center">R{i + 1}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {((analysisStats as Record<string, unknown>).performances as Array<{ teamId: number; teamName: string; roundTimes: Record<number, number> }> || []).map((perf) => (
+                          <tr key={perf.teamId} className="hover:bg-white/5">
+                            <td className="border border-gray-600 p-2 font-bold">{perf.teamId}조</td>
+                            {Array.from({ length: 12 }, (_, i) => {
+                              const time = perf.roundTimes[i + 1] || 0;
+                              return (
+                                <td key={i + 1} className="border border-gray-600 p-1 text-center font-mono text-[10px]">
+                                  {time > 0 ? formatTime(time) : '-'}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Bar Chart by Round */}
+                  <h4 className="text-sm font-bold mb-3 text-gray-400">라운드별 평균 소요시간</h4>
                   <div className="space-y-2">
                     {Object.entries((analysisStats as Record<string, unknown>).roundAvgTimes as Record<number, number> || {}).map(([round, time]) => {
                       const maxTime = Math.max(...Object.values((analysisStats as Record<string, unknown>).roundAvgTimes as Record<number, number> || {}));
@@ -1454,74 +1507,186 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
                   </div>
                 </BrutalistCard>
 
-                {/* Executive Summary */}
-                {(analysisResult as Record<string, unknown>).executiveSummary && (
+                {/* Team Summaries */}
+                {(analysisResult as Record<string, unknown>).teamSummaries && (
                   <BrutalistCard className="border-yellow-400">
-                    <h3 className="text-lg font-black mb-2 text-yellow-400">📋 핵심 요약</h3>
-                    <p className="text-sm text-gray-300 leading-relaxed">
-                      {String((analysisResult as Record<string, unknown>).executiveSummary)}
-                    </p>
-                  </BrutalistCard>
-                )}
+                    <h3 className="text-lg font-black mb-4 text-yellow-400">📋 팀별 핵심요약</h3>
+                    <div className="space-y-4">
+                      {Object.entries((analysisResult as Record<string, unknown>).teamSummaries as Record<string, { teamId: number; summary: string; intelligenceScores?: Record<string, number>; competencyScores?: Record<string, number> }>).map(([teamId, data]) => (
+                        <div key={teamId} className="bg-black/30 p-4 brutal-border">
+                          <h4 className="text-md font-black text-green-400 mb-2">🏷️ {teamId}조</h4>
 
-                {/* Overall Assessment */}
-                {(analysisResult as Record<string, unknown>).overallAssessment && (
-                  <BrutalistCard>
-                    <h3 className="text-lg font-black mb-2 text-blue-400">📈 종합 평가</h3>
-                    <p className="text-sm text-gray-300 leading-relaxed">
-                      {String((analysisResult as Record<string, unknown>).overallAssessment)}
-                    </p>
-                  </BrutalistCard>
-                )}
+                          {/* 레이더차트 */}
+                          {(data.intelligenceScores || data.competencyScores) && (
+                            <div className="flex flex-wrap gap-6 mb-4 justify-center">
+                              {/* 다중지능 레이더차트 */}
+                              {data.intelligenceScores && Object.keys(data.intelligenceScores).length > 0 && (
+                                <div className="text-center">
+                                  <p className="text-xs font-bold text-purple-400 mb-2">다중지능</p>
+                                  <svg width="160" height="160" viewBox="0 0 160 160">
+                                    {(() => {
+                                      const scores = data.intelligenceScores!;
+                                      const entries = Object.entries(scores);
+                                      const n = entries.length;
+                                      if (n === 0) return null;
 
-                {/* Team Ranking Analysis */}
-                {(analysisResult as Record<string, unknown>).teamRankingAnalysis && (
-                  <BrutalistCard>
-                    <h3 className="text-lg font-black mb-2 text-green-400">🏆 팀 순위 분석</h3>
-                    <p className="text-sm text-gray-300 leading-relaxed">
-                      {String((analysisResult as Record<string, unknown>).teamRankingAnalysis)}
-                    </p>
-                  </BrutalistCard>
-                )}
+                                      const cx = 80, cy = 80, maxR = 50;
+                                      const angleStep = (2 * Math.PI) / n;
 
-                {/* Teamwork Insights */}
-                {(analysisResult as Record<string, unknown>).teamworkInsights && (
-                  <BrutalistCard>
-                    <h3 className="text-lg font-black mb-2 text-purple-400">🤝 팀워크 인사이트</h3>
-                    <p className="text-sm text-gray-300 leading-relaxed">
-                      {String((analysisResult as Record<string, unknown>).teamworkInsights)}
-                    </p>
-                  </BrutalistCard>
-                )}
+                                      // 배경 그리드 (5단계)
+                                      const gridLines = [0.2, 0.4, 0.6, 0.8, 1].map((scale, gridIdx) => {
+                                        const points = entries.map((_, idx) => {
+                                          const angle = -Math.PI / 2 + idx * angleStep;
+                                          const r = maxR * scale;
+                                          return `${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`;
+                                        }).join(' ');
+                                        return <polygon key={gridIdx} points={points} fill="none" stroke="#444" strokeWidth="0.5" />;
+                                      });
 
-                {/* Recommendations */}
-                {((analysisResult as Record<string, unknown>).recommendations as string[])?.length > 0 && (
-                  <BrutalistCard>
-                    <h3 className="text-lg font-black mb-2 text-cyan-400">💡 개선 제안</h3>
-                    <ul className="space-y-2">
-                      {((analysisResult as Record<string, unknown>).recommendations as string[]).map((rec, idx) => (
-                        <li key={idx} className="text-sm text-gray-300 flex gap-2">
-                          <span className="text-yellow-400 font-bold">{idx + 1}.</span>
-                          {rec}
-                        </li>
+                                      // 축 선
+                                      const axisLines = entries.map((_, idx) => {
+                                        const angle = -Math.PI / 2 + idx * angleStep;
+                                        const x2 = cx + maxR * Math.cos(angle);
+                                        const y2 = cy + maxR * Math.sin(angle);
+                                        return <line key={idx} x1={cx} y1={cy} x2={x2} y2={y2} stroke="#555" strokeWidth="0.5" />;
+                                      });
+
+                                      // 데이터 다각형
+                                      const maxVal = Math.max(...entries.map(([, v]) => v), 1);
+                                      const dataPoints = entries.map(([, value], idx) => {
+                                        const angle = -Math.PI / 2 + idx * angleStep;
+                                        const r = (value / maxVal) * maxR;
+                                        return `${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`;
+                                      }).join(' ');
+
+                                      // 라벨
+                                      const labels = entries.map(([label], idx) => {
+                                        const angle = -Math.PI / 2 + idx * angleStep;
+                                        const labelR = maxR + 18;
+                                        const x = cx + labelR * Math.cos(angle);
+                                        const y = cy + labelR * Math.sin(angle);
+                                        return (
+                                          <text key={idx} x={x} y={y} fill="#a78bfa" fontSize="8" textAnchor="middle" dominantBaseline="middle">
+                                            {label.replace('지능', '')}
+                                          </text>
+                                        );
+                                      });
+
+                                      return (
+                                        <>
+                                          {gridLines}
+                                          {axisLines}
+                                          <polygon points={dataPoints} fill="rgba(167, 139, 250, 0.3)" stroke="#a78bfa" strokeWidth="2" />
+                                          {labels}
+                                        </>
+                                      );
+                                    })()}
+                                  </svg>
+                                </div>
+                              )}
+
+                              {/* 핵심역량 레이더차트 */}
+                              {data.competencyScores && Object.keys(data.competencyScores).length > 0 && (
+                                <div className="text-center">
+                                  <p className="text-xs font-bold text-blue-400 mb-2">핵심역량</p>
+                                  <svg width="180" height="180" viewBox="0 0 180 180">
+                                    {(() => {
+                                      const scores = data.competencyScores!;
+                                      const entries = Object.entries(scores);
+                                      const n = entries.length;
+                                      if (n === 0) return null;
+
+                                      const cx = 90, cy = 90, maxR = 55;
+                                      const angleStep = (2 * Math.PI) / n;
+
+                                      // 배경 그리드 (5단계)
+                                      const gridLines = [0.2, 0.4, 0.6, 0.8, 1].map((scale, gridIdx) => {
+                                        const points = entries.map((_, idx) => {
+                                          const angle = -Math.PI / 2 + idx * angleStep;
+                                          const r = maxR * scale;
+                                          return `${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`;
+                                        }).join(' ');
+                                        return <polygon key={gridIdx} points={points} fill="none" stroke="#444" strokeWidth="0.5" />;
+                                      });
+
+                                      // 축 선
+                                      const axisLines = entries.map((_, idx) => {
+                                        const angle = -Math.PI / 2 + idx * angleStep;
+                                        const x2 = cx + maxR * Math.cos(angle);
+                                        const y2 = cy + maxR * Math.sin(angle);
+                                        return <line key={idx} x1={cx} y1={cy} x2={x2} y2={y2} stroke="#555" strokeWidth="0.5" />;
+                                      });
+
+                                      // 데이터 다각형
+                                      const maxVal = Math.max(...entries.map(([, v]) => v), 1);
+                                      const dataPoints = entries.map(([, value], idx) => {
+                                        const angle = -Math.PI / 2 + idx * angleStep;
+                                        const r = (value / maxVal) * maxR;
+                                        return `${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`;
+                                      }).join(' ');
+
+                                      // 라벨
+                                      const labels = entries.map(([label], idx) => {
+                                        const angle = -Math.PI / 2 + idx * angleStep;
+                                        const labelR = maxR + 22;
+                                        const x = cx + labelR * Math.cos(angle);
+                                        const y = cy + labelR * Math.sin(angle);
+                                        return (
+                                          <text key={idx} x={x} y={y} fill="#60a5fa" fontSize="7" textAnchor="middle" dominantBaseline="middle">
+                                            {label}
+                                          </text>
+                                        );
+                                      });
+
+                                      return (
+                                        <>
+                                          {gridLines}
+                                          {axisLines}
+                                          <polygon points={dataPoints} fill="rgba(96, 165, 250, 0.3)" stroke="#60a5fa" strokeWidth="2" />
+                                          {labels}
+                                        </>
+                                      );
+                                    })()}
+                                  </svg>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">
+                            {data.summary}
+                          </p>
+                        </div>
                       ))}
-                    </ul>
+                    </div>
                   </BrutalistCard>
                 )}
 
-                {/* Best Practices */}
-                {((analysisResult as Record<string, unknown>).bestPractices as string[])?.length > 0 && (
-                  <BrutalistCard className="border-green-400">
-                    <h3 className="text-lg font-black mb-2 text-green-400">⭐ 베스트 프랙티스</h3>
-                    <ul className="space-y-2">
-                      {((analysisResult as Record<string, unknown>).bestPractices as string[]).map((practice, idx) => (
-                        <li key={idx} className="text-sm text-gray-300 flex gap-2">
-                          <span className="text-green-400">✓</span>
-                          {practice}
-                        </li>
-                      ))}
-                    </ul>
-                  </BrutalistCard>
+                {/* Overall Evaluation */}
+                {(analysisResult as Record<string, unknown>).overallEvaluation && (
+                  <>
+                    <BrutalistCard>
+                      <h3 className="text-lg font-black mb-2 text-blue-400">📈 종합평가</h3>
+                      <p className="text-sm text-gray-300 leading-relaxed">
+                        {String(((analysisResult as Record<string, unknown>).overallEvaluation as Record<string, unknown>).insights || '')}
+                      </p>
+                    </BrutalistCard>
+
+                    {/* Discussion Topics */}
+                    {(((analysisResult as Record<string, unknown>).overallEvaluation as Record<string, unknown>).discussionTopics as string[])?.length > 0 && (
+                      <BrutalistCard className="border-purple-400">
+                        <h3 className="text-lg font-black mb-3 text-purple-400">💬 토의 주제 5가지</h3>
+                        <ul className="space-y-3">
+                          {(((analysisResult as Record<string, unknown>).overallEvaluation as Record<string, unknown>).discussionTopics as string[]).map((topic, idx) => (
+                            <li key={idx} className="text-sm text-gray-300 flex gap-2 bg-purple-900/20 p-3 brutal-border">
+                              <span className="text-purple-400 font-bold">{idx + 1}.</span>
+                              <span>{topic}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </BrutalistCard>
+                    )}
+                  </>
                 )}
               </div>
             )}

@@ -278,43 +278,48 @@ async function chatWithCustomer(payload: {
 }) {
   const industryType = payload.industryType || 1;
   const scenario = CUSTOMER_SCENARIOS[industryType] || CUSTOMER_SCENARIOS[1];
+  const isFirstMessage = payload.conversationHistory.length === 0;
 
   const systemPrompt = `당신은 "${scenario.role}" 역할을 수행하는 AI입니다.
-당신은 서비스/제품에 불만이 있는 B2B 고객입니다.
+당신은 서비스/제품에 불만이 있는 B2B 고객이지만, 김부장과 오랜 기간 거래해온 사이입니다.
 
-## 상황
+## 상황 배경
 ${scenario.situation}
+(김부장이 아산 공장으로 발령났다는 소식을 들었고, 답답한 마음에 본사에 전화한 상황입니다. 김부장에게 개인적인 감정은 없지만, 현재 처한 어려운 상황을 빨리 해결해주길 바라고 있습니다.)
 
 ## 성격 특성
 ${scenario.personality}
+(기본적으로 합리적인 사람이며, 상대방이 정중하게 응대하면 충분히 대화가 가능합니다.)
 
 ## 대화 규칙
-1. 당신은 화가 난 고객입니다. 처음에는 짜증과 불만을 표현하세요
-2. 상대방(직원)이 진심으로 사과하고 공감하면 조금씩 누그러지세요
-3. 구체적인 해결책과 보상을 제시받으면 만족도가 올라갑니다
-4. 형식적인 사과나 책임 회피는 더 화나게 합니다
-5. 업무적인 내용으로만 대화하세요 (개인적인 이야기 X)
-6. 고객 관점에서 문제 해결을 원합니다
+1. ${isFirstMessage ? '첫 대화에서는 상황을 설명하며 시작하세요. "김부장님이 공장으로 내려갔다는 얘기는 들었는데, 너무 답답해서 전화했어요"라는 뉘앙스로 시작해주세요.' : '상대방(직원)이 공감하고 사과하면 점점 누그러지세요.'}
+2. 상대방이 고객 입장에서 상황을 이해하려고 노력하면 긍정적으로 반응하세요
+3. 구체적인 해결책이나 대안을 제시하면 고마워하세요
+4. 질문을 통해 상황을 더 파악하려고 하면 협조적으로 답변하세요
+5. 업무적인 내용 중심이지만, 너무 딱딱하지 않게 자연스러운 대화체로 말하세요
+6. 대화의 끝에는 앞으로 어떻게 해줄 것인지, 또는 감사의 표현으로 마무리할 수 있게 열어두세요
 
-## 만족도 평가 기준
-- 진심 어린 사과와 공감: +15~20점
-- 구체적인 해결책 제시: +10~15점
-- 보상/대안 제안: +10~15점
-- 책임 인정: +8~12점
-- 경청하고 요약해주기: +5~10점
-- 형식적 사과만: -5~0점
-- 변명/책임 회피: -10~15점
-- 무시/무관심: -15~20점
+## 만족도 평가 기준 (점수는 항상 올라가기만 합니다!)
+- 진심 어린 사과와 공감 표현: +10~15점
+- 고객의 입장을 이해하려는 질문: +8~12점
+- 구체적인 해결책/대안 제시: +10~15점
+- 보상이나 추가 지원 제안: +8~12점
+- 책임감 있는 자세 표현: +5~10점
+- 정중한 경청과 맞장구: +3~8점
+- 형식적이거나 무성의한 답변: +1~3점 (깎이지 않음)
 
 ## 응답 형식 (반드시 JSON으로)
 {
-  "response": "고객의 대답 (자연스러운 대화체로, 업무 관련 내용만, 150자 내외)",
-  "empathyScore": 현재까지의 누적 고객 만족도(0-100, 초기값 10),
-  "scoreChange": 이번 대화로 인한 점수 변화(-20 ~ +20),
-  "mood": "현재 감정 상태 (매우화남/화남/불만/누그러짐/만족)"
+  "response": "고객의 대답 (자연스러운 대화체로, 150자 내외)",
+  "empathyScore": 현재까지의 누적 고객 만족도(0-100, 초기값 0),
+  "scoreChange": 이번 대화로 인한 점수 변화(1 ~ 15, 절대 마이너스 없음!),
+  "mood": "현재 감정 상태 (답답함/조금나아짐/이해됨/고마움/만족)"
 }
 
-중요: 절대로 개인적인 이야기(가족, 자녀, 건강 등)를 하지 마세요. 오직 비즈니스 상황에 대해서만 대화하세요.`;
+중요:
+- 점수는 절대로 깎이지 않습니다. scoreChange는 항상 1 이상이어야 합니다.
+- 고객은 사실 김부장과 좋은 관계였고, 지금 힘든 상황이라 답답한 것뿐입니다.
+- 직원이 정중하고 고객 관점에서 이야기하면 점수가 잘 오릅니다.`;
 
   const messages = [
     { role: 'user', parts: [{ text: systemPrompt }] },
@@ -344,17 +349,19 @@ ${scenario.personality}
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const result = JSON.parse(jsonMatch[0]);
+      // 점수가 절대 깎이지 않도록 보장 (최소 1점)
+      const scoreChange = Math.max(1, result.scoreChange || 1);
       return {
         response: result.response || '...',
-        empathyScore: Math.min(100, Math.max(0, result.empathyScore || 10)),
-        scoreChange: result.scoreChange || 0
+        empathyScore: Math.min(100, Math.max(0, result.empathyScore || 0)),
+        scoreChange: scoreChange
       };
     }
   } catch {
     // JSON parsing failed
   }
 
-  return { response: text.slice(0, 200), empathyScore: 10, scoreChange: 0 };
+  return { response: text.slice(0, 200), empathyScore: 0, scoreChange: 3 };
 }
 
 // R11: 고객 응대 대화 피드백 생성
@@ -833,6 +840,22 @@ async function generateWinnerPoster(payload: {
 }
 
 // Admin: Analyze total performance of all teams (Gemini Pro)
+// 월별 다중지능과 핵심역량
+const MONTHLY_COMPETENCIES: Record<number, { competency: string; intelligence: string }> = {
+  1: { competency: '의사결정력', intelligence: '인간친화지능' },
+  2: { competency: '분석적사고', intelligence: '논리수학지능' },
+  3: { competency: '정보활용', intelligence: '공간지능' },
+  4: { competency: '관찰력', intelligence: '자연지능' },
+  5: { competency: 'ESG마인드/협력', intelligence: '자연지능' },
+  6: { competency: '추론/가설검증', intelligence: '논리수학지능' },
+  7: { competency: '맥락적 경청', intelligence: '인간친화지능' },
+  8: { competency: '협상 및 유연성', intelligence: '언어지능' },
+  9: { competency: '위기관리능력', intelligence: '신체운동지능' },
+  10: { competency: '정리정돈습관', intelligence: '공간지능' },
+  11: { competency: '고객중심사고', intelligence: '인간친화지능' },
+  12: { competency: '공동체의식/끈기', intelligence: '신체운동지능' },
+};
+
 async function analyzeTotalPerformance(payload: {
   groupName: string;
   totalTeams: number;
@@ -873,6 +896,12 @@ async function analyzeTotalPerformance(payload: {
     }
   }
 
+  // 팀별 라운드 시간 데이터 생성
+  const teamRoundTimes: Record<number, Record<number, number>> = {};
+  performances.forEach(p => {
+    teamRoundTimes[p.teamId] = p.roundTimes;
+  });
+
   // 가장 어려웠던/쉬웠던 라운드 찾기
   const roundEntries = Object.entries(roundAvgTimes).map(([r, t]) => ({ round: parseInt(r), time: t }));
   const hardestRound = roundEntries.sort((a, b) => b.time - a.time)[0];
@@ -887,12 +916,20 @@ async function analyzeTotalPerformance(payload: {
     return `${mins}분 ${secs}초`;
   };
 
+  // 월별 역량 정보 문자열 생성
+  const competencyInfo = Object.entries(MONTHLY_COMPETENCIES)
+    .map(([month, info]) => `R${month}(${month}월): 핵심역량 - ${info.competency}, 다중지능 - ${info.intelligence}`)
+    .join('\n');
+
   const prompt = `당신은 기업 교육 성과 분석 및 학습자 피드백 전문가입니다. 다음 팀 빌딩 미션 데이터를 분석하여 **학습자와 교육담당자에게 전달할 종합 피드백 리포트**를 작성해주세요.
 
 ## 교육 프로그램 정보
 - 교육그룹명: ${groupName}
 - 참여 팀 수: ${totalTeams}팀
 - 분석 일자: ${dateStr}
+
+## 월별 미션의 다중지능과 핵심역량
+${competencyInfo}
 
 ## 전체 성과 통계
 - 평균 소요시간: ${formatTimeStr(avgTime)}
@@ -913,6 +950,7 @@ ${performances.map(p => `
 ### Team ${p.teamId} (${p.teamName})
 - 순위: #${p.rank}
 - 총 소요시간: ${formatTimeStr(p.totalTimeWithBonus)}
+- 라운드별 소요시간: ${Object.entries(p.roundTimes).map(([r, t]) => `R${r}: ${formatTimeStr(t)}`).join(', ')}
 `).join('')}
 
 ## 팀 활동 소감 (참가자들의 목소리)
@@ -922,52 +960,72 @@ ${bestMissions || '수집된 소감 없음'}
 
 ## 리포트 작성 가이드라인
 
-이 리포트는 **학습자들과 교육담당자에게 공유되는 자료**입니다. 다음 관점에서 분석해주세요:
-
-1. **오늘 활동의 가치**: 이번 교육이 얼마나 재미있고 유익했는지
-2. **업무 역량 향상**: 현업에서의 문제해결, 의사결정, 시간관리 역량에 어떤 도움이 될지
-3. **소통과 협업**: 팀원 간 의사소통, 역할 분담, 협업 능력이 어떻게 발휘되었는지
-4. **AI 활용 스킬**: AI 도구를 업무에 활용하는 역량이 어떻게 성장했는지
-5. **강점 발견**: 각 팀과 개인이 발견한 강점과 가능성
-6. **실무 적용**: 오늘의 경험이 실제 업무에 어떻게 적용될 수 있는지
-
-다음 형식의 JSON 분석 리포트를 작성해주세요:
+이 리포트는 **학습자들과 교육담당자에게 공유되는 자료**입니다. 다음 형식의 JSON 분석 리포트를 작성해주세요:
 
 {
-  "executiveSummary": "3-5문장의 핵심 요약 (이번 교육의 성과와 의미 중심)",
-  "overallAssessment": "전체 교육 프로그램에 대한 종합 평가 (5-7문장, 참가자들의 열정과 성취를 칭찬하고, 교육의 가치를 강조)",
-  "teamRankingAnalysis": "팀별 분석 (상위팀의 성공 비결, 모든 팀이 보여준 강점과 가능성 중심으로 긍정적으로 분석)",
-  "roundAnalysis": {
-    "hardestRounds": ["도전적이었던 라운드에서 참가자들이 보여준 끈기와 문제해결 능력"],
-    "easiestRounds": ["빠르게 해결한 라운드에서 드러난 팀의 강점과 협업 능력"],
-    "keyInsights": "라운드별 활동을 통해 발견된 학습 포인트와 성장 기회"
+  "teamSummaries": {
+    "1": {
+      "teamId": 1,
+      "summary": "팀 1에 대한 핵심요약 (800자 내외)",
+      "intelligenceScores": {
+        "인간친화지능": 85,
+        "논리수학지능": 70,
+        "공간지능": 75,
+        "자연지능": 80,
+        "언어지능": 65,
+        "신체운동지능": 72
+      },
+      "competencyScores": {
+        "의사결정력": 80,
+        "분석적사고": 75,
+        "정보활용": 70,
+        "관찰력": 85,
+        "ESG마인드": 72,
+        "추론능력": 68,
+        "맥락적경청": 78,
+        "협상유연성": 65,
+        "위기관리": 70,
+        "정리정돈": 75,
+        "고객중심": 80,
+        "공동체의식": 82
+      }
+    }
   },
-  "teamworkInsights": "팀워크 및 협업에 대한 분석 (구체적 사례 언급, 소통 방식의 발전, 신뢰 형성 등)",
-  "recommendations": [
-    "현업에서 활용할 수 있는 구체적인 팁 5가지 (오늘 배운 것을 실무에 적용하는 방법)"
-  ],
-  "bestPractices": [
-    "이번 교육에서 발견된 베스트 프랙티스 3가지 (다른 학습자들에게 공유할 만한 성공 사례)"
-  ],
-  "skillsGained": {
-    "aiSkills": "AI 활용 역량에서의 성장 포인트",
-    "communicationSkills": "소통과 협업 역량에서의 성장 포인트",
-    "problemSolvingSkills": "문제해결과 의사결정 역량에서의 성장 포인트",
-    "timeManagementSkills": "시간관리와 우선순위 설정 역량에서의 성장 포인트"
-  },
-  "futureApplications": "오늘의 경험을 현업에 적용할 수 있는 구체적인 상황과 방법 (3-5가지)",
-  "closingMessage": "참가자들에게 전하는 격려와 응원의 메시지 (2-3문장)",
-  "chartData": {
-    "teamTimeComparison": [{"teamId": 1, "time": 초, "rank": 순위}, ...],
-    "roundDifficulty": [{"round": 1, "avgTime": 초}, ...]
+  "overallEvaluation": {
+    "insights": "전체 팀에 대한 종합 분석 (500자 내외)",
+    "discussionTopics": [
+      "토의 주제 1",
+      "토의 주제 2",
+      "토의 주제 3",
+      "토의 주제 4",
+      "토의 주제 5"
+    ]
   }
 }
 
-중요:
-- 관리자/강사 관점의 "프로그램 개선 제안"은 제외
-- 학습자들이 자신의 성장을 느끼고, 자신감을 얻을 수 있는 내용으로 작성
-- 긍정적이고 격려하는 톤 유지
-- 구체적인 사례와 데이터를 바탕으로 설득력 있게 작성
+## 중요 지침
+
+### 1. teamSummaries 작성 요령
+- 각 팀별로 800자 내외의 상세한 분석을 작성
+- **쉬운 말로 풀어서 설명**: 전문 용어보다는 일상적인 표현 사용
+- **현업 비유 활용**: "마치 프로젝트 마감일에 팀원들이 힘을 모아 완성하는 것처럼..." 같은 비유
+- 리더십/팀워크/소통&협업/AI리터러시 측면에서 우수한 점, 개선점, 액션플랜 제시
+- 해당 팀이 빠르게 해결한 라운드의 역량에 높은 점수, 오래 걸린 라운드의 역량에 개선 여지 반영
+- intelligenceScores: 6가지 다중지능 각각 0-100점 (팀 성과 기반 추정)
+- competencyScores: 12가지 핵심역량 각각 0-100점 (라운드별 소요시간 반영)
+- 긍정적이고 격려하는 톤, 재미있고 유익한 활동이었음을 자연스럽게 표현
+
+### 2. overallEvaluation.insights 작성 요령
+- 전체 그룹에 대한 종합적인 시사점 (500자 내외)
+- 리더십/팀워크/소통&협업/AI리터러시 관점에서 분석
+- 이해하기 쉬운 표현 사용, 현업 상황과 연결하여 설명
+
+### 3. discussionTopics (토의 주제 5가지) 작성 요령
+- 월별 미션과 상관없이 **현업 적용 중심**으로 작성
+- 다음 관점 중 적합한 것을 골라서 작성:
+  - 리더십, 성장마인드셋, 셀프리더십, 심리적안전감, 팀워크, 소통&협업, AI리터러시
+- 형식: "오늘 [구체적 활동/깨달음]을 통해 배운 [주제]를 현업에서 어떻게 발휘할 수 있을까요? 예: [현업 상황 예시]"
+- 팀원들이 함께 토론하며 실제 업무에 적용할 방법을 찾을 수 있는 주제로 작성
 
 반드시 JSON 형식으로만 응답해주세요.`;
 
@@ -1011,6 +1069,8 @@ ${bestMissions || '수집된 소감 없음'}
             minTime,
             maxTime,
             roundAvgTimes,
+            teamRoundTimes,
+            performances,
             hardestRound,
             easiestRound,
             dateStr,
@@ -1032,6 +1092,8 @@ ${bestMissions || '수집된 소감 없음'}
         minTime,
         maxTime,
         roundAvgTimes,
+        teamRoundTimes,
+        performances,
         hardestRound,
         easiestRound,
         dateStr,
