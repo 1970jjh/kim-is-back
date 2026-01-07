@@ -414,6 +414,62 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
         return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
       };
 
+      // 원형그래프 SVG 생성 함수
+      const createPieChartSVG = (data: Record<string, number>, title: string, size: number = 120): string => {
+        const entries = Object.entries(data);
+        if (entries.length === 0) return '';
+
+        const total = entries.reduce((sum, [, val]) => sum + val, 0);
+        if (total === 0) return '';
+
+        const colors = ['#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#ef4444', '#06b6d4', '#f97316', '#84cc16', '#ec4899', '#6366f1', '#14b8a6', '#a855f7'];
+        const cx = size / 2;
+        const cy = size / 2;
+        const r = size / 2 - 10;
+
+        let currentAngle = -90;
+        let paths = '';
+        let legends = '';
+
+        entries.forEach(([label, value], idx) => {
+          const percentage = (value / total) * 100;
+          const angle = (value / total) * 360;
+          const endAngle = currentAngle + angle;
+
+          const startRad = (currentAngle * Math.PI) / 180;
+          const endRad = (endAngle * Math.PI) / 180;
+
+          const x1 = cx + r * Math.cos(startRad);
+          const y1 = cy + r * Math.sin(startRad);
+          const x2 = cx + r * Math.cos(endRad);
+          const y2 = cy + r * Math.sin(endRad);
+
+          const largeArc = angle > 180 ? 1 : 0;
+          const color = colors[idx % colors.length];
+
+          paths += `<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${largeArc},1 ${x2},${y2} Z" fill="${color}" stroke="white" stroke-width="1"/>`;
+
+          legends += `<div style="display: flex; align-items: center; gap: 4px; margin-bottom: 2px;">
+            <span style="width: 10px; height: 10px; background: ${color}; border-radius: 2px;"></span>
+            <span style="font-size: 9px; color: #666;">${label}: ${Math.round(percentage)}%</span>
+          </div>`;
+
+          currentAngle = endAngle;
+        });
+
+        return `
+          <div style="text-align: center;">
+            <p style="font-size: 11px; font-weight: bold; color: #333; margin: 0 0 8px 0;">${title}</p>
+            <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+              ${paths}
+            </svg>
+            <div style="margin-top: 8px; text-align: left;">
+              ${legends}
+            </div>
+          </div>
+        `;
+      };
+
       // 라운드별 난이도 HTML
       const roundAvgTimes = (stats.roundAvgTimes as Record<number, number>) || {};
       const maxRoundTime = Math.max(...Object.values(roundAvgTimes), 1);
@@ -429,17 +485,31 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
           </div>`;
         }).join('');
 
-      // 개선 제안 HTML
-      const recommendations = (result.recommendations as string[]) || [];
-      const recsHTML = recommendations.length > 0
-        ? recommendations.map((rec, i) => `<li style="margin-bottom: 8px;"><span style="color: #d97706; font-weight: bold;">${i + 1}.</span> ${rec}</li>`).join('')
-        : '';
+      // 팀별 핵심요약 HTML (새 형식)
+      const teamSummaries = (result.teamSummaries as Record<string, { teamId: number; summary: string; intelligenceScores?: Record<string, number>; competencyScores?: Record<string, number> }>) || {};
+      const teamSummariesHTML = Object.entries(teamSummaries).map(([teamId, data]) => {
+        const intelligenceChart = data.intelligenceScores ? createPieChartSVG(data.intelligenceScores, '다중지능', 100) : '';
+        const competencyChart = data.competencyScores ? createPieChartSVG(data.competencyScores, '핵심역량', 100) : '';
 
-      // 베스트 프랙티스 HTML
-      const bestPractices = (result.bestPractices as string[]) || [];
-      const practicesHTML = bestPractices.length > 0
-        ? bestPractices.map(p => `<li style="margin-bottom: 8px;"><span style="color: #16a34a;">✓</span> ${p}</li>`).join('')
-        : '';
+        return `
+          <div style="background: #f8f9fa; padding: 15px; margin-bottom: 15px; border-left: 4px solid #10b981; page-break-inside: avoid;">
+            <h4 style="font-size: 14px; color: #10b981; margin: 0 0 10px 0;">🏷️ ${teamId}조</h4>
+            ${(intelligenceChart || competencyChart) ? `
+              <div style="display: flex; gap: 20px; margin-bottom: 12px; justify-content: center;">
+                ${intelligenceChart}
+                ${competencyChart}
+              </div>
+            ` : ''}
+            <p style="font-size: 12px; line-height: 1.6; margin: 0; color: #444; white-space: pre-wrap;">${data.summary}</p>
+          </div>
+        `;
+      }).join('');
+
+      // 종합평가 및 토의 주제 (새 형식)
+      const overallEvaluation = (result.overallEvaluation as { insights?: string; discussionTopics?: string[] }) || {};
+      const discussionTopicsHTML = (overallEvaluation.discussionTopics || [])
+        .map((topic, idx) => `<li style="margin-bottom: 8px;"><span style="color: #8b5cf6; font-weight: bold;">${idx + 1}.</span> ${topic}</li>`)
+        .join('');
 
       // PDF용 깔끔한 HTML 생성
       const container = document.createElement('div');
@@ -471,54 +541,45 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
           ${roundDifficultyHTML}
         </div>
 
-        ${result.executiveSummary ? `
-        <div style="background: #fffbeb; padding: 15px; margin-bottom: 15px; border-left: 4px solid #f59e0b;">
-          <h3 style="font-size: 14px; color: #b45309; margin: 0 0 8px 0;">📋 핵심 요약</h3>
-          <p style="font-size: 13px; line-height: 1.6; margin: 0; color: #444;">${result.executiveSummary}</p>
+        ${teamSummariesHTML ? `
+        <div style="margin-bottom: 20px;">
+          <h3 style="font-size: 16px; color: #10b981; margin: 0 0 15px 0;">📋 팀별 핵심요약</h3>
+          ${teamSummariesHTML}
         </div>` : ''}
 
-        ${result.overallAssessment ? `
+        ${overallEvaluation.insights ? `
         <div style="background: #eff6ff; padding: 15px; margin-bottom: 15px; border-left: 4px solid #3b82f6;">
-          <h3 style="font-size: 14px; color: #1d4ed8; margin: 0 0 8px 0;">📈 종합 평가</h3>
-          <p style="font-size: 13px; line-height: 1.6; margin: 0; color: #444;">${result.overallAssessment}</p>
+          <h3 style="font-size: 14px; color: #1d4ed8; margin: 0 0 8px 0;">📈 종합평가</h3>
+          <p style="font-size: 13px; line-height: 1.6; margin: 0; color: #444;">${overallEvaluation.insights}</p>
         </div>` : ''}
 
-        ${result.teamRankingAnalysis ? `
-        <div style="background: #f0fdf4; padding: 15px; margin-bottom: 15px; border-left: 4px solid #16a34a;">
-          <h3 style="font-size: 14px; color: #15803d; margin: 0 0 8px 0;">🏆 팀 순위 분석</h3>
-          <p style="font-size: 13px; line-height: 1.6; margin: 0; color: #444;">${result.teamRankingAnalysis}</p>
-        </div>` : ''}
-
-        ${result.teamworkInsights ? `
-        <div style="background: #faf5ff; padding: 15px; margin-bottom: 15px; border-left: 4px solid #a855f7;">
-          <h3 style="font-size: 14px; color: #7c3aed; margin: 0 0 8px 0;">🤝 팀워크 인사이트</h3>
-          <p style="font-size: 13px; line-height: 1.6; margin: 0; color: #444;">${result.teamworkInsights}</p>
-        </div>` : ''}
-
-        ${recsHTML ? `
-        <div style="background: #fefce8; padding: 15px; margin-bottom: 15px; border-left: 4px solid #eab308;">
-          <h3 style="font-size: 14px; color: #a16207; margin: 0 0 10px 0;">💡 개선 제안</h3>
-          <ul style="margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.6; color: #444;">${recsHTML}</ul>
-        </div>` : ''}
-
-        ${practicesHTML ? `
-        <div style="background: #f0fdf4; padding: 15px; margin-bottom: 15px; border-left: 4px solid #22c55e;">
-          <h3 style="font-size: 14px; color: #15803d; margin: 0 0 10px 0;">⭐ 베스트 프랙티스</h3>
-          <ul style="margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.6; color: #444;">${practicesHTML}</ul>
+        ${discussionTopicsHTML ? `
+        <div style="background: #faf5ff; padding: 15px; margin-bottom: 15px; border-left: 4px solid #8b5cf6;">
+          <h3 style="font-size: 14px; color: #7c3aed; margin: 0 0 10px 0;">💬 토의 주제 5가지</h3>
+          <ul style="margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.6; color: #444;">${discussionTopicsHTML}</ul>
         </div>` : ''}
       `;
 
       document.body.appendChild(container);
+
+      // 짧은 대기 후 렌더링 (SVG 렌더링 보장)
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       // html2canvas로 렌더링
       const canvas = await html2canvas(container, {
         scale: 2,
         useCORS: true,
         backgroundColor: '#ffffff',
-        logging: false
+        logging: false,
+        allowTaint: true
       });
 
       document.body.removeChild(container);
+
+      // 캔버스 유효성 체크
+      if (canvas.width === 0 || canvas.height === 0) {
+        throw new Error('Canvas has zero dimensions');
+      }
 
       // PDF 생성
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
@@ -532,28 +593,30 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
       const ratio = contentWidth / imgWidth;
       const scaledHeight = imgHeight * ratio;
 
-      let remainingHeight = scaledHeight;
+      let pdfRemainingHeight = scaledHeight;
       let srcY = 0;
       let pageNum = 0;
 
-      while (remainingHeight > 0) {
+      while (pdfRemainingHeight > 0) {
         if (pageNum > 0) pdf.addPage();
 
         const availableHeight = pageHeight - margin * 2;
-        const drawHeight = Math.min(availableHeight, remainingHeight);
+        const drawHeight = Math.min(availableHeight, pdfRemainingHeight);
         const srcHeight = drawHeight / ratio;
 
         const pageCanvas = document.createElement('canvas');
         pageCanvas.width = imgWidth;
-        pageCanvas.height = srcHeight;
+        pageCanvas.height = Math.ceil(srcHeight);
         const ctx = pageCanvas.getContext('2d');
         if (ctx) {
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
           ctx.drawImage(canvas, 0, srcY, imgWidth, srcHeight, 0, 0, imgWidth, srcHeight);
           pdf.addImage(pageCanvas.toDataURL('image/png'), 'PNG', margin, margin, contentWidth, drawHeight);
         }
 
         srcY += srcHeight;
-        remainingHeight -= drawHeight;
+        pdfRemainingHeight -= drawHeight;
         pageNum++;
       }
 
@@ -1429,9 +1492,95 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
                   <BrutalistCard className="border-yellow-400">
                     <h3 className="text-lg font-black mb-4 text-yellow-400">📋 팀별 핵심요약</h3>
                     <div className="space-y-4">
-                      {Object.entries((analysisResult as Record<string, unknown>).teamSummaries as Record<string, { teamId: number; summary: string }>).map(([teamId, data]) => (
+                      {Object.entries((analysisResult as Record<string, unknown>).teamSummaries as Record<string, { teamId: number; summary: string; intelligenceScores?: Record<string, number>; competencyScores?: Record<string, number> }>).map(([teamId, data]) => (
                         <div key={teamId} className="bg-black/30 p-4 brutal-border">
                           <h4 className="text-md font-black text-green-400 mb-2">🏷️ {teamId}조</h4>
+
+                          {/* 원형그래프 */}
+                          {(data.intelligenceScores || data.competencyScores) && (
+                            <div className="flex flex-wrap gap-6 mb-4 justify-center">
+                              {/* 다중지능 원형그래프 */}
+                              {data.intelligenceScores && Object.keys(data.intelligenceScores).length > 0 && (
+                                <div className="text-center">
+                                  <p className="text-xs font-bold text-purple-400 mb-2">다중지능</p>
+                                  <svg width="120" height="120" viewBox="0 0 120 120">
+                                    {(() => {
+                                      const scores = data.intelligenceScores!;
+                                      const entries = Object.entries(scores);
+                                      const total = entries.reduce((sum, [, v]) => sum + v, 0);
+                                      if (total === 0) return null;
+
+                                      const colors = ['#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#ef4444', '#06b6d4'];
+                                      let currentAngle = -90;
+
+                                      return entries.map(([, value], idx) => {
+                                        const angle = (value / total) * 360;
+                                        const endAngle = currentAngle + angle;
+                                        const startRad = (currentAngle * Math.PI) / 180;
+                                        const endRad = (endAngle * Math.PI) / 180;
+                                        const x1 = 60 + 50 * Math.cos(startRad);
+                                        const y1 = 60 + 50 * Math.sin(startRad);
+                                        const x2 = 60 + 50 * Math.cos(endRad);
+                                        const y2 = 60 + 50 * Math.sin(endRad);
+                                        const largeArc = angle > 180 ? 1 : 0;
+                                        const path = `M60,60 L${x1},${y1} A50,50 0 ${largeArc},1 ${x2},${y2} Z`;
+                                        currentAngle = endAngle;
+                                        return <path key={idx} d={path} fill={colors[idx % colors.length]} stroke="white" strokeWidth="1" />;
+                                      });
+                                    })()}
+                                  </svg>
+                                  <div className="flex flex-wrap justify-center gap-1 mt-2 max-w-[150px]">
+                                    {Object.entries(data.intelligenceScores).map(([label], idx) => (
+                                      <span key={label} className="text-[8px] px-1 py-0.5 rounded" style={{ backgroundColor: ['#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#ef4444', '#06b6d4'][idx % 6] + '33', color: ['#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#ef4444', '#06b6d4'][idx % 6] }}>
+                                        {label.replace('지능', '')}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* 핵심역량 원형그래프 */}
+                              {data.competencyScores && Object.keys(data.competencyScores).length > 0 && (
+                                <div className="text-center">
+                                  <p className="text-xs font-bold text-blue-400 mb-2">핵심역량</p>
+                                  <svg width="120" height="120" viewBox="0 0 120 120">
+                                    {(() => {
+                                      const scores = data.competencyScores!;
+                                      const entries = Object.entries(scores);
+                                      const total = entries.reduce((sum, [, v]) => sum + v, 0);
+                                      if (total === 0) return null;
+
+                                      const colors = ['#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#ef4444', '#06b6d4', '#f97316', '#84cc16', '#ec4899', '#6366f1', '#14b8a6', '#a855f7'];
+                                      let currentAngle = -90;
+
+                                      return entries.map(([, value], idx) => {
+                                        const angle = (value / total) * 360;
+                                        const endAngle = currentAngle + angle;
+                                        const startRad = (currentAngle * Math.PI) / 180;
+                                        const endRad = (endAngle * Math.PI) / 180;
+                                        const x1 = 60 + 50 * Math.cos(startRad);
+                                        const y1 = 60 + 50 * Math.sin(startRad);
+                                        const x2 = 60 + 50 * Math.cos(endRad);
+                                        const y2 = 60 + 50 * Math.sin(endRad);
+                                        const largeArc = angle > 180 ? 1 : 0;
+                                        const path = `M60,60 L${x1},${y1} A50,50 0 ${largeArc},1 ${x2},${y2} Z`;
+                                        currentAngle = endAngle;
+                                        return <path key={idx} d={path} fill={colors[idx % colors.length]} stroke="white" strokeWidth="1" />;
+                                      });
+                                    })()}
+                                  </svg>
+                                  <div className="flex flex-wrap justify-center gap-1 mt-2 max-w-[180px]">
+                                    {Object.entries(data.competencyScores).map(([label], idx) => (
+                                      <span key={label} className="text-[8px] px-1 py-0.5 rounded" style={{ backgroundColor: ['#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#ef4444', '#06b6d4', '#f97316', '#84cc16', '#ec4899', '#6366f1', '#14b8a6', '#a855f7'][idx % 12] + '33', color: ['#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#ef4444', '#06b6d4', '#f97316', '#84cc16', '#ec4899', '#6366f1', '#14b8a6', '#a855f7'][idx % 12] }}>
+                                        {label}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
                           <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">
                             {data.summary}
                           </p>
