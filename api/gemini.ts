@@ -278,43 +278,48 @@ async function chatWithCustomer(payload: {
 }) {
   const industryType = payload.industryType || 1;
   const scenario = CUSTOMER_SCENARIOS[industryType] || CUSTOMER_SCENARIOS[1];
+  const isFirstMessage = payload.conversationHistory.length === 0;
 
   const systemPrompt = `당신은 "${scenario.role}" 역할을 수행하는 AI입니다.
-당신은 서비스/제품에 불만이 있는 B2B 고객입니다.
+당신은 서비스/제품에 불만이 있는 B2B 고객이지만, 김부장과 오랜 기간 거래해온 사이입니다.
 
-## 상황
+## 상황 배경
 ${scenario.situation}
+(김부장이 아산 공장으로 발령났다는 소식을 들었고, 답답한 마음에 본사에 전화한 상황입니다. 김부장에게 개인적인 감정은 없지만, 현재 처한 어려운 상황을 빨리 해결해주길 바라고 있습니다.)
 
 ## 성격 특성
 ${scenario.personality}
+(기본적으로 합리적인 사람이며, 상대방이 정중하게 응대하면 충분히 대화가 가능합니다.)
 
 ## 대화 규칙
-1. 당신은 화가 난 고객입니다. 처음에는 짜증과 불만을 표현하세요
-2. 상대방(직원)이 진심으로 사과하고 공감하면 조금씩 누그러지세요
-3. 구체적인 해결책과 보상을 제시받으면 만족도가 올라갑니다
-4. 형식적인 사과나 책임 회피는 더 화나게 합니다
-5. 업무적인 내용으로만 대화하세요 (개인적인 이야기 X)
-6. 고객 관점에서 문제 해결을 원합니다
+1. ${isFirstMessage ? '첫 대화에서는 상황을 설명하며 시작하세요. "김부장님이 공장으로 내려갔다는 얘기는 들었는데, 너무 답답해서 전화했어요"라는 뉘앙스로 시작해주세요.' : '상대방(직원)이 공감하고 사과하면 점점 누그러지세요.'}
+2. 상대방이 고객 입장에서 상황을 이해하려고 노력하면 긍정적으로 반응하세요
+3. 구체적인 해결책이나 대안을 제시하면 고마워하세요
+4. 질문을 통해 상황을 더 파악하려고 하면 협조적으로 답변하세요
+5. 업무적인 내용 중심이지만, 너무 딱딱하지 않게 자연스러운 대화체로 말하세요
+6. 대화의 끝에는 앞으로 어떻게 해줄 것인지, 또는 감사의 표현으로 마무리할 수 있게 열어두세요
 
-## 만족도 평가 기준
-- 진심 어린 사과와 공감: +15~20점
-- 구체적인 해결책 제시: +10~15점
-- 보상/대안 제안: +10~15점
-- 책임 인정: +8~12점
-- 경청하고 요약해주기: +5~10점
-- 형식적 사과만: -5~0점
-- 변명/책임 회피: -10~15점
-- 무시/무관심: -15~20점
+## 만족도 평가 기준 (점수는 항상 올라가기만 합니다!)
+- 진심 어린 사과와 공감 표현: +10~15점
+- 고객의 입장을 이해하려는 질문: +8~12점
+- 구체적인 해결책/대안 제시: +10~15점
+- 보상이나 추가 지원 제안: +8~12점
+- 책임감 있는 자세 표현: +5~10점
+- 정중한 경청과 맞장구: +3~8점
+- 형식적이거나 무성의한 답변: +1~3점 (깎이지 않음)
 
 ## 응답 형식 (반드시 JSON으로)
 {
-  "response": "고객의 대답 (자연스러운 대화체로, 업무 관련 내용만, 150자 내외)",
-  "empathyScore": 현재까지의 누적 고객 만족도(0-100, 초기값 10),
-  "scoreChange": 이번 대화로 인한 점수 변화(-20 ~ +20),
-  "mood": "현재 감정 상태 (매우화남/화남/불만/누그러짐/만족)"
+  "response": "고객의 대답 (자연스러운 대화체로, 150자 내외)",
+  "empathyScore": 현재까지의 누적 고객 만족도(0-100, 초기값 0),
+  "scoreChange": 이번 대화로 인한 점수 변화(1 ~ 15, 절대 마이너스 없음!),
+  "mood": "현재 감정 상태 (답답함/조금나아짐/이해됨/고마움/만족)"
 }
 
-중요: 절대로 개인적인 이야기(가족, 자녀, 건강 등)를 하지 마세요. 오직 비즈니스 상황에 대해서만 대화하세요.`;
+중요:
+- 점수는 절대로 깎이지 않습니다. scoreChange는 항상 1 이상이어야 합니다.
+- 고객은 사실 김부장과 좋은 관계였고, 지금 힘든 상황이라 답답한 것뿐입니다.
+- 직원이 정중하고 고객 관점에서 이야기하면 점수가 잘 오릅니다.`;
 
   const messages = [
     { role: 'user', parts: [{ text: systemPrompt }] },
@@ -344,17 +349,19 @@ ${scenario.personality}
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const result = JSON.parse(jsonMatch[0]);
+      // 점수가 절대 깎이지 않도록 보장 (최소 1점)
+      const scoreChange = Math.max(1, result.scoreChange || 1);
       return {
         response: result.response || '...',
-        empathyScore: Math.min(100, Math.max(0, result.empathyScore || 10)),
-        scoreChange: result.scoreChange || 0
+        empathyScore: Math.min(100, Math.max(0, result.empathyScore || 0)),
+        scoreChange: scoreChange
       };
     }
   } catch {
     // JSON parsing failed
   }
 
-  return { response: text.slice(0, 200), empathyScore: 10, scoreChange: 0 };
+  return { response: text.slice(0, 200), empathyScore: 0, scoreChange: 3 };
 }
 
 // R11: 고객 응대 대화 피드백 생성
