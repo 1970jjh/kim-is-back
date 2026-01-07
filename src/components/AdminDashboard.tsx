@@ -46,7 +46,6 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
   const [newRoomData, setNewRoomData] = useState({ groupName: '', totalTeams: 5, membersPerTeam: 6, industryType: IndustryType.IT_SOLUTION });
   const [remainingTime, setRemainingTime] = useState<string>("");
   const [eventTargetTeam, setEventTargetTeam] = useState<'all' | number>('all'); // 이벤트 대상 팀
-  const [selectedEventType, setSelectedEventType] = useState<EventType | null>(null); // 선택된 이벤트 타입
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // MISSION POST states
@@ -121,51 +120,26 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
     await firebaseService.setMissionTimer(room.id, missionTimerMinutes);
   };
 
-  // 이벤트 타입 선택 (버튼 클릭 시)
-  const selectEventType = (type: EventType) => {
-    setSelectedEventType(selectedEventType === type ? null : type);
-  };
-
-  // 개별 팀 이벤트 시작
-  const startIndividualEvent = async () => {
-    if (!selectedEventType || eventTargetTeam === 'all') return;
-
+  // 이벤트 버튼 클릭 시 바로 이벤트 시작
+  const handleEventClick = async (type: EventType) => {
     // 이벤트 URL 열기
     const eventUrls: Partial<Record<EventType, string>> = {
       [EventType.BIRTHDAY]: 'https://youtu.be/uoNK5xq2MhA?si=7jlzc9c7KnuMePlk',
       [EventType.LUNCH]: 'https://www.youtube.com/watch?v=sc-GnC84LCU',
       [EventType.HEALTH_CHECK]: 'https://i.namu.wiki/i/C5MYopgRw49Lzb-ncSwUiIsC0jFI3hKmh0M_qBNIPxs3J39lPfytx0FxwtkgNH__88TtIAWeDIqFZjLs93KNrA.webp',
     };
-    const url = eventUrls[selectedEventType];
+    const url = eventUrls[type];
     if (url) {
       window.open(url, '_blank');
     }
 
-    await firebaseService.startTeamEvent(room.id, eventTargetTeam, selectedEventType, eventMinutes);
-  };
-
-  // 개별 팀 이벤트 종료
-  const endIndividualEvent = async () => {
-    if (eventTargetTeam === 'all') return;
-    await firebaseService.endTeamEvent(room.id, eventTargetTeam);
-  };
-
-  // 전체 팀 이벤트 시작
-  const startAllTeamsEvent = async () => {
-    if (!selectedEventType) return;
-
-    // 이벤트 URL 열기
-    const eventUrls: Partial<Record<EventType, string>> = {
-      [EventType.BIRTHDAY]: 'https://youtu.be/uoNK5xq2MhA?si=7jlzc9c7KnuMePlk',
-      [EventType.LUNCH]: 'https://www.youtube.com/watch?v=sc-GnC84LCU',
-      [EventType.HEALTH_CHECK]: 'https://i.namu.wiki/i/C5MYopgRw49Lzb-ncSwUiIsC0jFI3hKmh0M_qBNIPxs3J39lPfytx0FxwtkgNH__88TtIAWeDIqFZjLs93KNrA.webp',
-    };
-    const url = eventUrls[selectedEventType];
-    if (url) {
-      window.open(url, '_blank');
+    if (eventTargetTeam === 'all') {
+      // 전체 팀 이벤트 시작
+      await firebaseService.startAllTeamsEvent(room.id, type, eventMinutes);
+    } else {
+      // 개별 팀 이벤트 시작
+      await firebaseService.startTeamEvent(room.id, eventTargetTeam, type, eventMinutes);
     }
-
-    await firebaseService.startAllTeamsEvent(room.id, selectedEventType, eventMinutes);
   };
 
   // 전체 팀 이벤트 종료
@@ -707,117 +681,30 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
                 <p className="text-[10px] text-gray-500 mt-1">0 입력 시 수동 종료 (타이머 없음)</p>
               </div>
             </div>
-            {/* 2x5 그리드 이벤트 버튼 + 이력 표시 */}
+            {/* 2x5 그리드 이벤트 버튼 - 클릭시 바로 이벤트 시작 */}
             <div className="grid grid-cols-2 gap-3">
-              {EVENTS.map((evt) => {
-                const history = room.eventHistory?.[evt.type];
-                const isSelected = selectedEventType === evt.type;
-
-                return (
-                  <div key={evt.type} className="flex flex-col">
-                    <BrutalistButton
-                      variant={isSelected ? 'gold' : 'primary'}
-                      onClick={() => selectEventType(evt.type)}
-                      className={`text-sm py-2 ${isSelected ? 'ring-2 ring-yellow-400' : ''}`}
-                    >
-                      {evt.label}
-                    </BrutalistButton>
-                    {/* 이벤트별 이력 표시 - 동그라미 + 라벨 */}
-                    <div className="flex justify-center items-start gap-1 mt-1 bg-black/30 py-1.5 px-1 rounded">
-                      {/* 전체 표시 제거 - 개별 조만 표시 */}
-                      {Array.from({ length: room.totalTeams }).map((_, idx) => {
-                        const teamId = idx + 1;
-                        const team = room.teams?.[teamId];
-                        // 현재 해당 팀이 이 이벤트를 진행 중인지
-                        const isCurrentlyRunning = team?.currentEvent?.eventType === evt.type;
-                        // 과거에 이벤트를 진행했던 대상인지
-                        const wasTarget = history && (
-                          history.targetTeams === 'all' ||
-                          (Array.isArray(history.targetTeams) && history.targetTeams.includes(teamId))
-                        );
-
-                        return (
-                          <div key={teamId} className="flex flex-col items-center">
-                            <span
-                              className={`text-sm ${
-                                isCurrentlyRunning
-                                  ? 'text-red-500'
-                                  : wasTarget
-                                    ? 'text-yellow-400'
-                                    : 'text-gray-500'
-                              }`}
-                            >
-                              ●
-                            </span>
-                            <span className="text-[8px] text-gray-400">{teamId}조</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
+              {EVENTS.map((evt) => (
+                <BrutalistButton
+                  key={evt.type}
+                  variant="primary"
+                  onClick={() => handleEventClick(evt.type)}
+                  className="text-sm py-2"
+                >
+                  {evt.label}
+                </BrutalistButton>
+              ))}
             </div>
 
-            {/* 선택된 이벤트 표시 */}
-            {selectedEventType && (
-              <p className="text-xs text-center text-yellow-400 mt-2">
-                선택된 이벤트: {EVENTS.find(e => e.type === selectedEventType)?.label}
-              </p>
-            )}
-
-            {/* 개별/전체 시작/종료 버튼 */}
-            <div className="grid grid-cols-2 gap-2 mt-3">
-              <BrutalistButton
-                variant="primary"
-                onClick={startIndividualEvent}
-                disabled={!selectedEventType || eventTargetTeam === 'all'}
-                className="text-xs py-2"
-              >
-                개별 EVENT 시작
-              </BrutalistButton>
-              <BrutalistButton
-                variant="ghost"
-                onClick={endIndividualEvent}
-                disabled={eventTargetTeam === 'all' || !room.teams?.[eventTargetTeam as number]?.currentEvent}
-                className="text-xs py-2"
-              >
-                개별 EVENT 종료
-              </BrutalistButton>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <BrutalistButton
-                variant="gold"
-                onClick={startAllTeamsEvent}
-                disabled={!selectedEventType}
-                className="text-xs py-2"
-              >
-                전체 EVENT 시작
-              </BrutalistButton>
-              <BrutalistButton
-                variant="danger"
-                onClick={endAllTeamsEvent}
-                disabled={firebaseService.getTeamsInEvent(room).length === 0}
-                className="text-xs py-2"
-              >
-                전체 EVENT 종료
-              </BrutalistButton>
-            </div>
-
-            {/* 현재 이벤트 진행 중인 팀 표시 */}
-            {(() => {
-              const teamsInEvent = firebaseService.getTeamsInEvent(room);
-              if (teamsInEvent.length === 0) return null;
-              return (
-                <div className="text-xs text-center text-red-400 mt-2">
-                  현재 진행 중: {teamsInEvent.map(tid => {
-                    const team = room.teams?.[tid];
-                    const eventLabel = EVENTS.find(e => e.type === team?.currentEvent?.eventType)?.label;
-                    return `${tid}조(${eventLabel})`;
-                  }).join(', ')}
-                </div>
-              );
-            })()}
+            {/* 전체 EVENT 종료 버튼 */}
+            <BrutalistButton
+              variant="danger"
+              onClick={endAllTeamsEvent}
+              disabled={firebaseService.getTeamsInEvent(room).length === 0}
+              className="text-xs py-2 mt-3"
+              fullWidth
+            >
+              전체 EVENT 종료
+            </BrutalistButton>
           </div>
         </section>
 
