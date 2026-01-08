@@ -65,6 +65,7 @@ export const geminiService = {
     response: string;
     satisfactionScore: number;
     moodLevel: number; // 1-5 (1: 매우 화남, 5: 만족)
+    conversationEnded: boolean; // 고객이 마무리 인사를 했는지 여부
     evaluationScores: {
       greeting: number;      // 인사/첫인상
       listening: number;     // 경청
@@ -101,6 +102,7 @@ export const geminiService = {
           response: error.error || 'API 오류가 발생했습니다.',
           satisfactionScore: 0,
           moodLevel: 1,
+          conversationEnded: false,
           evaluationScores: {
             greeting: 0, listening: 0, empathy: 0, solution: 0, professionalism: 0,
             patience: 0, clarity: 0, positivity: 0, responsibility: 0, closing: 0
@@ -119,6 +121,7 @@ export const geminiService = {
         response: result.response,
         satisfactionScore: baseScore,
         moodLevel: baseScore >= 80 ? 5 : baseScore >= 60 ? 4 : baseScore >= 40 ? 3 : baseScore >= 20 ? 2 : 1,
+        conversationEnded: result.conversationEnded || false,
         evaluationScores: {
           greeting: variation(),
           listening: variation(),
@@ -138,6 +141,7 @@ export const geminiService = {
         response: '죄송합니다, 잠시 후 다시 시도해주세요.',
         satisfactionScore: 0,
         moodLevel: 1,
+        conversationEnded: false,
         evaluationScores: {
           greeting: 0, listening: 0, empathy: 0, solution: 0, professionalism: 0,
           patience: 0, clarity: 0, positivity: 0, responsibility: 0, closing: 0

@@ -88,14 +88,16 @@ const CPRGame: React.FC<CPRGameProps> = ({ onComplete, onClose }) => {
       });
     }, 1000);
 
-    // AI scoring
+    // AI scoring - 난이도 하향 조정: 점수 15-20% 감소
     aiTimerRef.current = setInterval(() => {
-      if (Math.random() < 0.96) {
-        setAiScore(prev => prev + 120 + Math.floor(Math.random() * 30));
+      if (Math.random() < 0.88) {
+        // 88% 확률로 정상 점수 (기존 96%)
+        setAiScore(prev => prev + 95 + Math.floor(Math.random() * 20));
       } else {
-        setAiScore(prev => prev + 40);
+        // 12% 확률로 낮은 점수 (기존 4%)
+        setAiScore(prev => prev + 30);
       }
-    }, 600);
+    }, 650); // 기존 600ms -> 650ms로 늦춤
   };
 
   const endGame = useCallback(() => {
@@ -138,26 +140,39 @@ const CPRGame: React.FC<CPRGameProps> = ({ onComplete, onClose }) => {
 
     let scoreAdd = 0;
 
-    if (currentBpm >= 100 && currentBpm <= 120) {
-      // Perfect 구간 (100-120 BPM) - 높은 점수
+    // 난이도 하향: Perfect 구간 확대 (100-120 → 90-130 BPM), 점수 상향
+    if (currentBpm >= 90 && currentBpm <= 130) {
+      // Perfect 구간 (90-130 BPM) - 높은 점수 (태블릿 터치 고려하여 범위 확대)
       setFeedback('PERFECT');
       setFeedbackColor('#00ff88');
       playSound('correct');
-      scoreAdd = 150 + (perfectCount * 20);
+      scoreAdd = 200 + (perfectCount * 25); // 기존 150+20 → 200+25
       setPerfectCount(prev => prev + 1);
-    } else if (currentBpm < 100) {
-      // 너무 느림 - 아주 적은 점수
+    } else if (currentBpm >= 70 && currentBpm < 90) {
+      // 약간 느림 - 중간 점수 (GOOD 구간 추가)
+      setFeedback('GOOD');
+      setFeedbackColor('#88ff00');
+      playSound('correct');
+      scoreAdd = 80 + (perfectCount * 10);
+    } else if (currentBpm > 130 && currentBpm <= 160) {
+      // 약간 빠름 - 중간 점수 (GOOD 구간 추가)
+      setFeedback('GOOD');
+      setFeedbackColor('#88ff00');
+      playSound('correct');
+      scoreAdd = 80 + (perfectCount * 10);
+    } else if (currentBpm < 70) {
+      // 너무 느림 - 기본 점수 (기존 5점 → 40점)
       setFeedback('FASTER!');
       setFeedbackColor('#ffcc00');
       playSound('error');
-      scoreAdd = 5;
+      scoreAdd = 40;
       setPerfectCount(0);
     } else {
-      // 너무 빠름 - 아주 적은 점수
+      // 너무 빠름 (160 BPM 초과) - 기본 점수
       setFeedback('SLOWER!');
       setFeedbackColor('#ff3366');
       playSound('error');
-      scoreAdd = 5;
+      scoreAdd = 40;
       setPerfectCount(0);
     }
 
