@@ -300,6 +300,16 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
     const stored = localStorage.getItem('showFullCalendar');
     return stored === 'true';
   });
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // 전체화면 상태 감지
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
 
   // R1 신입사원 채용 미션 상태 (1월)
   const [r1Answer, setR1Answer] = useState('');
@@ -1705,18 +1715,20 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
                 {isMissionComplete ? '🎉 모든 미션 완료!' : '김부장의 연간 미션 달력'}
               </h3>
               <button
-                onClick={() => {
-                  const newValue = !showFullCalendar;
-                  setShowFullCalendar(newValue);
-                  localStorage.setItem('showFullCalendar', String(newValue));
+                onClick={async () => {
+                  try {
+                    if (!document.fullscreenElement) {
+                      await document.documentElement.requestFullscreen();
+                    } else {
+                      await document.exitFullscreen();
+                    }
+                  } catch (err) {
+                    console.log('Fullscreen not supported:', err);
+                  }
                 }}
-                className={`px-3 py-1 text-xs font-bold brutal-border transition-all ${
-                  showFullCalendar
-                    ? 'bg-yellow-400 text-black'
-                    : 'bg-white/10 text-white hover:bg-white/20'
-                }`}
+                className="px-6 py-3 text-base font-black brutal-border transition-all bg-yellow-400 text-black hover:bg-yellow-300 animate-pulse"
               >
-                {showFullCalendar ? '📅 전체보기 ON' : '📅 전체보기'}
+                {isFullscreen ? '🖥️ 전체화면 종료' : '🖥️ 전체화면보기'}
               </button>
             </div>
 
@@ -3496,7 +3508,11 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
             <div className="space-y-4">
               <BrutalistCard className="space-y-5">
                 <div className="text-center">
-                  <div className="text-6xl mb-4">🪶</div>
+                  <img
+                    src="https://i.ibb.co/3bWHmx3/R12.jpg"
+                    alt="제기차기"
+                    className="w-full max-w-md mx-auto rounded-lg mb-4 brutal-border"
+                  />
                   <h4 className="text-2xl font-black text-yellow-400 uppercase">팀 제기차기 챌린지</h4>
                 </div>
 
