@@ -890,6 +890,42 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
     reader.readAsDataURL(file);
   };
 
+  // 이미지 압축 유틸리티 함수 (API 전송용)
+  const compressImageForAPI = (dataUrl: string, maxWidth: number = 800, quality: number = 0.7): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let { width, height } = img;
+
+        // 비율 유지하며 리사이즈
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+        if (height > maxWidth) {
+          width = (width * maxWidth) / height;
+          height = maxWidth;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Canvas context not available'));
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+        resolve(compressedDataUrl);
+      };
+      img.onerror = () => reject(new Error('Image load failed'));
+      img.src = dataUrl;
+    });
+  };
+
   // R5 이미지 검증
   const handleR5Verify = async () => {
     if (!r5ImagePreview || !r5ImageFile) return;
@@ -898,9 +934,12 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
     setR5Result(null);
 
     try {
+      // 이미지 압축 후 전송 (413 Content Too Large 방지)
+      const compressedImage = await compressImageForAPI(r5ImagePreview, 800, 0.7);
+
       const result = await geminiService.verifyPlantInPhoto(
-        r5ImagePreview,
-        r5ImageFile.type
+        compressedImage,
+        'image/jpeg' // 압축 후 항상 JPEG
       );
       setR5Result(result);
       if (result.pass) {
