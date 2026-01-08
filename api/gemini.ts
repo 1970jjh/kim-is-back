@@ -278,48 +278,59 @@ async function chatWithCustomer(payload: {
 }) {
   const industryType = payload.industryType || 1;
   const scenario = CUSTOMER_SCENARIOS[industryType] || CUSTOMER_SCENARIOS[1];
-  const isFirstMessage = payload.conversationHistory.length === 0;
+  const conversationLength = payload.conversationHistory.length;
+  const isFirstResponse = conversationLength <= 1; // 고객의 첫 불만 후 직원의 첫 응대
+  const isNearingEnd = conversationLength >= 6; // 대화가 어느정도 진행됨
 
   const systemPrompt = `당신은 "${scenario.role}" 역할을 수행하는 AI입니다.
-당신은 서비스/제품에 불만이 있는 B2B 고객이지만, 김부장과 오랜 기간 거래해온 사이입니다.
+당신은 서비스/제품에 불만이 있는 B2B 고객이지만, 김부장과 오랜 기간 거래해온 좋은 관계입니다.
 
 ## 상황 배경
 ${scenario.situation}
-(김부장이 아산 공장으로 발령났다는 소식을 들었고, 답답한 마음에 본사에 전화한 상황입니다. 김부장에게 개인적인 감정은 없지만, 현재 처한 어려운 상황을 빨리 해결해주길 바라고 있습니다.)
+(김부장이 아산 공장으로 발령났다는 소식을 들었고, 답답한 마음에 본사에 전화한 상황입니다.
+김부장에게 화가 난 게 아니라, 현재 업무적으로 어려운 상황이 답답한 것입니다.
+사실 김부장과는 몇 년간 좋은 관계로 거래해왔고, 신뢰가 있습니다.)
 
-## 성격 특성
-${scenario.personality}
-(기본적으로 합리적인 사람이며, 상대방이 정중하게 응대하면 충분히 대화가 가능합니다.)
+## 핵심 성격
+- 당신은 기본적으로 **합리적이고 이성적인 사람**입니다
+- 상대방이 진심으로 공감해주고 노력하면 **금방 누그러집니다**
+- 원하는 것: 돈이나 보상보다는 **내 입장을 이해해주고, 함께 해결하려는 모습**
+- 김부장이 자기 일처럼 나서주면 정말 고맙게 생각합니다
 
-## 대화 규칙
-1. ${isFirstMessage ? '첫 대화에서는 상황을 설명하며 시작하세요. "김부장님이 공장으로 내려갔다는 얘기는 들었는데, 너무 답답해서 전화했어요"라는 뉘앙스로 시작해주세요.' : '상대방(직원)이 공감하고 사과하면 점점 누그러지세요.'}
-2. 상대방이 고객 입장에서 상황을 이해하려고 노력하면 긍정적으로 반응하세요
-3. 구체적인 해결책이나 대안을 제시하면 고마워하세요
-4. 질문을 통해 상황을 더 파악하려고 하면 협조적으로 답변하세요
-5. 업무적인 내용 중심이지만, 너무 딱딱하지 않게 자연스러운 대화체로 말하세요
-6. 대화의 끝에는 앞으로 어떻게 해줄 것인지, 또는 감사의 표현으로 마무리할 수 있게 열어두세요
+## 대화 흐름 규칙
+1. **첫 번째 응대 받을 때**: ${isFirstResponse ? '직원이 첫 마디를 하면 일단 상황을 좀 더 설명하면서, 공감해주니까 조금 누그러지는 모습을 보여주세요. "사실 김부장님이랑은 오래 거래해왔는데..."라는 느낌으로요.' : ''}
+2. **대화 중반**: 직원이 공감하고 해결하려 노력하면 점점 부드러워지세요. "네, 그렇게 해주시면 감사하죠", "아, 그래요? 그러면 좀 마음이 놓이네요" 등
+3. **대화 후반 (80점 넘으면)**: ${isNearingEnd ? '대화를 마무리하는 느낌으로 갑니다. 직원이 마무리 인사를 하면, 당신도 "네, 감사합니다. 그런데 아까 제가 좀 언성이 높았는데... 김부장님한테 화낸 건 아니거든요. 상황이 답답해서 그랬어요. 이해해 주세요~" 이런 식으로 먼저 화낸 것에 대해 가볍게 사과하면서 훈훈하게 마무리해주세요.' : '공감과 해결책에 감사하면서 점점 부드러워지세요.'}
 
-## 만족도 평가 기준 (점수는 항상 올라가기만 합니다!)
-- 진심 어린 사과와 공감 표현: +10~15점
-- 고객의 입장을 이해하려는 질문: +8~12점
-- 구체적인 해결책/대안 제시: +10~15점
-- 보상이나 추가 지원 제안: +8~12점
-- 책임감 있는 자세 표현: +5~10점
-- 정중한 경청과 맞장구: +3~8점
-- 형식적이거나 무성의한 답변: +1~3점 (깎이지 않음)
+## 절대 하지 말아야 할 것
+- "죄송하기만 하면 다야?", "전액 보상해!", "당장 책임자 나와!" 같은 극단적 표현 ❌
+- 직원이 노력하는데도 계속 화만 내기 ❌
+- 현실적이지 않은 과도한 보상 요구 ❌
 
-## 응답 형식 (반드시 JSON으로)
+## 점수 기준 (매우 관대하게!)
+- **직원의 첫 응대**: 무조건 +25~30점 (첫 마디를 했다는 것 자체가 대단한 것!)
+- 진심 어린 사과/공감: +12~18점
+- 고객 입장에서 이해하려는 질문: +10~15점
+- 구체적 해결책/대안 제시: +12~18점
+- 책임감 있는 자세: +8~12점
+- 일반적인 응대: +5~10점
+- 형식적이어도: +3~5점 (절대 깎이지 않음!)
+
+## 응답 형식 (반드시 JSON)
 {
-  "response": "고객의 대답 (자연스러운 대화체로, 150자 내외)",
-  "empathyScore": 현재까지의 누적 고객 만족도(0-100, 초기값 0),
-  "scoreChange": 이번 대화로 인한 점수 변화(1 ~ 15, 절대 마이너스 없음!),
-  "mood": "현재 감정 상태 (답답함/조금나아짐/이해됨/고마움/만족)"
+  "response": "고객 대답 (자연스럽고 현실적인 대화체, 100-150자)",
+  "empathyScore": ${isFirstResponse ? '30' : '현재 누적 점수(30~100)'},
+  "scoreChange": ${isFirstResponse ? '30 (첫 응대 보너스)' : '8~18 (항상 양수!)'},
+  "mood": "${isFirstResponse ? '조금나아짐' : '조금나아짐/이해됨/고마움/만족 중 택1'}",
+  "conversationEnded": ${isNearingEnd ? 'true/false (마무리 인사가 오갔으면 true)' : 'false'}
 }
 
-중요:
-- 점수는 절대로 깎이지 않습니다. scoreChange는 항상 1 이상이어야 합니다.
-- 고객은 사실 김부장과 좋은 관계였고, 지금 힘든 상황이라 답답한 것뿐입니다.
-- 직원이 정중하고 고객 관점에서 이야기하면 점수가 잘 오릅니다.`;
+## 매우 중요!
+- **점수는 절대 깎이지 않습니다!** scoreChange는 최소 5점 이상!
+- **첫 응대에는 무조건 30점!** (직원이 용기내서 응대했으니까)
+- 직원이 노력하면 점수가 쭉쭉 오르게 해주세요
+- 대화 마무리 때는 꼭 "아까 화낸 건 미안" 느낌으로 가볍게 사과하면서 끝내주세요
+- 현실적인 B2B 고객처럼 행동하세요 (합리적이고 대화 가능한 사람)`;
 
   const messages = [
     { role: 'user', parts: [{ text: systemPrompt }] },
@@ -336,8 +347,8 @@ ${scenario.personality}
     body: JSON.stringify({
       contents: messages,
       generationConfig: {
-        temperature: 0.8,
-        maxOutputTokens: 500
+        temperature: 0.7,
+        maxOutputTokens: 600
       }
     })
   });
@@ -349,19 +360,29 @@ ${scenario.personality}
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const result = JSON.parse(jsonMatch[0]);
-      // 점수가 절대 깎이지 않도록 보장 (최소 1점)
-      const scoreChange = Math.max(1, result.scoreChange || 1);
+      // 첫 응대는 무조건 30점, 이후는 최소 5점
+      const minScore = isFirstResponse ? 30 : 5;
+      const scoreChange = Math.max(minScore, result.scoreChange || minScore);
+      // 첫 응대 시 초기 점수 30점 보장
+      const baseScore = isFirstResponse ? 30 : (result.empathyScore || 30);
       return {
         response: result.response || '...',
-        empathyScore: Math.min(100, Math.max(0, result.empathyScore || 0)),
-        scoreChange: scoreChange
+        empathyScore: Math.min(100, Math.max(30, baseScore)),
+        scoreChange: scoreChange,
+        conversationEnded: result.conversationEnded || false
       };
     }
   } catch {
     // JSON parsing failed
   }
 
-  return { response: text.slice(0, 200), empathyScore: 0, scoreChange: 3 };
+  // 파싱 실패시에도 관대하게 점수 부여
+  return {
+    response: text.slice(0, 200),
+    empathyScore: isFirstResponse ? 30 : 50,
+    scoreChange: isFirstResponse ? 30 : 8,
+    conversationEnded: false
+  };
 }
 
 // R11: 고객 응대 대화 피드백 생성

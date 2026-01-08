@@ -417,6 +417,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
   } | null>(null);
   const [r11FeedbackLoading, setR11FeedbackLoading] = useState(false);
   const [r11ChatEnded, setR11ChatEnded] = useState(false);
+  const [r11ConversationEnded, setR11ConversationEnded] = useState(false); // 고객이 마무리 인사를 했는지
 
   // R12 팀 제기차기 상태 (12월)
   const [r12GameStarted, setR12GameStarted] = useState(false);
@@ -1133,13 +1134,18 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
       setR11MoodLevel(result.moodLevel);
       setR11EvaluationScores(result.evaluationScores);
 
-      // 80점 이상이면 대화 자동 종료 및 클리어
-      if (result.satisfactionScore >= 80 && r11StartTime) {
+      // 대화 종료 플래그 업데이트 (고객이 마무리 인사를 했는지)
+      if (result.conversationEnded) {
+        setR11ConversationEnded(true);
+      }
+
+      // 80점 이상이고 고객이 마무리 인사를 했을 때만 클리어
+      if (result.satisfactionScore >= 80 && result.conversationEnded && r11StartTime) {
         const elapsed = Math.floor((Date.now() - r11StartTime) / 1000);
         const mins = Math.floor(elapsed / 60);
         const secs = elapsed % 60;
         setR11CompletionTime(`${mins}분 ${secs}초`);
-        setR11ChatEnded(true);  // 대화 자동 종료
+        setR11ChatEnded(true);  // 대화 종료
         setR11Cleared(true);
       }
     } catch (error) {
@@ -1163,6 +1169,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
     setR11EvaluationScores({ greeting: 0, listening: 0, empathy: 0, solution: 0, professionalism: 0, patience: 0, clarity: 0, positivity: 0, responsibility: 0, closing: 0 });
     setR11CompletionTime('');
     setR11ChatEnded(false);
+    setR11ConversationEnded(false);
     setR11Feedback(null);
     setViewState('factory');
   };
@@ -1238,8 +1245,8 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
   // R11 피드백 팝업 닫기 후 처리
   const handleR11CloseFeedback = () => {
     setR11ShowFeedback(false);
-    // 80점 이상이면 자동 클리어 처리
-    if (r11SatisfactionScore >= 80) {
+    // 80점 이상이고 대화가 마무리되었으면 자동 클리어 처리
+    if (r11SatisfactionScore >= 80 && r11ConversationEnded) {
       setR11Cleared(true);
     }
   };
@@ -3108,7 +3115,16 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
               <div className={`h-full transition-all duration-500 ${r11SatisfactionScore >= 80 ? 'bg-green-500' : r11SatisfactionScore >= 50 ? 'bg-yellow-400' : 'bg-orange-500'}`} style={{ width: `${r11SatisfactionScore}%` }} />
             </div>
             <p className={`text-4xl font-black mt-2 ${r11SatisfactionScore >= 80 ? 'text-green-400' : r11SatisfactionScore >= 50 ? 'text-yellow-400' : 'text-orange-400'}`}>{r11SatisfactionScore}점</p>
-            {r11SatisfactionScore >= 80 && <p className="text-green-400 font-bold animate-pulse">목표 달성!</p>}
+            {r11SatisfactionScore >= 80 && (
+              r11ConversationEnded ? (
+                <p className="text-green-400 font-bold animate-pulse">목표 달성! 미션 클리어!</p>
+              ) : (
+                <div className="space-y-1">
+                  <p className="text-green-400 font-bold">점수 목표 달성!</p>
+                  <p className="text-yellow-300 text-sm animate-pulse">💡 마무리 인사로 대화를 마무리해주세요</p>
+                </div>
+              )
+            )}
           </div>
 
           {r11Cleared ? (
@@ -3210,6 +3226,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
                           setR11ChatHistory([]);
                           setR11SatisfactionScore(0);
                           setR11MoodLevel(1);
+                          setR11ConversationEnded(false);
                           setR11StartTime(Date.now());
                           const industryType = room.industryType || IndustryType.IT_SOLUTION;
                           const scenario = R11_SCENARIOS[industryType];
@@ -3230,6 +3247,16 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
                     </div>
                     <BrutalistButton variant="gold" onClick={handleR11SendMessage} disabled={r11Sending || !r11UserInput.trim()} className="h-fit">전송</BrutalistButton>
                   </div>
+                  {/* 마이크 아이콘 및 음성 입력 안내 */}
+                  <div className="flex items-center justify-center gap-3 py-2 bg-black/30 rounded-lg">
+                    <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#333" className="w-6 h-6">
+                        <path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z"/>
+                        <path d="M19 11a1 1 0 0 0-2 0 5 5 0 0 1-10 0 1 1 0 0 0-2 0 7 7 0 0 0 6 6.92V20H8a1 1 0 0 0 0 2h8a1 1 0 0 0 0-2h-3v-2.08A7 7 0 0 0 19 11z"/>
+                      </svg>
+                    </div>
+                    <p className="text-gray-400 text-sm">키보드 상의 마이크 버튼을 눌러서 실제 대화로 채팅을 입력해주세요</p>
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -3237,19 +3264,24 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
                     <p className="text-green-400 font-bold text-lg">✓ 대화가 종료되었습니다</p>
                     <p className="text-gray-300 text-sm mt-1">최종 점수: {r11SatisfactionScore}점 {r11CompletionTime && `| 소요시간: ${r11CompletionTime}`}</p>
                   </div>
-                  {r11SatisfactionScore >= 80 ? (
+                  {r11SatisfactionScore >= 80 && r11ConversationEnded ? (
                     <BrutalistButton variant="gold" fullWidth onClick={handleR11Clear}>
                       다음 라운드로 →
                     </BrutalistButton>
                   ) : (
                     <div className="space-y-2">
-                      <p className="text-center text-yellow-400 text-sm">80점 이상 달성 시 다음 라운드로 이동할 수 있습니다.</p>
+                      {r11SatisfactionScore >= 80 ? (
+                        <p className="text-center text-yellow-400 text-sm">점수는 달성했지만, 고객과 마무리 인사를 나누어야 합니다. 대화를 계속해주세요.</p>
+                      ) : (
+                        <p className="text-center text-yellow-400 text-sm">80점 이상 달성 후 고객과 마무리 인사를 나누면 다음 라운드로 이동할 수 있습니다.</p>
+                      )}
                       <div className="flex gap-2">
                         <BrutalistButton variant="secondary" fullWidth onClick={() => {
                           setR11ChatEnded(false);
                           setR11ChatHistory([]);
                           setR11SatisfactionScore(0);
                           setR11MoodLevel(1);
+                          setR11ConversationEnded(false);
                           setR11Feedback(null);
                           initR11Chat();
                         }}>
@@ -3276,64 +3308,77 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
                 <button onClick={() => setR11ShowManual(false)} className="text-2xl font-black hover:text-yellow-400">✕</button>
               </div>
               <div className="p-4 space-y-4">
+                <div className="bg-blue-100 p-3 border-l-4 border-blue-500">
+                  <p className="font-bold text-blue-800">💡 알아두세요!</p>
+                  <p className="text-sm text-blue-700 mt-1">이 고객은 김부장님과 오랜 기간 좋은 관계로 거래해온 분입니다. 지금 화가 난 건 김부장님에게가 아니라, 현재 상황이 답답해서입니다.</p>
+                  <p className="text-sm text-blue-700 mt-1 font-bold">➡️ 진심으로 공감하고 해결하려 노력하면 금방 누그러질 분입니다!</p>
+                </div>
+
                 <div className="bg-red-100 p-3 border-l-4 border-red-500">
-                  <p className="font-bold text-red-800">⚠️ 상황: 화난 B2B 고객이 클레임을 제기했습니다</p>
-                  <p className="text-sm text-red-700 mt-1">목표: 고객 만족도 80점 이상 달성하기</p>
+                  <p className="font-bold text-red-800">🎯 미션 목표</p>
+                  <p className="text-sm text-red-700 mt-1">1. 고객 만족도 <span className="font-black">80점 이상</span> 달성</p>
+                  <p className="text-sm text-red-700">2. 고객과 <span className="font-black">마무리 인사</span>를 나누며 대화 종료</p>
                 </div>
 
                 <div className="bg-yellow-100 p-3 border-l-4 border-yellow-500">
-                  <p className="font-bold text-yellow-800">💡 점수를 올리는 핵심 포인트</p>
+                  <p className="font-bold text-yellow-800">📈 점수 획득 가이드</p>
+                  <p className="text-sm text-yellow-700 mt-1">첫 응대만 해도 <span className="font-black">+30점</span>! 이후에도 점수는 절대 깎이지 않습니다.</p>
                 </div>
 
                 <div className="space-y-3 text-sm">
                   <div className="bg-gray-100 p-3 rounded">
-                    <p className="font-black text-red-600">1. 즉각적인 사과 & 공감 (+15~20점)</p>
-                    <p className="text-gray-600">• "불편을 드려 진심으로 죄송합니다"</p>
-                    <p className="text-gray-600">• "업무에 차질이 생기셨을텐데 정말 송구합니다"</p>
-                    <p className="text-gray-600">• 고객의 피해 상황을 구체적으로 인정하기</p>
+                    <p className="font-black text-red-600">1. 진심 어린 사과 & 공감 (+12~18점)</p>
+                    <p className="text-gray-600">• "말씀 듣고 제가 다 답답하네요. 정말 죄송합니다"</p>
+                    <p className="text-gray-600">• "업무에 차질이 생기셨을텐데... 제가 책임지겠습니다"</p>
+                    <p className="text-gray-600">• 고객의 감정과 상황을 이해하는 모습 보여주기</p>
                   </div>
 
                   <div className="bg-gray-100 p-3 rounded">
-                    <p className="font-black text-orange-600">2. 문제 상황 정리 & 경청 (+5~10점)</p>
-                    <p className="text-gray-600">• "말씀하신 내용 정리해보면..."</p>
-                    <p className="text-gray-600">• 고객이 말한 문제를 다시 요약</p>
-                    <p className="text-gray-600">• "제가 정확히 이해한 게 맞을까요?"</p>
+                    <p className="font-black text-orange-600">2. 적극적 경청 & 확인 (+10~15점)</p>
+                    <p className="text-gray-600">• "상황을 정리해보면... 이 부분이 가장 급하시죠?"</p>
+                    <p className="text-gray-600">• "혹시 제가 놓친 부분 있으면 말씀해주세요"</p>
+                    <p className="text-gray-600">• 고객 입장에서 가장 중요한 문제 파악하기</p>
                   </div>
 
                   <div className="bg-gray-100 p-3 rounded">
-                    <p className="font-black text-blue-600">3. 구체적인 해결책 제시 (+10~15점)</p>
-                    <p className="text-gray-600">• 즉시 처리: "지금 바로 담당자 연결해드리겠습니다"</p>
-                    <p className="text-gray-600">• 일정 제시: "오늘 오후 3시까지 해결해드리겠습니다"</p>
-                    <p className="text-gray-600">• 대안 제안: "임시로 ~를 지원해드리겠습니다"</p>
+                    <p className="font-black text-blue-600">3. 구체적인 해결책 & 일정 (+12~18점)</p>
+                    <p className="text-gray-600">• "지금 바로 담당자 투입해서 오후 3시까지 해결하겠습니다"</p>
+                    <p className="text-gray-600">• "제가 직접 1시간마다 진행상황 알려드릴게요"</p>
+                    <p className="text-gray-600">• 약속한 시간은 반드시 지킬 수 있는 범위로!</p>
                   </div>
 
                   <div className="bg-gray-100 p-3 rounded">
-                    <p className="font-black text-purple-600">4. 보상 & 재발 방지 (+10~15점)</p>
-                    <p className="text-gray-600">• "손해 비용 전액 보상해드리겠습니다"</p>
-                    <p className="text-gray-600">• "추가 서비스/할인을 제공해드리겠습니다"</p>
-                    <p className="text-gray-600">• "재발 방지를 위해 프로세스를 개선하겠습니다"</p>
+                    <p className="font-black text-purple-600">4. 보상 & 후속 조치 (+8~12점)</p>
+                    <p className="text-gray-600">• "이번 건은 당연히 비용 처리해드리겠습니다"</p>
+                    <p className="text-gray-600">• "다음 달 서비스 할인도 적용해드릴게요"</p>
+                    <p className="text-gray-600">• 과도한 보상보다는 성의 있는 마음이 중요!</p>
                   </div>
 
                   <div className="bg-gray-100 p-3 rounded">
-                    <p className="font-black text-green-600">5. 책임감 있는 마무리 (+8~12점)</p>
-                    <p className="text-gray-600">• "저희 책임입니다. 변명하지 않겠습니다"</p>
-                    <p className="text-gray-600">• "제가 끝까지 책임지고 처리하겠습니다"</p>
-                    <p className="text-gray-600">• "처리 결과 직접 연락드리겠습니다"</p>
+                    <p className="font-black text-green-600">5. 따뜻한 마무리 인사 (필수!)</p>
+                    <p className="text-gray-600">• "다시 한번 죄송하고, 감사드립니다"</p>
+                    <p className="text-gray-600">• "앞으로 더 잘 모시겠습니다"</p>
+                    <p className="text-gray-600">• 고객이 "감사합니다" 하면서 마무리하면 미션 완료!</p>
+                  </div>
+                </div>
+
+                <div className="bg-green-100 p-3 border-l-4 border-green-500">
+                  <p className="font-bold text-green-800 mb-2">💬 대화 흐름 예시</p>
+                  <div className="text-sm text-green-700 space-y-2">
+                    <p><span className="font-black">나:</span> "고객님, 정말 죄송합니다. 업무에 큰 지장이 있으셨겠네요."</p>
+                    <p><span className="font-black">고객:</span> (조금 누그러지며) "네, 사실 많이 답답했어요..."</p>
+                    <p><span className="font-black">나:</span> "제가 지금 바로 처리해드릴게요. 오후 2시까지 해결하겠습니다."</p>
+                    <p><span className="font-black">고객:</span> "네, 그러면 감사하죠. 아까 좀 언성이 높았는데... 이해해주세요."</p>
+                    <p><span className="font-black">나:</span> "아닙니다, 당연히 답답하셨죠. 감사합니다, 고객님!"</p>
+                    <p className="text-green-600 font-black mt-2">→ 미션 클리어!</p>
                   </div>
                 </div>
 
                 <div className="bg-red-50 p-3 border-l-4 border-red-400">
-                  <p className="font-bold text-red-700 mb-1">❌ 피해야 할 표현 (감점)</p>
-                  <p className="text-sm text-red-600">• "그건 저희 잘못이 아닙니다" (변명)</p>
-                  <p className="text-sm text-red-600">• "규정상 어렵습니다" (딱딱한 거절)</p>
-                  <p className="text-sm text-red-600">• "확인해보고 연락드릴게요" (애매한 답변)</p>
-                </div>
-
-                <div className="bg-green-100 p-3 border-l-4 border-green-500">
-                  <p className="font-bold text-green-800 mb-2">✅ 좋은 응대 예시</p>
-                  <p className="text-sm text-green-700 italic">
-                    "고객님, 업무에 큰 차질이 생기셨을텐데 진심으로 죄송합니다. 말씀하신 것처럼 저희 측 실수로 발생한 문제입니다. 지금 즉시 기술팀장을 투입하여 오후 2시까지 복구 완료하겠습니다. 손해 비용은 전액 보상드리고, 다음 달 서비스 비용 20% 할인도 적용해드리겠습니다. 제가 직접 처리 상황 1시간마다 문자로 안내드리겠습니다."
-                  </p>
+                  <p className="font-bold text-red-700 mb-1">❌ 피하면 좋은 표현</p>
+                  <p className="text-sm text-red-600">• "그건 저희 잘못이 아닙니다" → 변명처럼 들림</p>
+                  <p className="text-sm text-red-600">• "규정상 어렵습니다" → 딱딱하게 느껴짐</p>
+                  <p className="text-sm text-red-600">• "확인해보고요" → 불안하게 느껴짐</p>
                 </div>
 
                 <BrutalistButton variant="primary" fullWidth onClick={() => setR11ShowManual(false)}>
