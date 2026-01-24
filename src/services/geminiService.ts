@@ -362,6 +362,49 @@ export const geminiService = {
     }
   },
 
+  // Admin: R11 고객응대 시뮬레이션 종합 비교분석
+  analyzeCustomerServiceComparison: async (
+    groupName: string,
+    industryType: number,
+    teamData: Array<{
+      teamId: number;
+      conversationHistory: Array<{ role: string; content: string }>;
+      finalScore: number;
+      overallGrade: string;
+      completionTime?: string;
+    }>
+  ): Promise<{
+    success: boolean;
+    analysis?: Record<string, unknown>;
+    stats?: Record<string, unknown>;
+    error?: string;
+  }> => {
+    try {
+      const response = await fetch(API_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'analyzeCustomerServiceComparison',
+          payload: {
+            groupName,
+            industryType,
+            teamData
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        return { success: false, error: error.error || 'API 오류가 발생했습니다.' };
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Gemini customer service comparison error:', error);
+      return { success: false, error: '고객응대 분석 중 오류가 발생했습니다.' };
+    }
+  },
+
   // Admin: 전체 팀 성과 종합 분석 (Gemini Pro)
   analyzeTotalPerformance: async (
     groupName: string,

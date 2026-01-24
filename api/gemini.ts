@@ -53,6 +53,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.json(await generateWinnerPoster(payload));
       case 'analyzeTotalPerformance':
         return res.json(await analyzeTotalPerformance(payload));
+      case 'analyzeCustomerServiceComparison':
+        return res.json(await analyzeCustomerServiceComparison(payload));
       default:
         return res.status(400).json({ error: 'Invalid action' });
     }
@@ -1125,5 +1127,194 @@ ${bestMissions || '수집된 소감 없음'}
   } catch (error) {
     console.error('Gemini Pro analysis API error:', error);
     return { success: false, error: '성과 분석 중 오류가 발생했습니다.' };
+  }
+}
+
+// Admin: R11 고객응대 시뮬레이션 종합 비교분석
+async function analyzeCustomerServiceComparison(payload: {
+  groupName: string;
+  industryType: number;
+  teamData: Array<{
+    teamId: number;
+    conversationHistory: Array<{ role: string; content: string }>;
+    finalScore: number;
+    overallGrade: string;
+    completionTime?: string;
+  }>;
+}) {
+  const { groupName, industryType, teamData } = payload;
+  const scenario = CUSTOMER_SCENARIOS[industryType] || CUSTOMER_SCENARIOS[1];
+
+  // 오늘 날짜
+  const today = new Date();
+  const dateStr = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, '0')}.${String(today.getDate()).padStart(2, '0')}`;
+
+  // 팀별 대화 내용 텍스트로 변환
+  const teamConversations = teamData.map(team => {
+    const conversationText = team.conversationHistory.map((msg, idx) => {
+      const speaker = msg.role === 'user' ? '직원(학습자)' : '고객';
+      return `  ${idx + 1}. ${speaker}: ${msg.content}`;
+    }).join('\n');
+
+    return `
+### ${team.teamId}조 (${team.overallGrade}등급, ${team.finalScore}점)
+소요시간: ${team.completionTime || '기록없음'}
+
+대화내용:
+${conversationText}
+`;
+  }).join('\n---\n');
+
+  // 통계
+  const avgScore = teamData.reduce((sum, t) => sum + t.finalScore, 0) / teamData.length;
+  const maxScore = Math.max(...teamData.map(t => t.finalScore));
+  const minScore = Math.min(...teamData.map(t => t.finalScore));
+  const gradeDistribution: Record<string, number> = { S: 0, A: 0, B: 0, C: 0, D: 0 };
+  teamData.forEach(t => {
+    if (gradeDistribution[t.overallGrade] !== undefined) {
+      gradeDistribution[t.overallGrade]++;
+    }
+  });
+
+  const prompt = `당신은 B2B 고객 응대 교육 및 서비스 품질 전문 컨설턴트입니다.
+다음 팀별 고객 응대 시뮬레이션 대화를 비교 분석하여 **교육 피드백 리포트**를 작성해주세요.
+
+## 교육 정보
+- 교육그룹: ${groupName}
+- 분석 일자: ${dateStr}
+- 참여 팀 수: ${teamData.length}팀
+
+## 시뮬레이션 상황
+- 고객 역할: ${scenario.role}
+- 상황 배경: ${scenario.situation}
+- 고객 성격: ${scenario.personality}
+
+## 전체 통계
+- 평균 점수: ${avgScore.toFixed(1)}점
+- 최고 점수: ${maxScore}점
+- 최저 점수: ${minScore}점
+- 등급 분포: S등급 ${gradeDistribution.S}팀, A등급 ${gradeDistribution.A}팀, B등급 ${gradeDistribution.B}팀, C등급 ${gradeDistribution.C}팀, D등급 ${gradeDistribution.D}팀
+
+## 팀별 대화 내용
+${teamConversations}
+
+---
+
+## 분석 요청사항
+
+다음 JSON 형식으로 종합 분석 리포트를 작성해주세요:
+
+{
+  "overallAnalysis": {
+    "summary": "전체 팀의 고객 응대 수준에 대한 종합 평가 (300자 내외)",
+    "commonStrengths": ["공통 강점 1", "공통 강점 2", "공통 강점 3"],
+    "commonWeaknesses": ["공통 약점/개선점 1", "공통 약점/개선점 2", "공통 약점/개선점 3"]
+  },
+  "teamComparison": [
+    {
+      "teamId": 1,
+      "rank": 1,
+      "highlights": "이 팀의 응대에서 특히 빛났던 점 (구체적인 대화 예시 포함, 200자 내외)",
+      "improvements": "이 팀이 개선하면 좋을 점 (구체적인 조언, 150자 내외)",
+      "bestMoment": "가장 인상적인 응대 순간 (대화에서 인용)"
+    }
+  ],
+  "skillAnalysis": {
+    "greeting": { "avgScore": 75, "bestTeam": 1, "tip": "인사/첫인상 관련 팁" },
+    "listening": { "avgScore": 70, "bestTeam": 2, "tip": "경청 관련 팁" },
+    "empathy": { "avgScore": 80, "bestTeam": 1, "tip": "공감 표현 관련 팁" },
+    "solution": { "avgScore": 65, "bestTeam": 3, "tip": "해결책 제시 관련 팁" },
+    "closing": { "avgScore": 72, "bestTeam": 1, "tip": "마무리 관련 팁" }
+  },
+  "bestPractices": [
+    "실무에서 바로 적용할 수 있는 베스트 프랙티스 1 (대화에서 발견한 좋은 사례 인용)",
+    "베스트 프랙티스 2",
+    "베스트 프랙티스 3"
+  ],
+  "discussionTopics": [
+    "팀원들과 토의해볼 주제 1 (현업 상황과 연결)",
+    "토의 주제 2",
+    "토의 주제 3"
+  ],
+  "overallGrade": "전체 그룹의 종합 등급 (S/A/B/C/D)",
+  "encouragement": "참가자들에게 전하는 격려 메시지 (200자 내외)"
+}
+
+## 분석 가이드라인
+
+1. **teamComparison**: 실제 대화 내용을 구체적으로 인용하여 분석
+2. **skillAnalysis**: 5가지 핵심 스킬별로 분석 (avgScore는 0-100, 팀 전체 평균)
+3. **bestPractices**: 실제 대화에서 발견한 좋은 사례를 구체적으로 인용
+4. **discussionTopics**: 현업에서 비슷한 상황을 만났을 때 활용할 수 있는 토의 주제
+5. 긍정적이고 격려하는 톤 유지, 구체적인 개선 방향 제시
+6. 각 팀의 순위(rank)는 점수 기준으로 부여
+
+반드시 JSON 형식으로만 응답해주세요.`;
+
+  try {
+    console.log('Calling Gemini for customer service comparison analysis...');
+
+    const response = await fetch(`${GEMINI_PRO_TEXT_URL}?key=${GEMINI_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{ text: prompt }]
+        }],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 4096
+        }
+      })
+    });
+
+    const data = await response.json();
+    console.log('Gemini customer service analysis response:', JSON.stringify(data).slice(0, 500));
+
+    if (data.error) {
+      console.error('Gemini analysis error:', data.error);
+      return { success: false, error: data.error.message || '분석에 실패했습니다.' };
+    }
+
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+    try {
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const analysisResult = JSON.parse(jsonMatch[0]);
+        return {
+          success: true,
+          analysis: analysisResult,
+          stats: {
+            avgScore,
+            maxScore,
+            minScore,
+            gradeDistribution,
+            totalTeams: teamData.length,
+            dateStr,
+            groupName
+          }
+        };
+      }
+    } catch (parseError) {
+      console.error('JSON parse error:', parseError);
+    }
+
+    return {
+      success: true,
+      analysis: { rawText: text },
+      stats: {
+        avgScore,
+        maxScore,
+        minScore,
+        gradeDistribution,
+        totalTeams: teamData.length,
+        dateStr,
+        groupName
+      }
+    };
+  } catch (error) {
+    console.error('Gemini customer service analysis API error:', error);
+    return { success: false, error: '고객응대 분석 중 오류가 발생했습니다.' };
   }
 }

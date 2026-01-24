@@ -29,6 +29,10 @@ const App: React.FC = () => {
     members: {}
   });
 
+  // 학습자 첫 화면에서 방/팀 선택 상태
+  const [selectedRoomForLearner, setSelectedRoomForLearner] = useState<string | null>(null);
+  const [selectedTeamForLearner, setSelectedTeamForLearner] = useState<number | null>(null);
+
   // 학습자 화면에서 관리자 로그인 팝업
   const [showAdminLoginPopup, setShowAdminLoginPopup] = useState(false);
   const [adminLoginPw, setAdminLoginPw] = useState('');
@@ -442,10 +446,51 @@ const App: React.FC = () => {
     );
   }
 
+  // 학습자 팀 참가 핸들러 (첫 화면용)
+  const handleLearnerJoinFromMain = async () => {
+    if (!selectedRoomForLearner || !selectedTeamForLearner) return;
+
+    const room = rooms[selectedRoomForLearner];
+    if (!room) return;
+
+    const leaderName = joinData.members['leader'];
+    if (!leaderName) {
+      alert('최소한 리더(김부장)의 이름은 입력해야 합니다.');
+      return;
+    }
+
+    const existingTeam = room.teams?.[selectedTeamForLearner];
+    const memberList: TeamMember[] = ROLES.map(r => ({
+      role: r.label,
+      name: joinData.members[r.id] || '미지정'
+    }));
+
+    await firebaseService.joinTeam(selectedRoomForLearner, selectedTeamForLearner, {
+      members: existingTeam?.members || memberList,
+      roundInstructions: existingTeam?.roundInstructions || {}
+    });
+
+    saveAuth({
+      role: UserRole.LEARNER,
+      authenticated: true,
+      teamId: selectedTeamForLearner,
+      learnerName: leaderName,
+      roomId: selectedRoomForLearner
+    });
+
+    // 상태 초기화
+    setSelectedRoomForLearner(null);
+    setSelectedTeamForLearner(null);
+    setJoinData({ teamId: 1, members: {} });
+  };
+
   // 1. Initial Selection
   if (auth.role === UserRole.UNSET) {
+    const roomList = Object.values(rooms);
+    const selectedRoomData = selectedRoomForLearner ? rooms[selectedRoomForLearner] : null;
+
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-4 space-y-12">
+      <div className="flex flex-col items-center justify-center min-h-screen p-4 space-y-8">
         <div className="text-center space-y-4">
             <h1 className="text-5xl md:text-8xl gold-gradient font-black tracking-tighter drop-shadow-2xl">
               김부장의 <br/> 본사 복귀 미션!
@@ -453,7 +498,8 @@ const App: React.FC = () => {
             <p className="text-xl font-bold bg-white text-black px-4 py-2 inline-block">MISSION: RETURN TO HEADQUARTER</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-4xl">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-5xl">
+          {/* 관리자 카드 */}
           <BrutalistCard className="flex flex-col space-y-6 hover:scale-105 transition-transform">
              <h2 className="text-3xl font-black">관리자(강사)</h2>
              <p className="text-gray-400 font-bold">방 개설, 미션 진행 컨트롤, 대시보드 모니터링</p>
@@ -469,11 +515,40 @@ const App: React.FC = () => {
              </div>
           </BrutalistCard>
 
-          <BrutalistCard className="flex flex-col space-y-6 hover:scale-105 transition-transform border-yellow-400">
+          {/* 학습자 카드 - 방 목록 바로 표시 */}
+          <BrutalistCard className="flex flex-col space-y-4 border-yellow-400">
              <h2 className="text-3xl font-black gold-gradient">학습자(참가자)</h2>
              <p className="text-gray-400 font-bold">미션 수행, 스토리 감상, 팀워크 챌린지</p>
-             <div className="pt-4 mt-auto">
-                <BrutalistButton variant="gold" fullWidth onClick={() => saveAuth({ ...auth, role: UserRole.LEARNER })}>LEARNER JOIN</BrutalistButton>
+
+             {/* 방 목록 */}
+             <div className="space-y-2">
+               <label className="block font-black text-yellow-400 text-sm uppercase">교육 그룹 선택</label>
+               {roomList.length === 0 ? (
+                 <div className="brutal-border p-4 bg-gray-800 text-gray-400 font-bold text-center">
+                   현재 활성화된 교육이 없습니다
+                 </div>
+               ) : (
+                 <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+                   {roomList.map(room => (
+                     <button
+                       key={room.id}
+                       onClick={() => {
+                         setSelectedRoomForLearner(room.id);
+                         setSelectedTeamForLearner(null);
+                         setJoinData({ teamId: 1, members: {} });
+                       }}
+                       className={`w-full text-left p-3 brutal-border font-bold transition-all ${
+                         selectedRoomForLearner === room.id
+                           ? 'bg-yellow-400 text-black border-yellow-400'
+                           : 'bg-white text-black hover:bg-yellow-100'
+                       }`}
+                     >
+                       <div className="font-black">{room.groupName}</div>
+                       <div className="text-xs text-gray-600">{room.totalTeams}개 조</div>
+                     </button>
+                   ))}
+                 </div>
+               )}
              </div>
           </BrutalistCard>
         </div>
@@ -481,7 +556,7 @@ const App: React.FC = () => {
         {/* 전체화면 토글 버튼 */}
         <button
           onClick={toggleFullscreen}
-          className="mt-8 px-6 py-3 bg-gray-800/80 hover:bg-gray-700 text-white font-bold border-2 border-gray-600 transition-all duration-200 flex items-center gap-2"
+          className="mt-4 px-6 py-3 bg-gray-800/80 hover:bg-gray-700 text-white font-bold border-2 border-gray-600 transition-all duration-200 flex items-center gap-2"
         >
           {isFullscreen ? (
             <>
@@ -495,6 +570,102 @@ const App: React.FC = () => {
             </>
           )}
         </button>
+
+        {/* 팀 선택 모달 */}
+        {selectedRoomForLearner && selectedRoomData && (
+          <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 overflow-y-auto">
+            <BrutalistCard className="max-w-4xl w-full space-y-6 bg-black/95 my-4">
+              {/* 헤더 */}
+              <div className="flex justify-between items-start">
+                <div>
+                  <h2 className="text-3xl font-black gold-gradient">{selectedRoomData.groupName}</h2>
+                  <p className="text-gray-400 font-bold mt-1">조(Team) 선택</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setSelectedRoomForLearner(null);
+                    setSelectedTeamForLearner(null);
+                    setJoinData({ teamId: 1, members: {} });
+                  }}
+                  className="text-white hover:text-yellow-400 text-2xl font-black"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* 팀 선택 버튼 그리드 */}
+              {!selectedTeamForLearner ? (
+                <div>
+                  <label className="block font-black text-yellow-400 text-sm uppercase mb-3">본인의 조를 선택하세요</label>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
+                    {Array.from({ length: selectedRoomData.totalTeams }).map((_, i) => {
+                      const teamNum = i + 1;
+                      const isJoined = selectedRoomData.teams?.[teamNum]?.isJoined;
+                      return (
+                        <button
+                          key={teamNum}
+                          onClick={() => setSelectedTeamForLearner(teamNum)}
+                          className={`p-4 brutal-border font-black text-xl transition-all hover:scale-105 ${
+                            isJoined
+                              ? 'bg-green-400 text-black hover:bg-green-300'
+                              : 'bg-white text-black hover:bg-yellow-400'
+                          }`}
+                        >
+                          {teamNum}조
+                          {isJoined && <div className="text-xs font-bold mt-1">참가중</div>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                /* 팀 선택 후 - 팀원 입력 */
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => setSelectedTeamForLearner(null)}
+                        className="text-yellow-400 hover:text-white font-black"
+                      >
+                        ← 조 다시 선택
+                      </button>
+                      <span className="text-2xl font-black text-white">| {selectedTeamForLearner}조</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block font-black text-yellow-400 text-sm uppercase mb-2">팀원 정보 입력</label>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-[300px] overflow-y-auto pr-1">
+                      {ROLES.map(role => (
+                        <div key={role.id}>
+                          <label className="text-xs font-bold text-gray-400">{role.label}</label>
+                          <BrutalistInput
+                            placeholder="이름 입력"
+                            className="w-full text-sm py-2 px-3"
+                            value={joinData.members[role.id] || ''}
+                            onChange={(e) => setJoinData({
+                              ...joinData,
+                              members: { ...joinData.members, [role.id]: e.target.value }
+                            })}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <BrutalistButton
+                    variant="gold"
+                    fullWidth
+                    className="text-2xl py-4"
+                    onClick={handleLearnerJoinFromMain}
+                  >
+                    JOIN MISSION
+                  </BrutalistButton>
+                </div>
+              )}
+            </BrutalistCard>
+          </div>
+        )}
       </div>
     );
   }
@@ -608,88 +779,11 @@ const App: React.FC = () => {
 
   // 3. Learner Logic
   if (auth.role === UserRole.LEARNER) {
-    // 방 선택 & 팀 참가 화면
+    // 인증되지 않은 학습자는 첫 화면으로 리다이렉트
     if (!auth.authenticated) {
-      const roomList = Object.values(rooms);
-
-      return (
-        <div className="flex items-center justify-center min-h-screen p-4">
-          <BrutalistCard className="max-w-2xl w-full space-y-8 bg-black/90">
-            <h2 className="text-4xl font-black uppercase gold-gradient">MISSION JOIN</h2>
-
-            <div className="space-y-6">
-              {/* 방 선택 */}
-              <div>
-                <label className="block font-black text-yellow-400 mb-2 uppercase">교육 그룹 선택</label>
-                {roomList.length === 0 ? (
-                  <div className="brutal-border p-4 bg-white text-black font-black">
-                    현재 활성화된 교육이 없습니다.
-                  </div>
-                ) : (
-                  <select
-                    className="w-full brutal-border bg-white text-black p-4 font-bold brutalist-shadow"
-                    value={currentRoomId || ''}
-                    onChange={(e) => setCurrentRoomId(e.target.value)}
-                  >
-                    {roomList.map(room => (
-                      <option key={room.id} value={room.id}>{room.groupName}</option>
-                    ))}
-                  </select>
-                )}
-              </div>
-
-              {currentRoom && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                   <div className="space-y-2">
-                      <label className="block font-black text-yellow-400 uppercase">본인의 조(Team) 선택</label>
-                      <select
-                        className="w-full brutal-border bg-white text-black p-4 font-bold brutalist-shadow h-[60px]"
-                        value={joinData.teamId}
-                        onChange={(e) => setJoinData({...joinData, teamId: parseInt(e.target.value)})}
-                      >
-                        {Array.from({ length: currentRoom.totalTeams }).map((_, i) => (
-                          <option key={i+1} value={i+1}>{i+1}조 (Team {i+1})</option>
-                        ))}
-                      </select>
-                   </div>
-
-                   <div className="space-y-4">
-                      <label className="block font-black text-yellow-400 uppercase">팀원 정보 입력</label>
-                      <div className="space-y-2 overflow-y-auto max-h-[300px] pr-2">
-                        {ROLES.map(role => (
-                          <div key={role.id}>
-                            <label className="text-xs font-bold text-gray-400">{role.label}</label>
-                            <BrutalistInput
-                              placeholder="이름 입력"
-                              className="w-full text-sm py-2 px-3"
-                              value={joinData.members[role.id] || ''}
-                              onChange={(e) => setJoinData({
-                                ...joinData,
-                                members: { ...joinData.members, [role.id]: e.target.value }
-                              })}
-                            />
-                          </div>
-                        ))}
-                      </div>
-                   </div>
-                </div>
-              )}
-
-              <div className="flex gap-4">
-                <BrutalistButton
-                  variant="gold"
-                  className="flex-1 text-2xl"
-                  onClick={handleJoinTeam}
-                  disabled={!currentRoom}
-                >
-                  JOIN MISSION
-                </BrutalistButton>
-                <BrutalistButton variant="ghost" onClick={handleLogout}>뒤로</BrutalistButton>
-              </div>
-            </div>
-          </BrutalistCard>
-        </div>
-      );
+      // 첫 화면으로 리다이렉트 (상태 초기화)
+      setAuth({ role: UserRole.UNSET, authenticated: false });
+      return null;
     }
 
     // 팀 참가 완료 - 미션 화면
