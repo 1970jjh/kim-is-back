@@ -64,6 +64,15 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
   const [analysisStats, setAnalysisStats] = useState<Record<string, unknown> | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
 
+  // R11 Customer Service states
+  const [showR11ConversationModal, setShowR11ConversationModal] = useState(false);
+  const [selectedR11TeamId, setSelectedR11TeamId] = useState<number | null>(null);
+  const [showR11AnalysisModal, setShowR11AnalysisModal] = useState(false);
+  const [r11AnalysisLoading, setR11AnalysisLoading] = useState(false);
+  const [r11AnalysisResult, setR11AnalysisResult] = useState<Record<string, unknown> | null>(null);
+  const [r11AnalysisStats, setR11AnalysisStats] = useState<Record<string, unknown> | null>(null);
+  const [r11AnalysisError, setR11AnalysisError] = useState<string | null>(null);
+
   // 전체 미션 타이머 (이벤트 중 일시정지)
   useEffect(() => {
     if (!room.missionStarted || !room.missionStartTime) {
@@ -389,6 +398,52 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
       setAnalysisError('성과 분석 중 오류가 발생했습니다.');
     } finally {
       setAnalysisLoading(false);
+    }
+  };
+
+  // R11 Customer Service Analysis handler
+  const handleAnalyzeR11CustomerService = async () => {
+    setR11AnalysisLoading(true);
+    setR11AnalysisError(null);
+    setR11AnalysisResult(null);
+    setR11AnalysisStats(null);
+    setShowR11AnalysisModal(true);
+
+    try {
+      // R11 피드백이 있는 팀만 수집
+      const teamData = Object.entries(room.teams || {})
+        .filter(([, team]) => team.r11Feedback?.conversationHistory?.length > 0)
+        .map(([teamIdStr, team]) => ({
+          teamId: parseInt(teamIdStr),
+          conversationHistory: team.r11Feedback?.conversationHistory || [],
+          finalScore: team.r11Feedback?.finalScore || 0,
+          overallGrade: team.r11Feedback?.overallGrade || 'D',
+          completionTime: team.r11Feedback?.completionTime
+        }));
+
+      if (teamData.length === 0) {
+        setR11AnalysisError('분석할 고객응대 데이터가 없습니다. 팀들이 R11 미션을 완료해야 합니다.');
+        setR11AnalysisLoading(false);
+        return;
+      }
+
+      const result = await geminiService.analyzeCustomerServiceComparison(
+        room.groupName || '교육그룹',
+        room.industryType || 1,
+        teamData
+      );
+
+      if (result.success) {
+        setR11AnalysisResult(result.analysis || null);
+        setR11AnalysisStats(result.stats || null);
+      } else {
+        setR11AnalysisError(result.error || '분석에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('R11 Analysis error:', error);
+      setR11AnalysisError('고객응대 분석 중 오류가 발생했습니다.');
+    } finally {
+      setR11AnalysisLoading(false);
     }
   };
 
@@ -959,6 +1014,78 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
                   {/* 전체 다운로드 안내 */}
                   <p className="text-[10px] text-gray-500 text-center mt-2">
                     💡 개별 사진을 클릭하여 다운로드하세요. (파일명: 과정명_#조_연월일시)
+                  </p>
+                </div>
+              );
+            })()}
+          </BrutalistCard>
+
+          {/* R11 CUSTOMER SERVICE Section */}
+          <h2 className="text-2xl font-black italic mt-6">R11 고객응대 기록</h2>
+          <BrutalistCard className="space-y-4">
+            <p className="text-xs text-gray-400">
+              R11 고객응대 시뮬레이션에서 각 팀이 AI 고객과 나눈 대화 내용입니다.
+            </p>
+
+            {(() => {
+              const teamsWithR11 = Object.entries(room.teams || {})
+                .filter(([, team]) => team.r11Feedback?.conversationHistory?.length > 0)
+                .map(([teamIdStr, team]) => ({
+                  teamId: parseInt(teamIdStr),
+                  feedback: team.r11Feedback!
+                }));
+
+              if (teamsWithR11.length === 0) {
+                return (
+                  <p className="text-xs text-yellow-400 text-center py-4">
+                    💬 아직 R11 미션을 완료한 팀이 없습니다.
+                  </p>
+                );
+              }
+
+              return (
+                <div className="space-y-3">
+                  {teamsWithR11.map(({ teamId, feedback }) => (
+                    <div key={teamId} className="flex items-center gap-3 p-2 border-2 border-gray-600 bg-gray-800">
+                      <div className={`w-12 h-12 flex items-center justify-center brutal-border font-black text-lg ${
+                        feedback.overallGrade === 'S' ? 'bg-purple-500' :
+                        feedback.overallGrade === 'A' ? 'bg-green-500' :
+                        feedback.overallGrade === 'B' ? 'bg-blue-500' :
+                        feedback.overallGrade === 'C' ? 'bg-yellow-500' : 'bg-red-500'
+                      }`}>
+                        {feedback.overallGrade}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-yellow-400">{teamId}조</p>
+                        <p className="text-[10px] text-gray-400">{feedback.finalScore}점 | {feedback.completionTime || '-'}</p>
+                        <p className="text-[10px] text-gray-500 truncate">
+                          대화 {feedback.conversationHistory.length}턴
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setSelectedR11TeamId(teamId);
+                          setShowR11ConversationModal(true);
+                        }}
+                        className="brutal-border bg-yellow-400 text-black font-bold px-3 py-1 text-xs hover:bg-yellow-300 transition-colors"
+                      >
+                        대화보기
+                      </button>
+                    </div>
+                  ))}
+
+                  {/* AI 종합분석 버튼 */}
+                  <BrutalistButton
+                    variant="gold"
+                    fullWidth
+                    className="text-xs mt-2"
+                    onClick={handleAnalyzeR11CustomerService}
+                  >
+                    🤖 AI 고객응대 종합분석
+                  </BrutalistButton>
+
+                  <p className="text-[10px] text-gray-500 text-center">
+                    💡 각 팀의 고객응대 스킬을 AI가 비교 분석합니다.
                   </p>
                 </div>
               );
@@ -1693,6 +1820,223 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
                       </BrutalistCard>
                     )}
                   </>
+                )}
+              </div>
+            )}
+          </BrutalistCard>
+        </div>
+      )}
+
+      {/* R11 Conversation Modal - 개별 팀 대화 보기 */}
+      {showR11ConversationModal && selectedR11TeamId && room.teams[selectedR11TeamId]?.r11Feedback && (
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4 overflow-auto">
+          <BrutalistCard className="max-w-2xl w-full space-y-4 my-8 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center sticky top-0 bg-black/90 pb-4 -mt-2 pt-2">
+              <h2 className="text-2xl font-black gold-gradient">
+                {selectedR11TeamId}조 고객응대 대화
+              </h2>
+              <BrutalistButton variant="ghost" onClick={() => setShowR11ConversationModal(false)}>닫기</BrutalistButton>
+            </div>
+
+            {/* 요약 정보 */}
+            <div className="flex gap-4 mb-4">
+              <div className={`px-4 py-2 brutal-border font-black text-center ${
+                room.teams[selectedR11TeamId].r11Feedback?.overallGrade === 'S' ? 'bg-purple-500' :
+                room.teams[selectedR11TeamId].r11Feedback?.overallGrade === 'A' ? 'bg-green-500' :
+                room.teams[selectedR11TeamId].r11Feedback?.overallGrade === 'B' ? 'bg-blue-500' :
+                room.teams[selectedR11TeamId].r11Feedback?.overallGrade === 'C' ? 'bg-yellow-500' : 'bg-red-500'
+              }`}>
+                <p className="text-2xl">{room.teams[selectedR11TeamId].r11Feedback?.overallGrade}등급</p>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm text-gray-400">최종 점수: <span className="text-white font-bold">{room.teams[selectedR11TeamId].r11Feedback?.finalScore}점</span></p>
+                <p className="text-sm text-gray-400">소요시간: <span className="text-white font-bold">{room.teams[selectedR11TeamId].r11Feedback?.completionTime || '-'}</span></p>
+              </div>
+            </div>
+
+            {/* 대화 내용 */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-black text-yellow-400 uppercase">대화 기록</h3>
+              <div className="space-y-2 max-h-[400px] overflow-y-auto p-2 bg-gray-900 brutal-border">
+                {room.teams[selectedR11TeamId].r11Feedback?.conversationHistory.map((msg, idx) => (
+                  <div
+                    key={idx}
+                    className={`p-3 brutal-border ${
+                      msg.role === 'user'
+                        ? 'bg-blue-900/50 ml-4 border-blue-500'
+                        : 'bg-gray-800 mr-4 border-gray-600'
+                    }`}
+                  >
+                    <p className={`text-xs font-bold mb-1 ${msg.role === 'user' ? 'text-blue-400' : 'text-gray-400'}`}>
+                      {msg.role === 'user' ? '👤 직원 (학습자)' : '😠 고객 (AI)'}
+                    </p>
+                    <p className="text-sm text-white">{msg.content}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* AI 피드백 요약 */}
+            {room.teams[selectedR11TeamId].r11Feedback?.summary && (
+              <div className="bg-white/10 p-4 brutal-border">
+                <h3 className="text-sm font-black text-green-400 mb-2">AI 평가 요약</h3>
+                <p className="text-sm text-gray-300">{room.teams[selectedR11TeamId].r11Feedback?.summary}</p>
+              </div>
+            )}
+          </BrutalistCard>
+        </div>
+      )}
+
+      {/* R11 Analysis Modal - AI 고객응대 종합분석 */}
+      {showR11AnalysisModal && (
+        <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-50 p-4 overflow-auto">
+          <BrutalistCard className="max-w-4xl w-full space-y-6 my-8 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center sticky top-0 bg-black/90 pb-4 -mt-2 pt-2">
+              <h2 className="text-3xl font-black uppercase gold-gradient">AI 고객응대 종합분석</h2>
+              <BrutalistButton variant="ghost" onClick={() => setShowR11AnalysisModal(false)}>닫기</BrutalistButton>
+            </div>
+
+            {r11AnalysisLoading && (
+              <div className="text-center py-20">
+                <div className="text-6xl mb-4 animate-bounce">🤖</div>
+                <p className="text-xl font-bold text-yellow-400">AI가 고객응대 대화를 분석하고 있습니다...</p>
+                <p className="text-sm text-gray-400 mt-2">각 팀의 응대 스킬을 비교 분석 중입니다.</p>
+              </div>
+            )}
+
+            {r11AnalysisError && (
+              <div className="text-center py-10">
+                <div className="text-6xl mb-4">❌</div>
+                <p className="text-xl font-bold text-red-400">분석 중 오류가 발생했습니다</p>
+                <p className="text-sm text-gray-400 mt-2">{r11AnalysisError}</p>
+                <BrutalistButton variant="primary" className="mt-4" onClick={handleAnalyzeR11CustomerService}>
+                  다시 시도
+                </BrutalistButton>
+              </div>
+            )}
+
+            {r11AnalysisResult && r11AnalysisStats && (
+              <div className="space-y-6">
+                {/* 통계 카드 */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <BrutalistCard className="text-center bg-gradient-to-br from-green-900/50 to-green-700/30">
+                    <p className="text-xs text-gray-400 uppercase">평균 점수</p>
+                    <p className="text-3xl font-black text-green-400">
+                      {((r11AnalysisStats as Record<string, unknown>).avgScore as number)?.toFixed(1)}점
+                    </p>
+                  </BrutalistCard>
+                  <BrutalistCard className="text-center bg-gradient-to-br from-yellow-900/50 to-yellow-700/30">
+                    <p className="text-xs text-gray-400 uppercase">최고 점수</p>
+                    <p className="text-3xl font-black text-yellow-400">
+                      {(r11AnalysisStats as Record<string, unknown>).maxScore as number}점
+                    </p>
+                  </BrutalistCard>
+                  <BrutalistCard className="text-center bg-gradient-to-br from-red-900/50 to-red-700/30">
+                    <p className="text-xs text-gray-400 uppercase">최저 점수</p>
+                    <p className="text-3xl font-black text-red-400">
+                      {(r11AnalysisStats as Record<string, unknown>).minScore as number}점
+                    </p>
+                  </BrutalistCard>
+                  <BrutalistCard className="text-center bg-gradient-to-br from-purple-900/50 to-purple-700/30">
+                    <p className="text-xs text-gray-400 uppercase">참여 팀</p>
+                    <p className="text-3xl font-black text-purple-400">
+                      {(r11AnalysisStats as Record<string, unknown>).totalTeams as number}팀
+                    </p>
+                  </BrutalistCard>
+                </div>
+
+                {/* 전체 분석 */}
+                {(r11AnalysisResult as Record<string, unknown>).overallAnalysis && (
+                  <BrutalistCard className="border-yellow-400">
+                    <h3 className="text-lg font-black mb-3 text-yellow-400">📊 종합 평가</h3>
+                    <p className="text-sm text-gray-300 mb-4">
+                      {String(((r11AnalysisResult as Record<string, unknown>).overallAnalysis as Record<string, unknown>).summary || '')}
+                    </p>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div className="bg-green-900/30 p-3 brutal-border border-green-500/50">
+                        <p className="text-xs text-green-400 mb-2 font-bold">✅ 공통 강점</p>
+                        {(((r11AnalysisResult as Record<string, unknown>).overallAnalysis as Record<string, unknown>).commonStrengths as string[] || []).map((point, idx) => (
+                          <p key={idx} className="text-xs text-green-300">• {point}</p>
+                        ))}
+                      </div>
+                      <div className="bg-orange-900/30 p-3 brutal-border border-orange-500/50">
+                        <p className="text-xs text-orange-400 mb-2 font-bold">💡 공통 개선점</p>
+                        {(((r11AnalysisResult as Record<string, unknown>).overallAnalysis as Record<string, unknown>).commonWeaknesses as string[] || []).map((point, idx) => (
+                          <p key={idx} className="text-xs text-orange-300">• {point}</p>
+                        ))}
+                      </div>
+                    </div>
+                  </BrutalistCard>
+                )}
+
+                {/* 팀별 비교 */}
+                {(r11AnalysisResult as Record<string, unknown>).teamComparison && (
+                  <BrutalistCard>
+                    <h3 className="text-lg font-black mb-4 text-blue-400">🏆 팀별 분석</h3>
+                    <div className="space-y-4">
+                      {((r11AnalysisResult as Record<string, unknown>).teamComparison as Array<{ teamId: number; rank: number; highlights: string; improvements: string; bestMoment: string }>).map((team) => (
+                        <div key={team.teamId} className="bg-black/30 p-4 brutal-border">
+                          <div className="flex items-center gap-3 mb-2">
+                            <span className="text-xl font-black text-yellow-400">#{team.rank}</span>
+                            <span className="text-lg font-black text-white">{team.teamId}조</span>
+                          </div>
+                          <div className="space-y-2">
+                            <div className="bg-green-900/20 p-2 brutal-border">
+                              <p className="text-xs text-green-400 font-bold mb-1">🌟 빛났던 점</p>
+                              <p className="text-xs text-gray-300">{team.highlights}</p>
+                            </div>
+                            <div className="bg-blue-900/20 p-2 brutal-border">
+                              <p className="text-xs text-blue-400 font-bold mb-1">💬 인상적인 순간</p>
+                              <p className="text-xs text-gray-300 italic">"{team.bestMoment}"</p>
+                            </div>
+                            <div className="bg-orange-900/20 p-2 brutal-border">
+                              <p className="text-xs text-orange-400 font-bold mb-1">📈 개선 포인트</p>
+                              <p className="text-xs text-gray-300">{team.improvements}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </BrutalistCard>
+                )}
+
+                {/* 베스트 프랙티스 */}
+                {(r11AnalysisResult as Record<string, unknown>).bestPractices && (
+                  <BrutalistCard className="border-green-400">
+                    <h3 className="text-lg font-black mb-3 text-green-400">⭐ 베스트 프랙티스</h3>
+                    <ul className="space-y-2">
+                      {((r11AnalysisResult as Record<string, unknown>).bestPractices as string[]).map((practice, idx) => (
+                        <li key={idx} className="text-sm text-gray-300 flex gap-2 bg-green-900/20 p-3 brutal-border">
+                          <span className="text-green-400 font-bold">{idx + 1}.</span>
+                          <span>{practice}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </BrutalistCard>
+                )}
+
+                {/* 토의 주제 */}
+                {(r11AnalysisResult as Record<string, unknown>).discussionTopics && (
+                  <BrutalistCard className="border-purple-400">
+                    <h3 className="text-lg font-black mb-3 text-purple-400">💬 토의 주제</h3>
+                    <ul className="space-y-2">
+                      {((r11AnalysisResult as Record<string, unknown>).discussionTopics as string[]).map((topic, idx) => (
+                        <li key={idx} className="text-sm text-gray-300 flex gap-2 bg-purple-900/20 p-3 brutal-border">
+                          <span className="text-purple-400 font-bold">{idx + 1}.</span>
+                          <span>{topic}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </BrutalistCard>
+                )}
+
+                {/* 격려 메시지 */}
+                {(r11AnalysisResult as Record<string, unknown>).encouragement && (
+                  <div className="text-center p-6 bg-gradient-to-r from-yellow-900/30 to-orange-900/30 brutal-border border-yellow-400">
+                    <p className="text-lg font-bold text-yellow-400">
+                      🎉 {String((r11AnalysisResult as Record<string, unknown>).encouragement)}
+                    </p>
+                  </div>
                 )}
               </div>
             )}
