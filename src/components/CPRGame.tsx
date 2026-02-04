@@ -120,8 +120,8 @@ const CPRGame: React.FC<CPRGameProps> = ({ onComplete, onClose }) => {
 
     const now = Date.now();
 
-    // 태블릿 터치 이슈 방지: 최소 150ms 간격 필요 (400 BPM 제한)
-    if (lastClickTime.current !== 0 && now - lastClickTime.current < 150) {
+    // 태블릿 터치 이슈 방지: 최소 200ms 간격 필요 (300 BPM 제한)
+    if (lastClickTime.current !== 0 && now - lastClickTime.current < 200) {
       return; // 너무 빠른 연속 터치 무시
     }
 
@@ -130,6 +130,7 @@ const CPRGame: React.FC<CPRGameProps> = ({ onComplete, onClose }) => {
 
     if (lastClickTime.current === 0) {
       lastClickTime.current = now;
+      playSound('tick');
       return;
     }
 
@@ -140,43 +141,52 @@ const CPRGame: React.FC<CPRGameProps> = ({ onComplete, onClose }) => {
 
     let scoreAdd = 0;
 
-    // 난이도 하향: Perfect 구간 확대 (100-120 → 90-130 BPM), 점수 상향
-    if (currentBpm >= 90 && currentBpm <= 130) {
-      // Perfect 구간 (90-130 BPM) - 높은 점수 (태블릿 터치 고려하여 범위 확대)
-      setFeedback('PERFECT');
+    // CPR 적정 속도: 100-120 BPM
+    if (currentBpm >= 100 && currentBpm <= 120) {
+      // Perfect: 정확한 CPR 리듬
+      setFeedback('PERFECT!');
       setFeedbackColor('#00ff88');
       playSound('correct');
-      scoreAdd = 200 + (perfectCount * 25); // 기존 150+20 → 200+25
+      scoreAdd = 150 + (perfectCount * 20);
       setPerfectCount(prev => prev + 1);
-    } else if (currentBpm >= 70 && currentBpm < 90) {
-      // 약간 느림 - 중간 점수 (GOOD 구간 추가)
+    } else if (currentBpm >= 85 && currentBpm < 100) {
+      // 약간 느림 - 보통 점수
       setFeedback('GOOD');
       setFeedbackColor('#88ff00');
-      playSound('correct');
-      scoreAdd = 80 + (perfectCount * 10);
-    } else if (currentBpm > 130 && currentBpm <= 160) {
-      // 약간 빠름 - 중간 점수 (GOOD 구간 추가)
+      playSound('tick');
+      scoreAdd = 60;
+      setPerfectCount(0);
+    } else if (currentBpm > 120 && currentBpm <= 140) {
+      // 약간 빠름 - 보통 점수
       setFeedback('GOOD');
       setFeedbackColor('#88ff00');
-      playSound('correct');
-      scoreAdd = 80 + (perfectCount * 10);
-    } else if (currentBpm < 70) {
-      // 너무 느림 - 기본 점수 (기존 5점 → 40점)
-      setFeedback('FASTER!');
+      playSound('tick');
+      scoreAdd = 60;
+      setPerfectCount(0);
+    } else if (currentBpm < 85) {
+      // 너무 느림 - 점수 없음
+      setFeedback('TOO SLOW!');
       setFeedbackColor('#ffcc00');
       playSound('error');
-      scoreAdd = 40;
+      scoreAdd = 0;
       setPerfectCount(0);
-    } else {
-      // 너무 빠름 (160 BPM 초과) - 기본 점수
-      setFeedback('SLOWER!');
+    } else if (currentBpm > 140 && currentBpm <= 200) {
+      // 너무 빠름 - 점수 없음
+      setFeedback('TOO FAST!');
       setFeedbackColor('#ff3366');
       playSound('error');
-      scoreAdd = 40;
+      scoreAdd = 0;
+      setPerfectCount(0);
+    } else {
+      // 마구잡이 연타 (200 BPM 초과) - 감점
+      setFeedback('WRONG!');
+      setFeedbackColor('#ff0000');
+      playSound('error');
+      scoreAdd = -50;
       setPerfectCount(0);
     }
 
-    setScore(prev => prev + scoreAdd);
+    setScore(prev => Math.max(0, prev + scoreAdd));
   }, [isPlaying, perfectCount, playSound]);
 
   // Keyboard handler
@@ -309,15 +319,17 @@ const CPRGame: React.FC<CPRGameProps> = ({ onComplete, onClose }) => {
 
               <p className="text-center text-white/60 text-sm">화면을 터치하거나 스페이스바를 누르세요</p>
 
-              {/* BPM Gauge */}
+              {/* BPM Gauge - 100-120 BPM 적정 구간 표시 */}
               <div className="relative h-3 bg-white/10 rounded-full overflow-hidden">
-                <div className="absolute left-1/2 -translate-x-1/2 top-0 bottom-0 w-1/5 bg-white/20" />
+                {/* 적정 구간 표시 (100-120 BPM = 50%-60% 위치) */}
+                <div className="absolute top-0 bottom-0 bg-green-500/30 rounded" style={{ left: '50%', width: '10%' }} />
                 <div
                   className="h-full rounded-full transition-all"
                   style={{
                     width: `${bpmPercent}%`,
                     background: bpm >= 100 && bpm <= 120 ? 'linear-gradient(90deg, #00ff88, #00c6ff)' :
-                               bpm < 100 ? '#ffcc00' : '#ff3366'
+                               bpm >= 85 && bpm <= 140 ? '#88ff00' :
+                               '#ff3366'
                   }}
                 />
               </div>
