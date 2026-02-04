@@ -115,43 +115,39 @@ export const firebaseService = {
     if (!room) return;
 
     const now = Date.now();
-    room.missionStarted = true;
-    room.missionStartTime = now;
+    const roomRef = ref(database, `${ROOMS_REF}/${roomId}`);
+    const updates: Record<string, any> = {
+      missionStarted: true,
+      missionStartTime: now,
+    };
 
     // 모든 참가한 팀의 1라운드 시작 시간 기록
     Object.keys(room.teams).forEach(teamIdStr => {
       const teamId = parseInt(teamIdStr);
       if (room.teams[teamId]?.isJoined) {
-        room.teams[teamId].roundTimes = {
-          1: { startTime: now }
-        };
+        updates[`teams/${teamId}/roundTimes`] = { 1: { startTime: now } };
       }
     });
 
-    await firebaseService.saveRoom(room);
+    await update(roomRef, updates);
   },
 
   // 전체 미션 종료
   endMission: async (roomId: string): Promise<void> => {
-    const room = await firebaseService.getRoom(roomId);
-    if (!room) return;
-
-    room.missionStarted = false;
-    room.missionStartTime = null as any;
-    room.eventPausedTotal = 0;
-    room.activeEvent = EventType.NONE;
-    room.eventStartedAt = null as any;
-
-    await firebaseService.saveRoom(room);
+    const roomRef = ref(database, `${ROOMS_REF}/${roomId}`);
+    await update(roomRef, {
+      missionStarted: false,
+      missionStartTime: null,
+      eventPausedTotal: 0,
+      activeEvent: EventType.NONE,
+      eventStartedAt: null,
+    });
   },
 
   // 미션 타이머 설정
   setMissionTimer: async (roomId: string, minutes: number): Promise<void> => {
-    const room = await firebaseService.getRoom(roomId);
-    if (!room) return;
-
-    room.missionTimerMinutes = minutes;
-    await firebaseService.saveRoom(room);
+    const roomRef = ref(database, `${ROOMS_REF}/${roomId}`);
+    await update(roomRef, { missionTimerMinutes: minutes });
   },
 
   // 팀 라운드 진행 (다음 라운드로)
@@ -161,28 +157,29 @@ export const firebaseService = {
 
     const team = room.teams[teamId];
     const now = Date.now();
+    const roomRef = ref(database, `${ROOMS_REF}/${roomId}`);
+    const updates: Record<string, any> = {};
 
     // 현재 라운드 종료 시간 기록
     if (team.roundTimes[team.currentRound]) {
-      team.roundTimes[team.currentRound].endTime = now;
+      updates[`teams/${teamId}/roundTimes/${team.currentRound}/endTime`] = now;
     }
 
     const nextRound = team.currentRound + 1;
 
     if (nextRound > 12) {
       // 미션 완료
-      team.missionClearTime = now;
-      team.maxCompletedRound = 12;
+      updates[`teams/${teamId}/missionClearTime`] = now;
+      updates[`teams/${teamId}/maxCompletedRound`] = 12;
     } else {
       // 다음 라운드로 진행
-      team.currentRound = nextRound;
-      team.maxCompletedRound = Math.max(team.maxCompletedRound, team.currentRound - 1);
-
+      updates[`teams/${teamId}/currentRound`] = nextRound;
+      updates[`teams/${teamId}/maxCompletedRound`] = Math.max(team.maxCompletedRound, team.currentRound);
       // 다음 라운드 시작 시간 기록
-      team.roundTimes[nextRound] = { startTime: now };
+      updates[`teams/${teamId}/roundTimes/${nextRound}`] = { startTime: now };
     }
 
-    await firebaseService.saveRoom(room);
+    await update(roomRef, updates);
   },
 
   // 팀 라운드 이동 (뒤로가기/앞으로가기)
@@ -192,21 +189,24 @@ export const firebaseService = {
 
     const team = room.teams[teamId];
     const now = Date.now();
+    const roomRef = ref(database, `${ROOMS_REF}/${roomId}`);
+    const updates: Record<string, any> = {};
 
     // 현재 라운드 종료 시간 기록 (아직 없으면)
     if (team.roundTimes[team.currentRound] && !team.roundTimes[team.currentRound].endTime) {
-      team.roundTimes[team.currentRound].endTime = now;
+      updates[`teams/${teamId}/roundTimes/${team.currentRound}/endTime`] = now;
     }
 
     // 라운드 이동
-    team.currentRound = Math.max(1, Math.min(12, round));
+    const newRound = Math.max(1, Math.min(12, round));
+    updates[`teams/${teamId}/currentRound`] = newRound;
 
     // 새 라운드 시작 시간이 없으면 추가
-    if (!team.roundTimes[team.currentRound]) {
-      team.roundTimes[team.currentRound] = { startTime: now };
+    if (!team.roundTimes[newRound]) {
+      updates[`teams/${teamId}/roundTimes/${newRound}`] = { startTime: now };
     }
 
-    await firebaseService.saveRoom(room);
+    await update(roomRef, updates);
   },
 
   // 헬프 사용
@@ -220,15 +220,17 @@ export const firebaseService = {
     if (team.helpCount >= 3) return false;
 
     const now = Date.now();
-    team.helpCount += 1;
-    team.helpUsages = team.helpUsages || [];
-    team.helpUsages.push({
+    const roomRef = ref(database, `${ROOMS_REF}/${roomId}`);
+    const newHelpUsages = [...(team.helpUsages || []), {
       round: team.currentRound,
       usedAt: now
-    });
-    team.totalBonusTime += 180;  // +3분 (180초)
+    }];
 
-    await firebaseService.saveRoom(room);
+    await update(roomRef, {
+      [`teams/${teamId}/helpCount`]: team.helpCount + 1,
+      [`teams/${teamId}/helpUsages`]: newHelpUsages,
+      [`teams/${teamId}/totalBonusTime`]: team.totalBonusTime + 180,
+    });
     return true;
   },
 
@@ -238,42 +240,36 @@ export const firebaseService = {
     if (!room) return;
 
     const now = Date.now();
+    const roomRef = ref(database, `${ROOMS_REF}/${roomId}`);
+    const updates: Record<string, any> = {};
 
     if (room.activeEvent === type) {
-      // 같은 이벤트를 다시 누르면 비활성화 (시간 유무에 상관없이)
-      // 이벤트 일시정지 시간 계산 및 누적
+      // 같은 이벤트를 다시 누르면 비활성화
       if (room.eventStartedAt) {
         const pausedSeconds = Math.floor((now - room.eventStartedAt) / 1000);
-        room.eventPausedTotal = (room.eventPausedTotal || 0) + pausedSeconds;
+        updates.eventPausedTotal = (room.eventPausedTotal || 0) + pausedSeconds;
       }
-      room.activeEvent = EventType.NONE;
-      room.eventEndTime = null as any;
-      room.eventTargetTeams = null as any;
-      room.eventStartedAt = null as any;
+      updates.activeEvent = EventType.NONE;
+      updates.eventEndTime = null;
+      updates.eventTargetTeams = null;
+      updates.eventStartedAt = null;
     } else {
-      // 다른 이벤트 클릭: 새 이벤트로 교체 (기존 이벤트 자동 종료)
-      // 기존 이벤트가 있었다면 그 시간도 누적
+      // 다른 이벤트 클릭: 새 이벤트로 교체
       if (room.activeEvent !== EventType.NONE && room.eventStartedAt) {
         const pausedSeconds = Math.floor((now - room.eventStartedAt) / 1000);
-        room.eventPausedTotal = (room.eventPausedTotal || 0) + pausedSeconds;
+        updates.eventPausedTotal = (room.eventPausedTotal || 0) + pausedSeconds;
       }
-      room.activeEvent = type;
-      // 타이머 설정이 있으면 모든 이벤트에 적용 (minutes > 0일 때만)
-      room.eventEndTime = minutes && minutes > 0 ? now + minutes * 60000 : null as any;
-      room.eventTargetTeams = targetTeams || 'all';
-      room.eventStartedAt = now;  // 이벤트 시작 시간 기록
-
-      // 이벤트 이력 저장
-      if (!room.eventHistory) {
-        room.eventHistory = {};
-      }
-      room.eventHistory[type] = {
+      updates.activeEvent = type;
+      updates.eventEndTime = minutes && minutes > 0 ? now + minutes * 60000 : null;
+      updates.eventTargetTeams = targetTeams || 'all';
+      updates.eventStartedAt = now;
+      updates[`eventHistory/${type}`] = {
         targetTeams: targetTeams || 'all',
         executedAt: now
       };
     }
 
-    await firebaseService.saveRoom(room);
+    await update(roomRef, updates);
   },
 
   // 모든 이벤트 강제 종료 (즉시)
@@ -282,20 +278,28 @@ export const firebaseService = {
     if (!room) return;
 
     const now = Date.now();
+    const roomRef = ref(database, `${ROOMS_REF}/${roomId}`);
+    const updates: Record<string, any> = {};
 
     // 현재 이벤트가 있으면 일시정지 시간 누적
     if (room.activeEvent !== EventType.NONE && room.eventStartedAt) {
       const pausedSeconds = Math.floor((now - room.eventStartedAt) / 1000);
-      room.eventPausedTotal = (room.eventPausedTotal || 0) + pausedSeconds;
+      updates.eventPausedTotal = (room.eventPausedTotal || 0) + pausedSeconds;
     }
 
     // 모든 이벤트 관련 필드 강제 초기화
-    room.activeEvent = EventType.NONE;
-    room.eventEndTime = null as any;
-    room.eventTargetTeams = null as any;
-    room.eventStartedAt = null as any;
+    updates.activeEvent = EventType.NONE;
+    updates.eventEndTime = null;
+    updates.eventTargetTeams = null;
+    updates.eventStartedAt = null;
 
-    await firebaseService.saveRoom(room);
+    // 모든 팀의 currentEvent도 제거
+    const totalTeams = room.totalTeams || Object.keys(room.teams || {}).length;
+    for (let i = 1; i <= totalTeams; i++) {
+      updates[`teams/${i}/currentEvent`] = null;
+    }
+
+    await update(roomRef, updates);
   },
 
   // 팀 성과 분석 계산
@@ -354,15 +358,10 @@ export const firebaseService = {
     const room = await firebaseService.getRoom(roomId);
     if (!room) return;
 
-    // teams가 없으면 초기화
-    if (!room.teams) {
-      room.teams = {};
-    }
-
-    const existingTeam = room.teams[teamId];
+    const existingTeam = room.teams?.[teamId];
     const now = Date.now();
 
-    room.teams[teamId] = {
+    const newTeamData = {
       ...createDefaultTeamState(teamId),
       ...existingTeam,
       ...teamData,
@@ -370,7 +369,10 @@ export const firebaseService = {
       roundTimes: existingTeam?.roundTimes || (room.missionStarted ? { 1: { startTime: now } } : {})
     };
 
-    await firebaseService.saveRoom(room);
+    const roomRef = ref(database, `${ROOMS_REF}/${roomId}`);
+    await update(roomRef, {
+      [`teams/${teamId}`]: newTeamData
+    });
   },
 
   // R12: 팀활동 결과보고서 저장
@@ -383,14 +385,14 @@ export const firebaseService = {
     const room = await firebaseService.getRoom(roomId);
     if (!room || !room.teams[teamId]) return;
 
-    const team = room.teams[teamId];
-    team.teamReport = {
-      ...report,
-      imageData,
-      submittedAt: Date.now()
-    };
-
-    await firebaseService.saveRoom(room);
+    const roomRef = ref(database, `${ROOMS_REF}/${roomId}`);
+    await update(roomRef, {
+      [`teams/${teamId}/teamReport`]: {
+        ...report,
+        imageData,
+        submittedAt: Date.now()
+      }
+    });
   },
 
   // R11: 고객 응대 피드백 저장
@@ -412,13 +414,13 @@ export const firebaseService = {
     const room = await firebaseService.getRoom(roomId);
     if (!room || !room.teams[teamId]) return;
 
-    const team = room.teams[teamId];
-    team.r11Feedback = {
-      ...feedback,
-      submittedAt: Date.now()
-    };
-
-    await firebaseService.saveRoom(room);
+    const roomRef = ref(database, `${ROOMS_REF}/${roomId}`);
+    await update(roomRef, {
+      [`teams/${teamId}/r11Feedback`]: {
+        ...feedback,
+        submittedAt: Date.now()
+      }
+    });
   },
 
   // R5: 단체사진 Firebase Storage 업로드
@@ -467,8 +469,10 @@ export const firebaseService = {
       };
 
       // 팀 상태에 사진 정보 저장
-      room.teams[teamId].groupPhoto = groupPhoto;
-      await firebaseService.saveRoom(room);
+      const roomRef = ref(database, `${ROOMS_REF}/${roomId}`);
+      await update(roomRef, {
+        [`teams/${teamId}/groupPhoto`]: groupPhoto
+      });
 
       return groupPhoto;
     } catch (error) {

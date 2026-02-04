@@ -3556,11 +3556,15 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
             <div className="space-y-4">
               <BrutalistCard className="space-y-5">
                 <div className="text-center">
-                  <img
-                    src="https://i.ibb.co/8n1B8x3D/17.jpg"
-                    alt="제기차기"
-                    className="w-full max-w-md mx-auto rounded-lg mb-4 brutal-border"
-                  />
+                  <div className="cursor-pointer" onClick={() => setMissionImagePopup('https://i.ibb.co/8n1B8x3D/17.jpg')}>
+                    <img
+                      src="https://i.ibb.co/8n1B8x3D/17.jpg"
+                      alt="제기차기"
+                      className="w-full max-w-md mx-auto rounded-lg mb-4 brutal-border hover:scale-105 transition-transform"
+                      loading="lazy"
+                    />
+                    <p className="text-center text-sm text-gray-400 mt-2">👆 클릭하여 크게 보기</p>
+                  </div>
                   <h4 className="text-2xl font-black text-yellow-400 uppercase">팀 제기차기 챌린지</h4>
                 </div>
 
@@ -3596,6 +3600,16 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
             </div>
           )}
         </div>
+
+        {/* 이미지 팝업 */}
+        {missionImagePopup && (
+          <div className="fixed inset-0 bg-black/90 z-[200] flex items-center justify-center p-4" onClick={() => setMissionImagePopup(null)}>
+            <div className="relative max-w-4xl w-full">
+              <button onClick={() => setMissionImagePopup(null)} className="absolute -top-4 -right-4 z-10 w-10 h-10 bg-red-500 text-white font-black rounded-full flex items-center justify-center hover:bg-red-400 brutal-border">✕</button>
+              <img src={missionImagePopup} alt="지령 이미지" className="w-full" />
+            </div>
+          </div>
+        )}
 
         <div className="fixed bottom-4 right-4 z-40">
           <button onClick={() => setViewState('factory')} className="brutal-border font-black py-3 px-6 transition-all bg-gray-700 text-white hover:bg-gray-600 brutalist-shadow">
