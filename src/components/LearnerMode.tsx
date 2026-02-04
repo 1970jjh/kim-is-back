@@ -3557,7 +3557,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
               <BrutalistCard className="space-y-5">
                 <div className="text-center">
                   <img
-                    src="https://i.ibb.co/3bWHmx3/R12.jpg"
+                    src="https://i.ibb.co/8n1B8x3D/17.jpg"
                     alt="제기차기"
                     className="w-full max-w-md mx-auto rounded-lg mb-4 brutal-border"
                   />
@@ -3566,13 +3566,13 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
 
                 <div className="bg-black/30 p-4 rounded space-y-3 text-sm">
                   <p className="font-bold text-yellow-400">📋 미션 규칙</p>
-                  <ul className="space-y-2 text-gray-300 list-disc list-inside">
-                    <li>팀원 모두가 앞으로 나와서 함께 제기를 차세요</li>
-                    <li><span className="text-green-400 font-bold">손과 발 모두 사용 가능</span>합니다</li>
-                    <li>제기를 바닥에 떨어뜨리면 자리에 앉았다가 다시 나와야 합니다</li>
-                    <li>한 사람은 <span className="text-red-400 font-bold">최대 두 번</span>까지만 터치할 수 있습니다</li>
-                    <li><span className="text-yellow-400 font-bold">10개 이상</span> 차야 통과!</li>
-                  </ul>
+                  <ol className="space-y-2 text-gray-300 list-decimal list-inside">
+                    <li>앞에 있는 제기 1개를 가지고 가서 자체적으로 충분히 연습한 후에 준비가 되면 앞으로 나와서 강사에게 말하고, <span className="text-yellow-400 font-bold">"#조 제기차기 도전!"</span>을 외치며 도전할 수 있다.</li>
+                    <li>팀원 모두가 손 또는 발로 <span className="text-yellow-400 font-bold">10개 이상</span> 차면 미션 성공!!</li>
+                    <li>한 사람이 연속으로 <span className="text-red-400 font-bold">2개까지만 터치 가능</span>(한 사람이 연속 3개X)</li>
+                    <li>도전 했으나 10개 미만으로 실패한 경우에는 조별 좌석으로 돌아가 <span className="text-cyan-400 font-bold">쿨다운 휴식 1분 후</span>에 도전 가능.</li>
+                    <li>가능한 모든 팀원이 참여하되 <span className="text-red-400 font-bold">다치지 않도록 주의!</span></li>
+                  </ol>
                 </div>
 
                 <div className="space-y-3">
