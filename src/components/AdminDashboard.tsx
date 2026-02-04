@@ -354,6 +354,12 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
 
   // TOTAL PERFORMANCE handlers
   const handleAnalyzeTotalPerformance = async () => {
+    // 이미 분석 결과가 있으면 모달만 열기
+    if (analysisResult && analysisStats) {
+      setShowAnalysisModal(true);
+      return;
+    }
+
     setAnalysisLoading(true);
     setAnalysisError(null);
     setAnalysisResult(null);
@@ -1316,6 +1322,8 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
                 <span className="animate-spin">⏳</span>
                 AI 종합 분석 중...
               </span>
+            ) : analysisResult ? (
+              '📊 AI 종합 성과 분석 결과 보기'
             ) : (
               '📊 AI 종합 성과 분석 시작'
             )}
@@ -1532,9 +1540,18 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
               <h2 className="text-3xl font-black uppercase gold-gradient">AI 종합 성과 분석</h2>
               <div className="flex gap-2">
                 {analysisResult && (
-                  <BrutalistButton variant="gold" onClick={handleDownloadAnalysisPDF} className="text-sm" data-pdf-button>
-                    📥 PDF 다운로드
-                  </BrutalistButton>
+                  <>
+                    <BrutalistButton variant="gold" onClick={handleDownloadAnalysisPDF} className="text-sm" data-pdf-button>
+                      📥 PDF 다운로드
+                    </BrutalistButton>
+                    <BrutalistButton variant="primary" className="text-sm" onClick={() => {
+                      setAnalysisResult(null);
+                      setAnalysisStats(null);
+                      handleAnalyzeTotalPerformance();
+                    }}>
+                      🔄 다시 분석
+                    </BrutalistButton>
+                  </>
                 )}
                 <BrutalistButton variant="ghost" onClick={() => setShowAnalysisModal(false)}>닫기</BrutalistButton>
               </div>
