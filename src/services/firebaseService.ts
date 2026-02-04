@@ -1,4 +1,4 @@
-import { ref, set, onValue, get, remove } from 'firebase/database';
+import { ref, set, onValue, get, remove, update } from 'firebase/database';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { database, storage } from '../lib/firebase';
 import { RoomState, EventType, AppState, TeamState, TeamPerformance, IndustryType, GroupPhoto, TeamEvent } from '../types';
@@ -501,7 +501,7 @@ export const firebaseService = {
     minutes?: number
   ): Promise<void> => {
     const room = await firebaseService.getRoom(roomId);
-    if (!room || !room.teams[teamId]) return;
+    if (!room) return;
 
     const now = Date.now();
     const teamEvent: TeamEvent = {
@@ -510,16 +510,9 @@ export const firebaseService = {
       endTime: minutes && minutes > 0 ? now + minutes * 60000 : undefined
     };
 
-    room.teams[teamId].currentEvent = teamEvent;
-
-    // 이벤트 이력 업데이트
-    if (!room.eventHistory) {
-      room.eventHistory = {};
-    }
-    const existingHistory = room.eventHistory[eventType];
+    // 이벤트 이력 계산
+    const existingHistory = room.eventHistory?.[eventType];
     const existingTargets = existingHistory?.targetTeams;
-
-    // 기존 대상에 현재 팀 추가
     let newTargets: number[] | 'all';
     if (existingTargets === 'all') {
       newTargets = 'all';
@@ -529,31 +522,35 @@ export const firebaseService = {
       newTargets = [teamId];
     }
 
-    room.eventHistory[eventType] = {
-      targetTeams: newTargets,
-      executedAt: now
-    };
-
-    await firebaseService.saveRoom(room);
+    // update()로 특정 경로만 업데이트 (다른 팀 데이터 보존)
+    const roomRef = ref(database, `${ROOMS_REF}/${roomId}`);
+    await update(roomRef, {
+      [`teams/${teamId}/currentEvent`]: teamEvent,
+      [`eventHistory/${eventType}`]: {
+        targetTeams: newTargets,
+        executedAt: now
+      }
+    });
   },
 
   // 팀별 이벤트 종료 (개별 조의 이벤트 종료)
   endTeamEvent: async (roomId: string, teamId: number): Promise<void> => {
     const room = await firebaseService.getRoom(roomId);
-    if (!room || !room.teams[teamId]) return;
+    if (!room || !room.teams?.[teamId]) return;
 
     const team = room.teams[teamId];
     if (team.currentEvent) {
-      // 일시정지 시간 누적
       const now = Date.now();
       const pausedSeconds = Math.floor((now - team.currentEvent.startedAt) / 1000);
-      room.eventPausedTotal = (room.eventPausedTotal || 0) + pausedSeconds;
+      const newPausedTotal = (room.eventPausedTotal || 0) + pausedSeconds;
 
-      // 이벤트 종료 (Firebase에서 삭제하려면 null 사용)
-      team.currentEvent = null as any;
+      // update()로 특정 경로만 업데이트
+      const roomRef = ref(database, `${ROOMS_REF}/${roomId}`);
+      await update(roomRef, {
+        [`teams/${teamId}/currentEvent`]: null,
+        eventPausedTotal: newPausedTotal
+      });
     }
-
-    await firebaseService.saveRoom(room);
   },
 
   // 전체 팀 이벤트 시작 (모든 조에 동일 이벤트 시작)
@@ -572,22 +569,21 @@ export const firebaseService = {
       endTime: minutes && minutes > 0 ? now + minutes * 60000 : undefined
     };
 
-    // 모든 팀에 이벤트 적용
-    Object.keys(room.teams).forEach(teamIdStr => {
-      const teamId = parseInt(teamIdStr);
-      room.teams[teamId].currentEvent = teamEvent;
-    });
-
-    // 이벤트 이력 업데이트
-    if (!room.eventHistory) {
-      room.eventHistory = {};
-    }
-    room.eventHistory[eventType] = {
-      targetTeams: 'all',
-      executedAt: now
+    // update()로 모든 팀에 이벤트 적용 (totalTeams 기준으로 모든 팀 포함)
+    const roomRef = ref(database, `${ROOMS_REF}/${roomId}`);
+    const updates: Record<string, any> = {
+      [`eventHistory/${eventType}`]: {
+        targetTeams: 'all',
+        executedAt: now
+      }
     };
 
-    await firebaseService.saveRoom(room);
+    const totalTeams = room.totalTeams || Object.keys(room.teams).length;
+    for (let i = 1; i <= totalTeams; i++) {
+      updates[`teams/${i}/currentEvent`] = teamEvent;
+    }
+
+    await update(roomRef, updates);
   },
 
   // 전체 팀 이벤트 종료 (모든 조의 이벤트 종료)
@@ -596,19 +592,26 @@ export const firebaseService = {
     if (!room) return;
 
     const now = Date.now();
+    let totalPausedSeconds = 0;
 
-    // 모든 팀의 이벤트 종료 (Firebase에서 삭제하려면 null 사용)
-    Object.keys(room.teams).forEach(teamIdStr => {
-      const teamId = parseInt(teamIdStr);
-      const team = room.teams[teamId];
+    Object.values(room.teams).forEach(team => {
       if (team.currentEvent) {
-        const pausedSeconds = Math.floor((now - team.currentEvent.startedAt) / 1000);
-        room.eventPausedTotal = (room.eventPausedTotal || 0) + pausedSeconds;
-        team.currentEvent = null as any;
+        totalPausedSeconds += Math.floor((now - team.currentEvent.startedAt) / 1000);
       }
     });
 
-    await firebaseService.saveRoom(room);
+    // update()로 모든 팀의 이벤트 종료
+    const roomRef = ref(database, `${ROOMS_REF}/${roomId}`);
+    const updates: Record<string, any> = {
+      eventPausedTotal: (room.eventPausedTotal || 0) + totalPausedSeconds
+    };
+
+    const totalTeams = room.totalTeams || Object.keys(room.teams).length;
+    for (let i = 1; i <= totalTeams; i++) {
+      updates[`teams/${i}/currentEvent`] = null;
+    }
+
+    await update(roomRef, updates);
   },
 
   // 특정 팀이 이벤트 진행 중인지 확인
