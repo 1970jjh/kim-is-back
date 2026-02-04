@@ -1079,7 +1079,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
       setR10Cleared(true);
       setR10Error('');
     } else {
-      setR10Error('강사님이 알려준 시간을 입력해주세요.');
+      setR10Error('10월 미션 성공 시간을 입력해주세요.');
     }
   };
 
@@ -2992,10 +2992,13 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
             <p className="text-center text-sm text-gray-400 mt-2">👆 클릭하여 크게 보기</p>
           </div>
 
-          <BrutalistCard className="space-y-4 text-center">
-            <p className="text-xl font-bold">팀원들과 함께 완벽한 3개의 정사각형을 완성하세요!</p>
-            <p className="text-lg text-yellow-400">모두 앞으로 나오세요.</p>
-            <p className="text-sm text-gray-400">완료 후 강사님이 알려주는 시간을 입력하세요.</p>
+          <BrutalistCard className="space-y-4 text-left">
+            <ol className="space-y-3 text-base">
+              <li className="flex gap-2"><span className="font-black text-yellow-400">1.</span><span>팀원들과 모두 함께 10월 미션 장소로 나와주세요</span></li>
+              <li className="flex gap-2"><span className="font-black text-yellow-400">2.</span><span>"#조 도전!"을 외치고 타이머를 켠 후에 1분 내로 완벽한 3개 정사각형 세트를 완성하세요!</span></li>
+              <li className="flex gap-2"><span className="font-black text-yellow-400">3.</span><span>1분이 초과되어 실패했다면 조별 좌석으로 돌아가 2분간 연구하고 다시 도전할 수 있습니다.</span></li>
+              <li className="flex gap-2"><span className="font-black text-yellow-400">4.</span><span>1분 이내에 3개 세트를 모두 완성했다면 강사에게 타이머를 가지고 와서 확인 받아야 통과!</span></li>
+            </ol>
           </BrutalistCard>
 
           {r10Cleared ? (
@@ -3018,7 +3021,7 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
             </div>
           ) : (
             <BrutalistCard className="space-y-4">
-              <label className="block text-lg font-black text-yellow-400 uppercase">강사님이 알려준 시간 입력</label>
+              <label className="block text-lg font-black text-yellow-400 uppercase">10월 미션 성공 시간 입력</label>
               <BrutalistInput fullWidth placeholder="예: 2분 30초" value={r10Answer} onChange={(e) => { setR10Answer(e.target.value); setR10Error(''); }} onKeyDown={(e) => { if (e.key === 'Enter') handleR10Submit(); }} />
               {r10Error && <p className="text-red-500 font-bold text-sm">{r10Error}</p>}
               <BrutalistButton variant="gold" fullWidth onClick={handleR10Submit}>확인</BrutalistButton>
