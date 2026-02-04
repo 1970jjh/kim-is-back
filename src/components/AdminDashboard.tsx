@@ -1821,6 +1821,16 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
                     )}
                   </>
                 )}
+
+                {/* Fallback: rawText가 있고 teamSummaries가 없는 경우 */}
+                {!(analysisResult as Record<string, unknown>).teamSummaries && (analysisResult as Record<string, unknown>).rawText && (
+                  <BrutalistCard className="border-yellow-400">
+                    <h3 className="text-lg font-black mb-4 text-yellow-400">📋 AI 분석 결과</h3>
+                    <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">
+                      {String((analysisResult as Record<string, unknown>).rawText)}
+                    </p>
+                  </BrutalistCard>
+                )}
               </div>
             )}
           </BrutalistCard>

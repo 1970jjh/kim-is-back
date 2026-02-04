@@ -1064,7 +1064,7 @@ ${bestMissions || '수집된 소감 없음'}
         }],
         generationConfig: {
           temperature: 0.7,
-          maxOutputTokens: 4096
+          maxOutputTokens: 16384
         }
       })
     });
