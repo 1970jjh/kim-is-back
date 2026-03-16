@@ -28,7 +28,10 @@ export enum IndustryType {
   CHEMICAL_ENERGY = 7,    // 화학/에너지
   MEDICAL = 8,            // 의료/제약
   LOGISTICS = 9,          // 물류/운송
-  FNB = 10                // 식음료(F&B)
+  FNB = 10,               // 식음료(F&B)
+  LEADERSHIP = 11,        // 리더십 과정
+  MIDDLE_MANAGER = 12,    // 중간관리자 과정
+  FOLLOWERSHIP = 13       // 팔로워십 과정
 }
 
 export const IndustryTypeLabels: Record<IndustryType, string> = {
@@ -41,7 +44,10 @@ export const IndustryTypeLabels: Record<IndustryType, string> = {
   [IndustryType.CHEMICAL_ENERGY]: '화학/에너지',
   [IndustryType.MEDICAL]: '의료/제약',
   [IndustryType.LOGISTICS]: '물류/운송',
-  [IndustryType.FNB]: '식음료(F&B)'
+  [IndustryType.FNB]: '식음료(F&B)',
+  [IndustryType.LEADERSHIP]: '리더십 과정',
+  [IndustryType.MIDDLE_MANAGER]: '중간관리자 과정',
+  [IndustryType.FOLLOWERSHIP]: '팔로워십 과정'
 };
 
 export interface TeamMember {
