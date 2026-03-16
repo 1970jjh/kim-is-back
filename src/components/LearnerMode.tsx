@@ -2677,16 +2677,6 @@ const LearnerMode: React.FC<Props> = ({ room, auth, onGoToMain }) => {
               </div>
               <BrutalistButton variant="gold" fullWidth className="text-2xl" onClick={handleR6Clear}>월 업무 마감하기(클릭)</BrutalistButton>
             </div>
-          ) : isR6Completed ? (
-            <div className="space-y-6">
-              <div className="bg-green-600/20 border-2 border-green-500 text-white p-6 brutal-border text-center">
-                <p className="text-2xl font-black text-green-400">✓ 이미 완료한 미션입니다</p>
-              </div>
-              <div className="flex gap-4">
-                <BrutalistButton variant="ghost" onClick={() => setViewState('factory')} className="flex-shrink-0">← 공장</BrutalistButton>
-                <BrutalistButton variant="gold" fullWidth onClick={() => { firebaseService.setTeamRound(room.id, auth.teamId, 7); setViewState('factory'); }}>다음 라운드로 →</BrutalistButton>
-              </div>
-            </div>
           ) : (
             <BrutalistCard className="space-y-4">
               <label className="block text-lg font-black text-yellow-400 uppercase">정답 입력</label>
