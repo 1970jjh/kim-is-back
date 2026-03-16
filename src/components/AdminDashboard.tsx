@@ -1356,7 +1356,7 @@ const AdminDashboard: React.FC<Props> = ({ room, rooms, onSelectRoom, onLogout, 
                 onChange={(e) => setNewRoomData({...newRoomData, groupName: e.target.value})}
               />
               <div>
-                <label className="block font-bold">산업군 선택</label>
+                <label className="block font-bold">산업군/직급</label>
                 <select
                   className="w-full brutal-border bg-white text-black p-2 font-bold text-sm mt-1"
                   value={newRoomData.industryType}
